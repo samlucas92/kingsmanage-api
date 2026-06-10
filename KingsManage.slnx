@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KingsManage.Mongo/KingsManage.Mongo.csproj" />
+    <Project Path="src/KingsManage.Web/KingsManage.Web.csproj" />
+    <Project Path="src/KingsManage/KingsManage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KingsManage.Tests/KingsManage.Tests.csproj" />
+  </Folder>
+</Solution>
