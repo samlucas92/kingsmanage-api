@@ -1,5 +1,6 @@
 using KingsManage;
 using KingsManage.Mongo;
+using KingsManage.Mongo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,7 +16,9 @@ if (mongoDbSettings is null)
 builder.Services.AddSingleton(mongoDbSettings);
 builder.Services.AddSingleton<MongoContext>();
 
-builder.Services.AddScoped<IPlayerService, KingsManage.Mongo.Services.PlayerService>();
+builder.Services.AddScoped<IPlayerService, PlayerService>();
+builder.Services.AddScoped<ISeasonService, SeasonService>();
+builder.Services.AddScoped<IMatchService, MatchService>();
 
 builder.Services.AddControllers();
 

@@ -179,3 +179,4 @@
 /Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/obj/Debug/net10.0/KingsManage.Tests.pdb
 /Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/obj/Debug/net10.0/KingsManage.Tests.genruntimeconfig.cache
 /Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/obj/Debug/net10.0/ref/KingsManage.Tests.dll
+/Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/obj/Debug/net10.0/KingsManage.Tests.sourcelink.json

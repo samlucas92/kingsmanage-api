@@ -44,3 +44,4 @@
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/obj/Debug/net10.0/KingsManage.Web.pdb
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/obj/Debug/net10.0/KingsManage.Web.genruntimeconfig.cache
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/obj/Debug/net10.0/ref/KingsManage.Web.dll
+/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/obj/Debug/net10.0/KingsManage.Web.sourcelink.json
