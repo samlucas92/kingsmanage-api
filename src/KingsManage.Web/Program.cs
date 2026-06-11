@@ -1,6 +1,9 @@
 using KingsManage;
 using KingsManage.Mongo;
-using KingsManage.Mongo.Services;
+using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
+using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
+using MongoMatchService = KingsManage.Mongo.Services.MatchService;
+using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,11 +19,16 @@ if (mongoDbSettings is null)
 builder.Services.AddSingleton(mongoDbSettings);
 builder.Services.AddSingleton<MongoContext>();
 
-builder.Services.AddScoped<IPlayerService, PlayerService>();
-builder.Services.AddScoped<ISeasonService, SeasonService>();
-builder.Services.AddScoped<IMatchService, MatchService>();
+builder.Services.AddScoped<IPlayerService, MongoPlayerService>();
+builder.Services.AddScoped<ISeasonService, MongoSeasonService>();
+builder.Services.AddScoped<IMatchService, MongoMatchService>();
 
-builder.Services.AddControllers();
+builder.Services
+	.AddControllers()
+	.AddNewtonsoftJson(options =>
+	{
+		options.SerializerSettings.Converters.Add(new StringEnumConverter());
+	});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

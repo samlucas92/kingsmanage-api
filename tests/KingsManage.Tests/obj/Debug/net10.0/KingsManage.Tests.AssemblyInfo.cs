@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KingsManage.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d4acd613e987e90f50ccbab9b26c0082d87e086b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+63b733cf96d968f7fe824caf14418dd39fae437e")]
 [assembly: System.Reflection.AssemblyProductAttribute("KingsManage.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KingsManage.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

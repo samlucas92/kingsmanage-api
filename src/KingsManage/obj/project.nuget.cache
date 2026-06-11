@@ -1,8 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "3E8IJiE/9gc=",
+  "dgSpecHash": "WwGuMVsOFKs=",
   "success": true,
   "projectFilePath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "/Users/samlucas/.nuget/packages/microsoft.aspnetcore.jsonpatch/10.0.9/microsoft.aspnetcore.jsonpatch.10.0.9.nupkg.sha512",
+    "/Users/samlucas/.nuget/packages/microsoft.aspnetcore.mvc.newtonsoftjson/10.0.9/microsoft.aspnetcore.mvc.newtonsoftjson.10.0.9.nupkg.sha512",
+    "/Users/samlucas/.nuget/packages/newtonsoft.json/13.0.3/newtonsoft.json.13.0.3.nupkg.sha512",
+    "/Users/samlucas/.nuget/packages/newtonsoft.json.bson/1.0.2/newtonsoft.json.bson.1.0.2.nupkg.sha512"
+  ],
   "logs": []
 }
