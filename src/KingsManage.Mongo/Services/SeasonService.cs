@@ -1,5 +1,4 @@
 using KingsManage;
-using KingsManage.Mongo;
 using MongoDB.Driver;
 
 namespace KingsManage.Mongo.Services;
@@ -24,7 +23,7 @@ public class SeasonService : ISeasonService
 	}
 
 	public async Task<Season?> GetByIdAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -47,8 +46,8 @@ public class SeasonService : ISeasonService
 		CancellationToken cancellationToken = default
 	)
 	{
-		season.Id = string.IsNullOrWhiteSpace(season.Id)
-			? Guid.NewGuid().ToString()
+		season.Id = season.Id == Guid.Empty
+			? Guid.NewGuid()
 			: season.Id;
 
 		season.Name = season.Name.Trim();
@@ -93,7 +92,7 @@ public class SeasonService : ISeasonService
 	}
 
 	public async Task<Season?> SetActiveAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -135,7 +134,7 @@ public class SeasonService : ISeasonService
 	}
 
 	private async Task DeactivateAllExceptAsync(
-		string activeSeasonId,
+		Guid activeSeasonId,
 		CancellationToken cancellationToken
 	)
 	{

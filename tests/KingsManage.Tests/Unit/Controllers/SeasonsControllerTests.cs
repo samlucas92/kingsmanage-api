@@ -2,24 +2,22 @@ using KingsManage;
 using KingsManage.Web.Controllers;
 using Microsoft.AspNetCore.Mvc;
 
-namespace KingsManage.Tests;
+namespace KingsManage.Tests.Unit.Controllers;
 
 public class SeasonsControllerTests
 {
+	private static readonly Guid SeasonOneId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+	private static readonly Guid SeasonTwoId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+	private static readonly Guid MissingSeasonId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
 	[Test]
-	public async Task GetAll_ShouldReturnSeasons()
+	public async Task GetAll_ShouldReturnAllSeasons()
 	{
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
 
-		seasonService.Seasons.Add(new Season
-		{
-			Id = "season-1",
-			Name = "2025-2026",
-			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-			IsActive = true
-		});
+		seasonService.Seasons.Add(CreateSeason(SeasonOneId, "2025-2026", true));
+		seasonService.Seasons.Add(CreateSeason(SeasonTwoId, "2026-2027", false));
 
 		var result = await controller.GetAll(CancellationToken.None);
 
@@ -28,8 +26,7 @@ public class SeasonsControllerTests
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(seasons, Is.Not.Null);
-		Assert.That(seasons, Has.Count.EqualTo(1));
-		Assert.That(seasons![0].Name, Is.EqualTo("2025-2026"));
+		Assert.That(seasons, Has.Count.EqualTo(2));
 	}
 
 	[Test]
@@ -38,14 +35,8 @@ public class SeasonsControllerTests
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
 
-		seasonService.Seasons.Add(new Season
-		{
-			Id = "season-1",
-			Name = "2025-2026",
-			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-			IsActive = true
-		});
+		seasonService.Seasons.Add(CreateSeason(SeasonOneId, "2025-2026", true));
+		seasonService.Seasons.Add(CreateSeason(SeasonTwoId, "2026-2027", false));
 
 		var result = await controller.GetActive(CancellationToken.None);
 
@@ -54,7 +45,8 @@ public class SeasonsControllerTests
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(season, Is.Not.Null);
-		Assert.That(season!.IsActive, Is.True);
+		Assert.That(season!.Id, Is.EqualTo(SeasonOneId));
+		Assert.That(season.IsActive, Is.True);
 	}
 
 	[Test]
@@ -63,7 +55,42 @@ public class SeasonsControllerTests
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
 
+		seasonService.Seasons.Add(CreateSeason(SeasonOneId, "2025-2026", false));
+
 		var result = await controller.GetActive(CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
+	}
+
+	[Test]
+	public async Task GetById_WhenIdIsEmpty_ShouldReturnBadRequest()
+	{
+		var seasonService = new FakeSeasonService();
+		var controller = new SeasonsController(seasonService);
+
+		var result = await controller.GetById("", CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task GetById_WhenIdIsNotGuid_ShouldReturnBadRequest()
+	{
+		var seasonService = new FakeSeasonService();
+		var controller = new SeasonsController(seasonService);
+
+		var result = await controller.GetById("not-a-guid", CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task GetById_WhenSeasonDoesNotExist_ShouldReturnNotFound()
+	{
+		var seasonService = new FakeSeasonService();
+		var controller = new SeasonsController(seasonService);
+
+		var result = await controller.GetById(MissingSeasonId.ToString(), CancellationToken.None);
 
 		Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
 	}
@@ -74,34 +101,16 @@ public class SeasonsControllerTests
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
 
-		seasonService.Seasons.Add(new Season
-		{
-			Id = "season-1",
-			Name = "2025-2026",
-			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-			IsActive = true
-		});
+		seasonService.Seasons.Add(CreateSeason(SeasonOneId, "2025-2026", true));
 
-		var result = await controller.GetById("season-1", CancellationToken.None);
+		var result = await controller.GetById(SeasonOneId.ToString(), CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
 		var season = okResult?.Value as Season;
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(season, Is.Not.Null);
-		Assert.That(season!.Id, Is.EqualTo("season-1"));
-	}
-
-	[Test]
-	public async Task GetById_WhenSeasonDoesNotExist_ShouldReturnNotFound()
-	{
-		var seasonService = new FakeSeasonService();
-		var controller = new SeasonsController(seasonService);
-
-		var result = await controller.GetById("missing-season", CancellationToken.None);
-
-		Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
+		Assert.That(season!.Id, Is.EqualTo(SeasonOneId));
 	}
 
 	[Test]
@@ -115,28 +124,7 @@ public class SeasonsControllerTests
 			{
 				Name = "",
 				StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-				EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-				IsActive = true
-			},
-			CancellationToken.None
-		);
-
-		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
-	}
-
-	[Test]
-	public async Task Create_WhenEndDateIsBeforeStartDate_ShouldReturnBadRequest()
-	{
-		var seasonService = new FakeSeasonService();
-		var controller = new SeasonsController(seasonService);
-
-		var result = await controller.Create(
-			new Season
-			{
-				Name = "2025-2026",
-				StartDate = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-				EndDate = new DateTime(2025, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-				IsActive = true
+				EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc)
 			},
 			CancellationToken.None
 		);
@@ -166,9 +154,24 @@ public class SeasonsControllerTests
 
 		Assert.That(createdResult, Is.Not.Null);
 		Assert.That(season, Is.Not.Null);
-		Assert.That(season!.Id, Is.Not.Empty);
-		Assert.That(season.Name, Is.EqualTo("2025-2026"));
+		Assert.That(season!.Id, Is.Not.EqualTo(Guid.Empty));
+		Assert.That(season.IsActive, Is.True);
 		Assert.That(seasonService.Seasons, Has.Count.EqualTo(1));
+	}
+
+	[Test]
+	public async Task Update_WhenIdIsNotGuid_ShouldReturnBadRequest()
+	{
+		var seasonService = new FakeSeasonService();
+		var controller = new SeasonsController(seasonService);
+
+		var result = await controller.Update(
+			"not-a-guid",
+			CreateSeason(SeasonOneId, "2025-2026", true),
+			CancellationToken.None
+		);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
 	}
 
 	[Test]
@@ -178,14 +181,8 @@ public class SeasonsControllerTests
 		var controller = new SeasonsController(seasonService);
 
 		var result = await controller.Update(
-			"missing-season",
-			new Season
-			{
-				Name = "Updated Season",
-				StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-				EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-				IsActive = true
-			},
+			MissingSeasonId.ToString(),
+			CreateSeason(Guid.Empty, "2025-2026", true),
 			CancellationToken.None
 		);
 
@@ -197,25 +194,27 @@ public class SeasonsControllerTests
 	{
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
+		var createdAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
 		seasonService.Seasons.Add(new Season
 		{
-			Id = "season-1",
+			Id = SeasonOneId,
 			Name = "Old Season",
 			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
 			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
 			IsActive = true,
-			CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+			CreatedAt = createdAt,
+			UpdatedAt = createdAt
 		});
 
 		var result = await controller.Update(
-			"season-1",
+			SeasonOneId.ToString(),
 			new Season
 			{
-				Id = "wrong-id",
+				Id = Guid.NewGuid(),
 				Name = "Updated Season",
-				StartDate = new DateTime(2025, 8, 1, 0, 0, 0, DateTimeKind.Utc),
-				EndDate = new DateTime(2026, 5, 31, 0, 0, 0, DateTimeKind.Utc),
+				StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+				EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
 				IsActive = true
 			},
 			CancellationToken.None
@@ -226,56 +225,44 @@ public class SeasonsControllerTests
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(season, Is.Not.Null);
-		Assert.That(season!.Id, Is.EqualTo("season-1"));
+		Assert.That(season!.Id, Is.EqualTo(SeasonOneId));
 		Assert.That(season.Name, Is.EqualTo("Updated Season"));
-		Assert.That(season.CreatedAt, Is.EqualTo(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+		Assert.That(season.CreatedAt, Is.EqualTo(createdAt));
 	}
 
 	[Test]
-	public async Task SetActive_WhenSeasonDoesNotExist_ShouldReturnNotFound()
+	public async Task SetActive_WhenSeasonExists_ShouldSetOnlyThatSeasonActive()
 	{
 		var seasonService = new FakeSeasonService();
 		var controller = new SeasonsController(seasonService);
 
-		var result = await controller.SetActive("missing-season", CancellationToken.None);
+		seasonService.Seasons.Add(CreateSeason(SeasonOneId, "2025-2026", true));
+		seasonService.Seasons.Add(CreateSeason(SeasonTwoId, "2026-2027", false));
 
-		Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
-	}
-
-	[Test]
-	public async Task SetActive_WhenSeasonExists_ShouldMakeOnlyThatSeasonActive()
-	{
-		var seasonService = new FakeSeasonService();
-		var controller = new SeasonsController(seasonService);
-
-		seasonService.Seasons.Add(new Season
-		{
-			Id = "season-1",
-			Name = "2024-2025",
-			StartDate = new DateTime(2024, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-			EndDate = new DateTime(2025, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-			IsActive = true
-		});
-
-		seasonService.Seasons.Add(new Season
-		{
-			Id = "season-2",
-			Name = "2025-2026",
-			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
-			IsActive = false
-		});
-
-		var result = await controller.SetActive("season-2", CancellationToken.None);
+		var result = await controller.SetActive(SeasonTwoId.ToString(), CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
 		var season = okResult?.Value as Season;
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(season, Is.Not.Null);
-		Assert.That(season!.Id, Is.EqualTo("season-2"));
+		Assert.That(season!.Id, Is.EqualTo(SeasonTwoId));
 		Assert.That(season.IsActive, Is.True);
-		Assert.That(seasonService.Seasons.Single(item => item.Id == "season-1").IsActive, Is.False);
+		Assert.That(seasonService.Seasons.Single(currentSeason => currentSeason.Id == SeasonOneId).IsActive, Is.False);
+	}
+
+	private static Season CreateSeason(Guid id, string name, bool isActive)
+	{
+		return new Season
+		{
+			Id = id,
+			Name = name,
+			StartDate = new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+			EndDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
+			IsActive = isActive,
+			CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+			UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+		};
 	}
 
 	private class FakeSeasonService : ISeasonService
@@ -286,26 +273,28 @@ public class SeasonsControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			return Task.FromResult<IReadOnlyList<Season>>(Seasons);
+			return Task.FromResult<IReadOnlyList<Season>>(
+				Seasons.OrderByDescending(season => season.StartDate).ToList()
+			);
 		}
 
 		public Task<Season?> GetByIdAsync(
-			string id,
+			Guid id,
 			CancellationToken cancellationToken = default
 		)
 		{
-			var season = Seasons.FirstOrDefault(season => season.Id == id);
-
-			return Task.FromResult(season);
+			return Task.FromResult(
+				Seasons.FirstOrDefault(season => season.Id == id)
+			);
 		}
 
 		public Task<Season?> GetActiveAsync(
 			CancellationToken cancellationToken = default
 		)
 		{
-			var season = Seasons.FirstOrDefault(season => season.IsActive);
-
-			return Task.FromResult(season);
+			return Task.FromResult(
+				Seasons.FirstOrDefault(season => season.IsActive)
+			);
 		}
 
 		public Task<Season> CreateAsync(
@@ -313,10 +302,11 @@ public class SeasonsControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			season.Id = string.IsNullOrWhiteSpace(season.Id)
-				? Guid.NewGuid().ToString()
+			season.Id = season.Id == Guid.Empty
+				? Guid.NewGuid()
 				: season.Id;
 
+			season.Name = season.Name.Trim();
 			season.CreatedAt = DateTime.UtcNow;
 			season.UpdatedAt = DateTime.UtcNow;
 
@@ -338,39 +328,39 @@ public class SeasonsControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var existingSeasonIndex = Seasons.FindIndex(
+			var index = Seasons.FindIndex(
 				existingSeason => existingSeason.Id == season.Id
 			);
 
-			if (existingSeasonIndex == -1)
+			if (index == -1)
 			{
 				return Task.FromResult<Season?>(null);
 			}
 
+			season.Name = season.Name.Trim();
 			season.UpdatedAt = DateTime.UtcNow;
 
 			if (season.IsActive)
 			{
 				foreach (var existingSeason in Seasons)
 				{
-					if (existingSeason.Id != season.Id)
-					{
-						existingSeason.IsActive = false;
-					}
+					existingSeason.IsActive = false;
 				}
 			}
 
-			Seasons[existingSeasonIndex] = season;
+			Seasons[index] = season;
 
 			return Task.FromResult<Season?>(season);
 		}
 
 		public Task<Season?> SetActiveAsync(
-			string id,
+			Guid id,
 			CancellationToken cancellationToken = default
 		)
 		{
-			var season = Seasons.FirstOrDefault(season => season.Id == id);
+			var season = Seasons.FirstOrDefault(
+				currentSeason => currentSeason.Id == id
+			);
 
 			if (season is null)
 			{

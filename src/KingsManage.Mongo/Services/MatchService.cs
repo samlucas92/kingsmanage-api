@@ -23,7 +23,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<IReadOnlyList<Match>> GetBySeasonAsync(
-		string seasonId,
+		Guid seasonId,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -34,7 +34,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> GetByIdAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -48,8 +48,8 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
-		match.Id = string.IsNullOrWhiteSpace(match.Id)
-			? Guid.NewGuid().ToString()
+		match.Id = match.Id == Guid.Empty
+			? Guid.NewGuid()
 			: match.Id;
 
 		match.Opponent = match.Opponent.Trim();
@@ -91,7 +91,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<bool> DeleteAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -104,7 +104,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> SetResultAsync(
-		string id,
+		Guid id,
 		MatchResult result,
 		CancellationToken cancellationToken = default
 	)
@@ -125,7 +125,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> ClearResultAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -145,7 +145,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> SetSelectedPlayersAsync(
-		string id,
+		Guid id,
 		List<SelectedPlayer> selectedPlayers,
 		CancellationToken cancellationToken = default
 	)
@@ -158,7 +158,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> SetLineupFormationAsync(
-		string id,
+		Guid id,
 		LineupFormation formation,
 		CancellationToken cancellationToken = default
 	)
@@ -171,7 +171,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> ToggleLineupLockedAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -189,7 +189,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> UpdateNotesAsync(
-		string id,
+		Guid id,
 		MatchNotes notes,
 		CancellationToken cancellationToken = default
 	)
@@ -202,8 +202,8 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> UpdatePlayerStatsAsync(
-		string id,
-		List<MatchPlayerStat> playerStats,
+		Guid id,
+		List<MatchPlayerStats> playerStats,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -215,7 +215,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> PostponeAsync(
-		string id,
+		Guid id,
 		DateTime newDate,
 		string? reason,
 		CancellationToken cancellationToken = default
@@ -230,7 +230,7 @@ public class MatchService : IMatchService
 
 		match.Postponements.Add(new PostponementAudit
 		{
-			Id = Guid.NewGuid().ToString(),
+			Id = Guid.NewGuid(),
 			OldDate = match.Date,
 			NewDate = newDate,
 			Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
@@ -246,7 +246,7 @@ public class MatchService : IMatchService
 	}
 
 	public async Task<Match?> RestoreAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -291,7 +291,7 @@ public class MatchService : IMatchService
 	}
 
 	private async Task<Match?> FindOneAndUpdateAsync(
-		string id,
+		Guid id,
 		UpdateDefinition<Match> update,
 		CancellationToken cancellationToken
 	)

@@ -2,37 +2,21 @@ namespace KingsManage;
 
 public class Match
 {
-	public string Id { get; set; } = string.Empty;
-
-	public string? SeasonId { get; set; }
-
+	public Guid Id { get; set; }
+	public Guid? SeasonId { get; set; }
 	public ClubTeam Team { get; set; }
-
 	public string Opponent { get; set; } = string.Empty;
-
 	public DateTime Date { get; set; }
-
 	public MatchVenue Venue { get; set; }
-
 	public MatchState State { get; set; } = MatchState.Upcoming;
-
 	public MatchResult? Result { get; set; }
-
 	public bool IsCompleted { get; set; }
-
 	public bool IsLineupLocked { get; set; }
-
 	public LineupFormation SelectedFormation { get; set; } = LineupFormation.FourThreeThree;
-
 	public MatchNotes? Notes { get; set; }
-
 	public List<PostponementAudit> Postponements { get; set; } = [];
-
 	public List<SelectedPlayer> SelectedPlayers { get; set; } = [];
-
-	public List<MatchPlayerStat> PlayerStats { get; set; } = [];
-
+	public List<MatchPlayerStats> PlayerStats { get; set; } = [];
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

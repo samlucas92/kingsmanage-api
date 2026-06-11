@@ -7,6 +7,13 @@ using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+
+if (!string.IsNullOrWhiteSpace(port))
+{
+	builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 var mongoDbSettings = builder.Configuration
 	.GetSection("MongoDb")
 	.Get<MongoDbSettings>();
@@ -14,6 +21,19 @@ var mongoDbSettings = builder.Configuration
 if (mongoDbSettings is null)
 {
 	throw new InvalidOperationException("MongoDB settings are missing.");
+}
+
+var allowedCorsOrigins = builder.Configuration
+	.GetSection("AllowedCorsOrigins")
+	.Get<string[]>() ?? [];
+
+if (allowedCorsOrigins.Length == 0)
+{
+	allowedCorsOrigins =
+	[
+		"http://localhost:5173",
+		"https://localhost:5173"
+	];
 }
 
 builder.Services.AddSingleton(mongoDbSettings);
@@ -38,10 +58,7 @@ builder.Services.AddCors(options =>
 	options.AddPolicy("Frontend", policy =>
 	{
 		policy
-			.WithOrigins(
-				"http://localhost:5173",
-				"https://localhost:5173"
-			)
+			.WithOrigins(allowedCorsOrigins)
 			.AllowAnyHeader()
 			.AllowAnyMethod();
 	});
@@ -55,7 +72,11 @@ if (app.Environment.IsDevelopment())
 	app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+	app.UseSwagger();
+	app.UseSwaggerUI();
+}
 
 app.UseCors("Frontend");
 

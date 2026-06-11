@@ -23,7 +23,7 @@ public class PlayerService : IPlayerService
 	}
 
 	public async Task<Player?> GetByIdAsync(
-		string id,
+		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -37,8 +37,8 @@ public class PlayerService : IPlayerService
 		CancellationToken cancellationToken = default
 	)
 	{
-		player.Id = string.IsNullOrWhiteSpace(player.Id)
-			? Guid.NewGuid().ToString()
+		player.Id = player.Id == Guid.Empty
+			? Guid.NewGuid()
 			: player.Id;
 
 		player.Name = player.Name.Trim();
@@ -73,7 +73,7 @@ public class PlayerService : IPlayerService
 	}
 
 	public async Task<Player?> SetActiveAsync(
-		string id,
+		Guid id,
 		bool isActive,
 		CancellationToken cancellationToken = default
 	)

@@ -22,8 +22,13 @@ public class MatchesController : ControllerBase
 	{
 		if (!string.IsNullOrWhiteSpace(seasonId))
 		{
+			if (!Guid.TryParse(seasonId, out var parsedSeasonId))
+			{
+				return BadRequest("Season id must be a valid GUID.");
+			}
+
 			var seasonMatches = await _matchService.GetBySeasonAsync(
-				seasonId,
+				parsedSeasonId,
 				cancellationToken
 			);
 
@@ -41,12 +46,12 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
 		{
-			return BadRequest("Match id is required.");
+			return errorResult!;
 		}
 
-		var match = await _matchService.GetByIdAsync(id, cancellationToken);
+		var match = await _matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (match is null)
 		{
@@ -85,9 +90,9 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
 		{
-			return BadRequest("Match id is required.");
+			return errorResult!;
 		}
 
 		var validationError = ValidateMatch(match);
@@ -97,14 +102,14 @@ public class MatchesController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(id, cancellationToken);
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		match.Id = id;
+		match.Id = matchId;
 		match.CreatedAt = existingMatch.CreatedAt;
 
 		var updatedMatch = await _matchService.UpdateAsync(match, cancellationToken);
@@ -123,12 +128,12 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
 		{
-			return BadRequest("Match id is required.");
+			return errorResult!;
 		}
 
-		var deleted = await _matchService.DeleteAsync(id, cancellationToken);
+		var deleted = await _matchService.DeleteAsync(matchId, cancellationToken);
 
 		if (!deleted)
 		{
@@ -145,8 +150,13 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		var updatedMatch = await _matchService.SetSelectedPlayersAsync(
-			id,
+			matchId,
 			selectedPlayers,
 			cancellationToken
 		);
@@ -166,8 +176,13 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		var updatedMatch = await _matchService.SetLineupFormationAsync(
-			id,
+			matchId,
 			formation,
 			cancellationToken
 		);
@@ -186,8 +201,13 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		var updatedMatch = await _matchService.ToggleLineupLockedAsync(
-			id,
+			matchId,
 			cancellationToken
 		);
 
@@ -206,13 +226,18 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		if (result.HomeGoals < 0 || result.AwayGoals < 0)
 		{
 			return BadRequest("Goals cannot be negative.");
 		}
 
 		var updatedMatch = await _matchService.SetResultAsync(
-			id,
+			matchId,
 			result,
 			cancellationToken
 		);
@@ -231,7 +256,15 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var updatedMatch = await _matchService.ClearResultAsync(id, cancellationToken);
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var updatedMatch = await _matchService.ClearResultAsync(
+			matchId,
+			cancellationToken
+		);
 
 		if (updatedMatch is null)
 		{
@@ -244,12 +277,17 @@ public class MatchesController : ControllerBase
 	[HttpPut("{id}/player-stats")]
 	public async Task<ActionResult<Match>> UpdatePlayerStats(
 		string id,
-		List<MatchPlayerStat> playerStats,
+		List<MatchPlayerStats> playerStats,
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		var updatedMatch = await _matchService.UpdatePlayerStatsAsync(
-			id,
+			matchId,
 			playerStats,
 			cancellationToken
 		);
@@ -269,8 +307,13 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		var updatedMatch = await _matchService.UpdateNotesAsync(
-			id,
+			matchId,
 			notes,
 			cancellationToken
 		);
@@ -290,13 +333,18 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
 		if (model.NewDate == default)
 		{
 			return BadRequest("New date is required.");
 		}
 
 		var updatedMatch = await _matchService.PostponeAsync(
-			id,
+			matchId,
 			model.NewDate,
 			model.Reason,
 			cancellationToken
@@ -316,7 +364,12 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var updatedMatch = await _matchService.RestoreAsync(id, cancellationToken);
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var updatedMatch = await _matchService.RestoreAsync(matchId, cancellationToken);
 
 		if (updatedMatch is null)
 		{
@@ -339,5 +392,30 @@ public class MatchesController : ControllerBase
 		}
 
 		return null;
+	}
+
+	private bool TryParseGuid(
+		string id,
+		string entityName,
+		out Guid parsedId,
+		out BadRequestObjectResult? errorResult
+	)
+	{
+		parsedId = Guid.Empty;
+		errorResult = null;
+
+		if (string.IsNullOrWhiteSpace(id))
+		{
+			errorResult = BadRequest($"{entityName} id is required.");
+			return false;
+		}
+
+		if (!Guid.TryParse(id, out parsedId))
+		{
+			errorResult = BadRequest($"{entityName} id must be a valid GUID.");
+			return false;
+		}
+
+		return true;
 	}
 }

@@ -1,27 +1,44 @@
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 namespace KingsManage.Mongo;
 
 public class MongoContext
 {
-	private readonly IMongoDatabase _database;
+	private static readonly object MongoConfigurationLock = new();
+	private static bool _isMongoConfigured;
+
+	public IMongoDatabase Database { get; }
 
 	public MongoContext(MongoDbSettings settings)
 	{
-		if (string.IsNullOrWhiteSpace(settings.ConnectionString))
-		{
-			throw new InvalidOperationException("MongoDB connection string is missing.");
-		}
-
-		if (string.IsNullOrWhiteSpace(settings.DatabaseName))
-		{
-			throw new InvalidOperationException("MongoDB database name is missing.");
-		}
+		ConfigureMongoSerialization();
 
 		var client = new MongoClient(settings.ConnectionString);
-
-		_database = client.GetDatabase(settings.DatabaseName);
+		Database = client.GetDatabase(settings.DatabaseName);
 	}
 
-	public IMongoDatabase Database => _database;
+	private static void ConfigureMongoSerialization()
+	{
+		if (_isMongoConfigured)
+		{
+			return;
+		}
+
+		lock (MongoConfigurationLock)
+		{
+			if (_isMongoConfigured)
+			{
+				return;
+			}
+
+			BsonSerializer.RegisterSerializer(
+				new GuidSerializer(GuidRepresentation.Standard)
+			);
+
+			_isMongoConfigured = true;
+		}
+	}
 }

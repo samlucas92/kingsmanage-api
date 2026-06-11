@@ -30,12 +30,12 @@ public class PlayersController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Player", out var playerId, out var errorResult))
 		{
-			return BadRequest("Player id is required.");
+			return errorResult!;
 		}
 
-		var player = await _playerService.GetByIdAsync(id, cancellationToken);
+		var player = await _playerService.GetByIdAsync(playerId, cancellationToken);
 
 		if (player is null)
 		{
@@ -75,9 +75,9 @@ public class PlayersController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Player", out var playerId, out var errorResult))
 		{
-			return BadRequest("Player id is required.");
+			return errorResult!;
 		}
 
 		if (string.IsNullOrWhiteSpace(player.Name))
@@ -86,7 +86,7 @@ public class PlayersController : ControllerBase
 		}
 
 		var existingPlayer = await _playerService.GetByIdAsync(
-			id,
+			playerId,
 			cancellationToken
 		);
 
@@ -95,7 +95,7 @@ public class PlayersController : ControllerBase
 			return NotFound();
 		}
 
-		player.Id = id;
+		player.Id = playerId;
 		player.CreatedAt = existingPlayer.CreatedAt;
 
 		var updatedPlayer = await _playerService.UpdateAsync(
@@ -118,13 +118,13 @@ public class PlayersController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(id))
+		if (!TryParseGuid(id, "Player", out var playerId, out var errorResult))
 		{
-			return BadRequest("Player id is required.");
+			return errorResult!;
 		}
 
 		var updatedPlayer = await _playerService.SetActiveAsync(
-			id,
+			playerId,
 			isActive,
 			cancellationToken
 		);
@@ -135,5 +135,30 @@ public class PlayersController : ControllerBase
 		}
 
 		return Ok(updatedPlayer);
+	}
+
+	private bool TryParseGuid(
+		string id,
+		string entityName,
+		out Guid parsedId,
+		out BadRequestObjectResult? errorResult
+	)
+	{
+		parsedId = Guid.Empty;
+		errorResult = null;
+
+		if (string.IsNullOrWhiteSpace(id))
+		{
+			errorResult = BadRequest($"{entityName} id is required.");
+			return false;
+		}
+
+		if (!Guid.TryParse(id, out parsedId))
+		{
+			errorResult = BadRequest($"{entityName} id must be a valid GUID.");
+			return false;
+		}
+
+		return true;
 	}
 }
