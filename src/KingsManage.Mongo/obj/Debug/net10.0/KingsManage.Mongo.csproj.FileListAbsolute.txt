@@ -8,9 +8,9 @@
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.AssemblyInfoInputs.cache
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.AssemblyInfo.cs
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.csproj.CoreCompileInputs.cache
+/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.sourcelink.json
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsMan.E340044E.Up2Date
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.dll
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/refint/KingsManage.Mongo.dll
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.pdb
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/ref/KingsManage.Mongo.dll
-/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/Debug/net10.0/KingsManage.Mongo.sourcelink.json

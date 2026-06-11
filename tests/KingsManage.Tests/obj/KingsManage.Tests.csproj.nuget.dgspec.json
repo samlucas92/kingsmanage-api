@@ -400,7 +400,7 @@
           "dependencies": {
             "Microsoft.AspNetCore.Mvc.NewtonsoftJson": {
               "target": "Package",
-              "version": "[10.0.9, )"
+              "version": "[10.0.8, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
@@ -886,9 +886,9 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
-            "Microsoft.AspNetCore.Mvc.NewtonsoftJson": {
+            "Newtonsoft.Json": {
               "target": "Package",
-              "version": "[10.0.9, )"
+              "version": "[13.0.4, )"
             }
           },
           "imports": [

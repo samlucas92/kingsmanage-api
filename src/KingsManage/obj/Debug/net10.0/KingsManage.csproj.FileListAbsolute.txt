@@ -1,13 +1,13 @@
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/bin/Debug/net10.0/KingsManage.deps.json
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/bin/Debug/net10.0/KingsManage.dll
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/bin/Debug/net10.0/KingsManage.pdb
+/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.csproj.AssemblyReference.cache
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.GeneratedMSBuildEditorConfig.editorconfig
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.AssemblyInfoInputs.cache
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.AssemblyInfo.cs
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.csproj.CoreCompileInputs.cache
+/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.sourcelink.json
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.dll
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/refint/KingsManage.dll
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.pdb
 /Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/ref/KingsManage.dll
-/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.sourcelink.json
-/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/Debug/net10.0/KingsManage.csproj.AssemblyReference.cache

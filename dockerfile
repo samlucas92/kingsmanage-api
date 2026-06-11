@@ -5,14 +5,13 @@ COPY src/KingsManage/KingsManage.csproj src/KingsManage/
 COPY src/KingsManage.Mongo/KingsManage.Mongo.csproj src/KingsManage.Mongo/
 COPY src/KingsManage.Web/KingsManage.Web.csproj src/KingsManage.Web/
 
-RUN dotnet restore src/KingsManage.Web/KingsManage.Web.csproj
+RUN dotnet restore src/KingsManage.Web/KingsManage.Web.csproj --disable-parallel
 
 COPY . .
 
 RUN dotnet publish src/KingsManage.Web/KingsManage.Web.csproj \
 	-c Release \
-	-o /app/publish \
-	--no-restore
+	-o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
