@@ -280,7 +280,7 @@ public class MatchesController : ControllerBase
 	[HttpPut("{id}/player-stats")]
 	public async Task<ActionResult<Match>> UpdatePlayerStats(
 		string id,
-		List<MatchPlayerStat> playerStats,
+		List<MatchPlayerStats> playerStats,
 		CancellationToken cancellationToken
 	)
 	{
