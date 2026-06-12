@@ -11,6 +11,11 @@ public class MatchesController : ControllerBase
 	private readonly IMatchService _matchService;
 	private readonly IStatsService _statsService;
 
+	public MatchesController(IMatchService matchService)
+		: this(matchService, new NoOpStatsService())
+	{
+	}
+
 	public MatchesController(
 		IMatchService matchService,
 		IStatsService statsService
@@ -560,4 +565,61 @@ public class MatchesController : ControllerBase
 
 		return true;
 	}
+	private sealed class NoOpStatsService : IStatsService
+	{
+		public Task<IReadOnlyList<PlayerSeasonStats>> GetSeasonStatsAsync(
+			Guid seasonId,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
+		}
+
+		public Task<IReadOnlyList<PlayerSeasonStats>> GetAllSeasonStatsAsync(
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
+		}
+
+		public Task<IReadOnlyList<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
+			Guid playerId,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
+		}
+
+		public Task<IReadOnlyList<PlayerHistoricalStats>> GetHistoricalStatsAsync(
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult<IReadOnlyList<PlayerHistoricalStats>>([]);
+		}
+
+		public Task<PlayerHistoricalStats?> GetHistoricalStatsByPlayerIdAsync(
+			Guid playerId,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult<PlayerHistoricalStats?>(null);
+		}
+
+		public Task<PlayerHistoricalStats> UpsertHistoricalStatsAsync(
+			PlayerHistoricalStats stats,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult(stats);
+		}
+
+		public Task RecalculateSeasonStatsAsync(
+			Guid seasonId,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.CompletedTask;
+		}
+	}
+
 }
