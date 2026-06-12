@@ -9,10 +9,15 @@ namespace KingsManage.Web.Controllers;
 public class MatchesController : ControllerBase
 {
 	private readonly IMatchService _matchService;
+	private readonly IStatsService _statsService;
 
-	public MatchesController(IMatchService matchService)
+	public MatchesController(
+		IMatchService matchService,
+		IStatsService statsService
+	)
 	{
 		_matchService = matchService;
+		_statsService = statsService;
 	}
 
 	[HttpGet]
@@ -42,7 +47,6 @@ public class MatchesController : ControllerBase
 
 		return Ok(matches.Select(MatchViewModel.FromMatch).ToList());
 	}
-
 
 	[HttpGet("player/{playerId}")]
 	public async Task<ActionResult<IReadOnlyList<PlayerMatchViewModel>>> GetPlayerMatches(
@@ -122,6 +126,7 @@ public class MatchesController : ControllerBase
 		}
 
 		var createdMatch = await _matchService.CreateAsync(match, cancellationToken);
+		await RecalculateAffectedSeasonsAsync(null, createdMatch, cancellationToken);
 
 		return CreatedAtAction(
 			nameof(GetById),
@@ -166,6 +171,8 @@ public class MatchesController : ControllerBase
 			return NotFound();
 		}
 
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
+
 		return Ok(updatedMatch);
 	}
 
@@ -180,12 +187,21 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var deleted = await _matchService.DeleteAsync(matchId, cancellationToken);
 
 		if (!deleted)
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, null, cancellationToken);
 
 		return NoContent();
 	}
@@ -202,6 +218,13 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.SetSelectedPlayersAsync(
 			matchId,
 			selectedPlayers,
@@ -212,6 +235,8 @@ public class MatchesController : ControllerBase
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -283,6 +308,13 @@ public class MatchesController : ControllerBase
 			return BadRequest("Goals cannot be negative.");
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.SetResultAsync(
 			matchId,
 			result,
@@ -293,6 +325,8 @@ public class MatchesController : ControllerBase
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -308,6 +342,13 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.ClearResultAsync(
 			matchId,
 			cancellationToken
@@ -317,6 +358,8 @@ public class MatchesController : ControllerBase
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -333,6 +376,13 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.UpdatePlayerStatsAsync(
 			matchId,
 			playerStats,
@@ -343,6 +393,8 @@ public class MatchesController : ControllerBase
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -390,6 +442,13 @@ public class MatchesController : ControllerBase
 			return BadRequest("New date is required.");
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.PostponeAsync(
 			matchId,
 			model.NewDate,
@@ -401,6 +460,8 @@ public class MatchesController : ControllerBase
 		{
 			return NotFound();
 		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -416,6 +477,13 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
 		var updatedMatch = await _matchService.RestoreAsync(matchId, cancellationToken);
 
 		if (updatedMatch is null)
@@ -423,7 +491,34 @@ public class MatchesController : ControllerBase
 			return NotFound();
 		}
 
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
+
 		return Ok(updatedMatch);
+	}
+
+	private async Task RecalculateAffectedSeasonsAsync(
+		Match? existingMatch,
+		Match? updatedMatch,
+		CancellationToken cancellationToken
+	)
+	{
+		var affectedSeasonIds = new[]
+		{
+			existingMatch?.SeasonId,
+			updatedMatch?.SeasonId
+		}
+			.Where(seasonId => seasonId.HasValue)
+			.Select(seasonId => seasonId!.Value)
+			.Distinct()
+			.ToList();
+
+		foreach (var seasonId in affectedSeasonIds)
+		{
+			await _statsService.RecalculateSeasonStatsAsync(
+				seasonId,
+				cancellationToken
+			);
+		}
 	}
 
 	private static string? ValidateMatch(Match match)

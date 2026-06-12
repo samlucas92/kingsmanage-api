@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KingsManage")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3fe104adfd37b34a47b617305c252f11cd1bb560")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4a0ce1c3616ac1cf2a3538d2e81a8e59be147389")]
 [assembly: System.Reflection.AssemblyProductAttribute("KingsManage")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KingsManage")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

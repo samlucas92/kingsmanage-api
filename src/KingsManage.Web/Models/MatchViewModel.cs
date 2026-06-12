@@ -24,6 +24,8 @@ public class MatchViewModel
 
 	public bool IsLineupLocked { get; set; }
 
+	public LineupFormation SelectedFormation { get; set; }
+
 	public static MatchViewModel FromMatch(Match match)
 	{
 		return new MatchViewModel
@@ -37,7 +39,8 @@ public class MatchViewModel
 			State = match.State,
 			Result = match.Result,
 			IsCompleted = match.IsCompleted,
-			IsLineupLocked = match.IsLineupLocked
+			IsLineupLocked = match.IsLineupLocked,
+			SelectedFormation = match.SelectedFormation
 		};
 	}
 }

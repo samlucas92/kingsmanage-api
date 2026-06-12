@@ -12,19 +12,26 @@ namespace KingsManage.Web.Controllers;
 public class DevSeedController : ControllerBase
 {
 	private readonly IHostEnvironment _environment;
+	private readonly IStatsService _statsService;
 	private readonly IMongoCollection<Player> _players;
 	private readonly IMongoCollection<Season> _seasons;
 	private readonly IMongoCollection<Match> _matches;
+	private readonly IMongoCollection<PlayerHistoricalStats> _historicalStats;
+	private readonly IMongoCollection<PlayerSeasonStats> _seasonStats;
 
 	public DevSeedController(
 		IHostEnvironment environment,
-		MongoContext context
+		MongoContext context,
+		IStatsService statsService
 	)
 	{
 		_environment = environment;
+		_statsService = statsService;
 		_players = context.Database.GetCollection<Player>("players");
 		_seasons = context.Database.GetCollection<Season>("seasons");
 		_matches = context.Database.GetCollection<Match>("matches");
+		_historicalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
+		_seasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
 	}
 
 	[HttpPost("all")]
@@ -78,11 +85,14 @@ public class DevSeedController : ControllerBase
 			await _players.DeleteManyAsync(_ => true, cancellationToken);
 			await _matches.DeleteManyAsync(_ => true, cancellationToken);
 			await _seasons.DeleteManyAsync(_ => true, cancellationToken);
+			await _historicalStats.DeleteManyAsync(_ => true, cancellationToken);
+			await _seasonStats.DeleteManyAsync(_ => true, cancellationToken);
 		}
 
 		var result = new SeedImportResult();
 		var seasonIdMap = new Dictionary<string, Guid>();
 		var playerIdMap = new Dictionary<string, Guid>();
+		var seasonIdsToRecalculate = new HashSet<Guid>();
 
 		if (request.Seasons is not null)
 		{
@@ -91,7 +101,6 @@ public class DevSeedController : ControllerBase
 				seasonIdMap,
 				cancellationToken
 			);
-
 			result.SeasonsCreated = seasonResult.Created;
 			result.SeasonsUpdated = seasonResult.Updated;
 		}
@@ -103,9 +112,19 @@ public class DevSeedController : ControllerBase
 				playerIdMap,
 				cancellationToken
 			);
-
 			result.PlayersCreated = playerResult.Created;
 			result.PlayersUpdated = playerResult.Updated;
+		}
+
+		if (request.HistoricalStats is not null)
+		{
+			var historicalResult = await ImportHistoricalStatsInternal(
+				request.HistoricalStats,
+				playerIdMap,
+				cancellationToken
+			);
+			result.HistoricalStatsCreated = historicalResult.Created;
+			result.HistoricalStatsUpdated = historicalResult.Updated;
 		}
 
 		if (request.Matches is not null)
@@ -114,11 +133,20 @@ public class DevSeedController : ControllerBase
 				request.Matches,
 				seasonIdMap,
 				playerIdMap,
+				seasonIdsToRecalculate,
 				cancellationToken
 			);
-
 			result.MatchesCreated = matchResult.Created;
 			result.MatchesUpdated = matchResult.Updated;
+		}
+
+		foreach (var seasonId in seasonIdsToRecalculate)
+		{
+			await _statsService.RecalculateSeasonStatsAsync(
+				seasonId,
+				cancellationToken
+			);
+			result.SeasonsRecalculated++;
 		}
 
 		return result;
@@ -161,10 +189,7 @@ public class DevSeedController : ControllerBase
 			var result = await _players.ReplaceOneAsync(
 				existingPlayer => existingPlayer.Id == player.Id,
 				player,
-				new ReplaceOptions
-				{
-					IsUpsert = true
-				},
+				new ReplaceOptions { IsUpsert = true },
 				cancellationToken
 			);
 
@@ -215,10 +240,55 @@ public class DevSeedController : ControllerBase
 			var result = await _seasons.ReplaceOneAsync(
 				existingSeason => existingSeason.Id == season.Id,
 				season,
-				new ReplaceOptions
-				{
-					IsUpsert = true
-				},
+				new ReplaceOptions { IsUpsert = true },
+				cancellationToken
+			);
+
+			if (result.MatchedCount == 0)
+			{
+				counter.Created++;
+				continue;
+			}
+
+			counter.Updated++;
+		}
+
+		return counter;
+	}
+
+	private async Task<SeedImportCounter> ImportHistoricalStatsInternal(
+		List<SeedHistoricalStats> seedHistoricalStats,
+		Dictionary<string, Guid> playerIdMap,
+		CancellationToken cancellationToken
+	)
+	{
+		var counter = new SeedImportCounter();
+
+		foreach (var seedStats in seedHistoricalStats)
+		{
+			if (string.IsNullOrWhiteSpace(seedStats.PlayerId))
+			{
+				continue;
+			}
+
+			var playerId = GetPlayerId(seedStats.PlayerId, playerIdMap);
+			var existingStats = await _historicalStats
+				.Find(stats => stats.PlayerId == playerId)
+				.FirstOrDefaultAsync(cancellationToken);
+			var historicalStats = new PlayerHistoricalStats
+			{
+				Id = existingStats?.Id ?? Guid.NewGuid(),
+				PlayerId = playerId,
+				Appearances = Math.Max(seedStats.Appearances, 0),
+				Goals = Math.Max(seedStats.Goals, 0),
+				CreatedAt = existingStats?.CreatedAt ?? DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow
+			};
+
+			var result = await _historicalStats.ReplaceOneAsync(
+				existing => existing.PlayerId == playerId,
+				historicalStats,
+				new ReplaceOptions { IsUpsert = true },
 				cancellationToken
 			);
 
@@ -238,6 +308,7 @@ public class DevSeedController : ControllerBase
 		List<SeedMatch> seedMatches,
 		Dictionary<string, Guid> seasonIdMap,
 		Dictionary<string, Guid> playerIdMap,
+		HashSet<Guid> seasonIdsToRecalculate,
 		CancellationToken cancellationToken
 	)
 	{
@@ -262,11 +333,12 @@ public class DevSeedController : ControllerBase
 				isCompleted,
 				seedMatch.State
 			);
+			var seasonId = GetSeasonId(seedMatch.SeasonId, seasonIdMap);
 
 			var match = new Match
 			{
 				Id = CreateStableGuid("match", seedMatch.Id),
-				SeasonId = GetSeasonId(seedMatch.SeasonId, seasonIdMap),
+				SeasonId = seasonId,
 				Team = MapTeam(seedMatch.Team),
 				Opponent = seedMatch.Opponent.Trim(),
 				Date = seedMatch.Date,
@@ -290,13 +362,15 @@ public class DevSeedController : ControllerBase
 				UpdatedAt = DateTime.UtcNow
 			};
 
+			if (match.SeasonId.HasValue)
+			{
+				seasonIdsToRecalculate.Add(match.SeasonId.Value);
+			}
+
 			var replaceResult = await _matches.ReplaceOneAsync(
 				existingMatch => existingMatch.Id == match.Id,
 				match,
-				new ReplaceOptions
-				{
-					IsUpsert = true
-				},
+				new ReplaceOptions { IsUpsert = true },
 				cancellationToken
 			);
 
@@ -358,7 +432,7 @@ public class DevSeedController : ControllerBase
 	}
 
 	private static List<MatchPlayerStats> MapPlayerStats(
-		List<SeedMatchPlayerStat>? playerStats,
+		List<SeedMatchPlayerStats>? playerStats,
 		Dictionary<string, Guid> playerIdMap
 	)
 	{
@@ -538,96 +612,162 @@ public class DevSeedController : ControllerBase
 
 		return new Guid(guidBytes);
 	}
+}
 
-	public class SeedImportRequest
-	{
-		public List<SeedPlayer>? Players { get; set; }
-		public List<SeedSeason>? Seasons { get; set; }
-		public List<SeedMatch>? Matches { get; set; }
-	}
+public class SeedImportRequest
+{
+	public List<SeedPlayer>? Players { get; set; }
 
-	public class SeedImportResult
-	{
-		public int PlayersCreated { get; set; }
-		public int PlayersUpdated { get; set; }
-		public int SeasonsCreated { get; set; }
-		public int SeasonsUpdated { get; set; }
-		public int MatchesCreated { get; set; }
-		public int MatchesUpdated { get; set; }
-	}
+	public List<SeedSeason>? Seasons { get; set; }
 
-	private class SeedImportCounter
-	{
-		public int Created { get; set; }
-		public int Updated { get; set; }
-	}
+	public List<SeedMatch>? Matches { get; set; }
 
-	public class SeedPlayer
-	{
-		public string Id { get; set; } = "";
-		public string Name { get; set; } = "";
-		public List<string> Positions { get; set; } = [];
-		public int Appearances { get; set; }
-		public int Goals { get; set; }
-		public int Number { get; set; }
-		public bool IsActive { get; set; } = true;
-	}
+	public List<SeedHistoricalStats>? HistoricalStats { get; set; }
+}
 
-	public class SeedSeason
-	{
-		public string Id { get; set; } = "";
-		public string Name { get; set; } = "";
-		public DateTime StartDate { get; set; }
-		public DateTime EndDate { get; set; }
-		public bool IsActive { get; set; }
-	}
+public class SeedImportResult
+{
+	public int PlayersCreated { get; set; }
 
-	public class SeedMatch
-	{
-		public string Id { get; set; } = "";
-		public string? SeasonId { get; set; }
-		public string Team { get; set; } = "first";
-		public string Opponent { get; set; } = "";
-		public DateTime Date { get; set; }
-		public string Venue { get; set; } = "home";
-		public string State { get; set; } = "upcoming";
-		public MatchResult? Result { get; set; }
-		public bool IsCompleted { get; set; }
-		public bool IsLineupLocked { get; set; }
-		public string SelectedFormation { get; set; } = "4-3-3";
-		public MatchNotes? Notes { get; set; }
-		public List<SeedPostponementAudit>? Postponements { get; set; }
-		public List<SeedSelectedPlayer>? SelectedPlayers { get; set; }
-		public List<SeedMatchPlayerStat>? PlayerStats { get; set; }
-	}
+	public int PlayersUpdated { get; set; }
 
-	public class SeedPostponementAudit
-	{
-		public string Id { get; set; } = "";
-		public DateTime OldDate { get; set; }
-		public DateTime NewDate { get; set; }
-		public string? Reason { get; set; }
-		public DateTime ChangedAt { get; set; }
-	}
+	public int SeasonsCreated { get; set; }
 
-	public class SeedSelectedPlayer
-	{
-		public string PlayerId { get; set; } = "";
-		public decimal X { get; set; }
-		public decimal Y { get; set; }
-		public string Area { get; set; } = "pitch";
-		public int? PositionIndex { get; set; }
-	}
+	public int SeasonsUpdated { get; set; }
 
-	public class SeedMatchPlayerStat
-	{
-		public string PlayerId { get; set; } = "";
-		public int Goals { get; set; }
-		public int Assists { get; set; }
-		public int YellowCards { get; set; }
-		public int RedCards { get; set; }
-		public int Minutes { get; set; }
-		public bool IsMOTM { get; set; }
-		public string? Note { get; set; }
-	}
+	public int MatchesCreated { get; set; }
+
+	public int MatchesUpdated { get; set; }
+
+	public int HistoricalStatsCreated { get; set; }
+
+	public int HistoricalStatsUpdated { get; set; }
+
+	public int SeasonsRecalculated { get; set; }
+}
+
+public class SeedImportCounter
+{
+	public int Created { get; set; }
+
+	public int Updated { get; set; }
+}
+
+public class SeedPlayer
+{
+	public string Id { get; set; } = "";
+
+	public string Name { get; set; } = "";
+
+	public List<string> Positions { get; set; } = [];
+
+	public int Appearances { get; set; }
+
+	public int Goals { get; set; }
+
+	public int Number { get; set; }
+
+	public bool IsActive { get; set; } = true;
+}
+
+public class SeedSeason
+{
+	public string Id { get; set; } = "";
+
+	public string Name { get; set; } = "";
+
+	public DateTime StartDate { get; set; }
+
+	public DateTime EndDate { get; set; }
+
+	public bool IsActive { get; set; }
+}
+
+public class SeedHistoricalStats
+{
+	public string PlayerId { get; set; } = "";
+
+	public string Name { get; set; } = "";
+
+	public int Appearances { get; set; }
+
+	public int Goals { get; set; }
+}
+
+public class SeedMatch
+{
+	public string Id { get; set; } = "";
+
+	public string? SeasonId { get; set; }
+
+	public string Team { get; set; } = "first";
+
+	public string Opponent { get; set; } = "";
+
+	public DateTime Date { get; set; }
+
+	public string Venue { get; set; } = "home";
+
+	public string State { get; set; } = "upcoming";
+
+	public MatchResult? Result { get; set; }
+
+	public bool IsCompleted { get; set; }
+
+	public bool IsLineupLocked { get; set; }
+
+	public string SelectedFormation { get; set; } = "4-3-3";
+
+	public MatchNotes? Notes { get; set; }
+
+	public List<SeedPostponementAudit>? Postponements { get; set; }
+
+	public List<SeedSelectedPlayer>? SelectedPlayers { get; set; }
+
+	public List<SeedMatchPlayerStats>? PlayerStats { get; set; }
+}
+
+public class SeedPostponementAudit
+{
+	public string Id { get; set; } = "";
+
+	public DateTime OldDate { get; set; }
+
+	public DateTime NewDate { get; set; }
+
+	public string? Reason { get; set; }
+
+	public DateTime ChangedAt { get; set; }
+}
+
+public class SeedSelectedPlayer
+{
+	public string PlayerId { get; set; } = "";
+
+	public decimal X { get; set; }
+
+	public decimal Y { get; set; }
+
+	public string Area { get; set; } = "pitch";
+
+	public int? PositionIndex { get; set; }
+}
+
+public class SeedMatchPlayerStats
+{
+	public string PlayerId { get; set; } = "";
+
+	public int Goals { get; set; }
+
+	public int Assists { get; set; }
+
+	public int YellowCards { get; set; }
+
+	public int RedCards { get; set; }
+
+	public int Minutes { get; set; }
+
+	public bool IsMOTM { get; set; }
+
+	public string? Note { get; set; }
 }
