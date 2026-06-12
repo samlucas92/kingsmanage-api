@@ -16,6 +16,7 @@ public class MatchesController : ControllerBase
 	{
 	}
 
+	[ActivatorUtilitiesConstructor]
 	public MatchesController(
 		IMatchService matchService,
 		IStatsService statsService
