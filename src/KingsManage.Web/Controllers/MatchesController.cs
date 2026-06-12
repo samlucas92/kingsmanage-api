@@ -1,4 +1,5 @@
 using KingsManage;
+using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
@@ -15,11 +16,13 @@ public class MatchesController : ControllerBase
 	}
 
 	[HttpGet]
-	public async Task<ActionResult<IReadOnlyList<Match>>> GetAll(
+	public async Task<ActionResult<IReadOnlyList<MatchViewModel>>> GetAll(
 		[FromQuery] string? seasonId,
 		CancellationToken cancellationToken
 	)
 	{
+		IReadOnlyList<Match> matches;
+
 		if (!string.IsNullOrWhiteSpace(seasonId))
 		{
 			if (!Guid.TryParse(seasonId, out var parsedSeasonId))
@@ -27,17 +30,17 @@ public class MatchesController : ControllerBase
 				return BadRequest("Season id must be a valid GUID.");
 			}
 
-			var seasonMatches = await _matchService.GetBySeasonAsync(
+			matches = await _matchService.GetBySeasonAsync(
 				parsedSeasonId,
 				cancellationToken
 			);
-
-			return Ok(seasonMatches);
+		}
+		else
+		{
+			matches = await _matchService.GetAllAsync(cancellationToken);
 		}
 
-		var matches = await _matchService.GetAllAsync(cancellationToken);
-
-		return Ok(matches);
+		return Ok(matches.Select(MatchViewModel.FromMatch).ToList());
 	}
 
 	[HttpGet("{id}")]
@@ -277,7 +280,7 @@ public class MatchesController : ControllerBase
 	[HttpPut("{id}/player-stats")]
 	public async Task<ActionResult<Match>> UpdatePlayerStats(
 		string id,
-		List<MatchPlayerStats> playerStats,
+		List<MatchPlayerStat> playerStats,
 		CancellationToken cancellationToken
 	)
 	{
