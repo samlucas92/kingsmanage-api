@@ -43,6 +43,50 @@ public class MatchesController : ControllerBase
 		return Ok(matches.Select(MatchViewModel.FromMatch).ToList());
 	}
 
+
+	[HttpGet("player/{playerId}")]
+	public async Task<ActionResult<IReadOnlyList<PlayerMatchViewModel>>> GetPlayerMatches(
+		string playerId,
+		[FromQuery] string? seasonId,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(playerId, "Player", out var parsedPlayerId, out var playerErrorResult))
+		{
+			return playerErrorResult!;
+		}
+
+		IReadOnlyList<Match> matches;
+
+		if (!string.IsNullOrWhiteSpace(seasonId))
+		{
+			if (!Guid.TryParse(seasonId, out var parsedSeasonId))
+			{
+				return BadRequest("Season id must be a valid GUID.");
+			}
+
+			matches = await _matchService.GetBySeasonAsync(
+				parsedSeasonId,
+				cancellationToken
+			);
+		}
+		else
+		{
+			matches = await _matchService.GetAllAsync(cancellationToken);
+		}
+
+		var playerMatches = matches
+			.Where(match =>
+				match.IsCompleted &&
+				match.SelectedPlayers.Any(selectedPlayer => selectedPlayer.PlayerId == parsedPlayerId)
+			)
+			.OrderByDescending(match => match.Date)
+			.Select(match => PlayerMatchViewModel.FromMatch(match, parsedPlayerId))
+			.ToList();
+
+		return Ok(playerMatches);
+	}
+
 	[HttpGet("{id}")]
 	public async Task<ActionResult<Match>> GetById(
 		string id,
@@ -280,7 +324,7 @@ public class MatchesController : ControllerBase
 	[HttpPut("{id}/player-stats")]
 	public async Task<ActionResult<Match>> UpdatePlayerStats(
 		string id,
-		List<MatchPlayerStats> playerStats,
+		List<MatchPlayerStat> playerStats,
 		CancellationToken cancellationToken
 	)
 	{
