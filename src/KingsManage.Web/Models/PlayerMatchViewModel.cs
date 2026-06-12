@@ -22,7 +22,7 @@ public class PlayerMatchViewModel
 
 	public bool IsCompleted { get; set; }
 
-	public MatchPlayerStat? PlayerStat { get; set; }
+	public MatchPlayerStats? PlayerStat { get; set; }
 
 	public static PlayerMatchViewModel FromMatch(Match match, Guid playerId)
 	{
