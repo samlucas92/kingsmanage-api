@@ -1,4 +1,5 @@
 using KingsManage;
+using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
@@ -20,7 +21,6 @@ public class SeasonsController : ControllerBase
 	)
 	{
 		var seasons = await _seasonService.GetAllAsync(cancellationToken);
-
 		return Ok(seasons);
 	}
 
@@ -83,6 +83,90 @@ public class SeasonsController : ControllerBase
 			new { id = createdSeason.Id },
 			createdSeason
 		);
+	}
+
+	[HttpPost("setup")]
+	public async Task<ActionResult<SeasonSetupResult>> SetupSeason(
+		SeasonSetupRequest request,
+		[FromServices] IPlayerService playerService,
+		[FromServices] IFinanceService financeService,
+		CancellationToken cancellationToken
+	)
+	{
+		var season = new Season
+		{
+			Name = request.Name,
+			StartDate = request.StartDate,
+			EndDate = request.EndDate,
+			IsActive = request.MakeActive
+		};
+
+		var validationError = ValidateSeason(season);
+
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
+		}
+
+		if (request.SetStartingFinanceAmount && request.StartingFinanceAmount < 0)
+		{
+			return BadRequest("Starting finance amount must be 0 or above.");
+		}
+
+		var existingSeasons = await _seasonService.GetAllAsync(cancellationToken);
+		var existingSeason = existingSeasons.FirstOrDefault(existing =>
+			string.Equals(
+				existing.Name.Trim(),
+				request.Name.Trim(),
+				StringComparison.OrdinalIgnoreCase
+			)
+		);
+
+		var createdSeason = false;
+
+		if (existingSeason is null)
+		{
+			season = await _seasonService.CreateAsync(season, cancellationToken);
+			createdSeason = true;
+		}
+		else
+		{
+			season = existingSeason;
+
+			if (request.MakeActive && !season.IsActive)
+			{
+				season = await _seasonService.SetActiveAsync(
+					season.Id,
+					cancellationToken
+				) ?? season;
+			}
+		}
+
+		var financeChargesCreatedOrUpdated = 0;
+
+		if (request.SetStartingFinanceAmount)
+		{
+			var players = await playerService.GetAllAsync(cancellationToken);
+			var activePlayers = players.Where(player => player.IsActive).ToList();
+
+			foreach (var player in activePlayers)
+			{
+				await financeService.SetPlayerAmountOwedAsync(
+					player.Id,
+					season.Id,
+					request.StartingFinanceAmount,
+					cancellationToken
+				);
+				financeChargesCreatedOrUpdated++;
+			}
+		}
+
+		return Ok(new SeasonSetupResult
+		{
+			Season = season,
+			CreatedSeason = createdSeason,
+			FinanceChargesCreatedOrUpdated = financeChargesCreatedOrUpdated
+		});
 	}
 
 	[HttpPut("{id}")]

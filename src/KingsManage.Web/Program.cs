@@ -1,5 +1,6 @@
 using KingsManage;
 using KingsManage.Mongo;
+using MongoFinanceService = KingsManage.Mongo.Services.FinanceService;
 using MongoMatchService = KingsManage.Mongo.Services.MatchService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
@@ -30,6 +31,7 @@ builder.Services.AddScoped<IPlayerService, MongoPlayerService>();
 builder.Services.AddScoped<ISeasonService, MongoSeasonService>();
 builder.Services.AddScoped<IMatchService, MongoMatchService>();
 builder.Services.AddScoped<IStatsService, MongoStatsService>();
+builder.Services.AddScoped<IFinanceService, MongoFinanceService>();
 
 builder.Services
 	.AddControllers()
