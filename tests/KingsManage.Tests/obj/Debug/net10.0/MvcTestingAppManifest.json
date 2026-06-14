@@ -1,0 +1,5 @@
+{
+  "KingsManage, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/samlucas\/Documents\/kingsmanage-api\/src\/KingsManage",
+  "KingsManage.Mongo, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/samlucas\/Documents\/kingsmanage-api\/src\/KingsManage.Mongo",
+  "KingsManage.Web, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/samlucas\/Documents\/kingsmanage-api\/src\/KingsManage.Web"
+}
