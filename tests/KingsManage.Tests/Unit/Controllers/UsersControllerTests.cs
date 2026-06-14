@@ -20,9 +20,11 @@ public class UsersControllerTests
 		var result = await controller.GetAll(CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var users = okResult!.Value as IReadOnlyList<UserViewModel>;
+
 		Assert.That(users, Is.Not.Null);
 		Assert.That(users!.Count, Is.EqualTo(2));
 	}
@@ -58,9 +60,11 @@ public class UsersControllerTests
 		var result = await controller.GetById(user.Id.ToString(), CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var viewModel = okResult!.Value as UserViewModel;
+
 		Assert.That(viewModel, Is.Not.Null);
 		Assert.That(viewModel!.Id, Is.EqualTo(user.Id));
 	}
@@ -142,9 +146,11 @@ public class UsersControllerTests
 		);
 
 		var createdResult = result.Result as CreatedAtActionResult;
+
 		Assert.That(createdResult, Is.Not.Null);
 
 		var viewModel = createdResult!.Value as UserViewModel;
+
 		Assert.That(viewModel, Is.Not.Null);
 		Assert.That(viewModel!.Email, Is.EqualTo("player@test.local"));
 		Assert.That(viewModel.Role, Is.EqualTo(UserRole.Player));
@@ -217,9 +223,11 @@ public class UsersControllerTests
 		);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var viewModel = okResult!.Value as UserViewModel;
+
 		Assert.That(viewModel, Is.Not.Null);
 		Assert.That(viewModel!.Email, Is.EqualTo("updated@test.local"));
 		Assert.That(viewModel.Role, Is.EqualTo(UserRole.Player));
@@ -248,12 +256,87 @@ public class UsersControllerTests
 		var result = await controller.SetActive(user.Id.ToString(), false, CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var viewModel = okResult!.Value as UserViewModel;
+
 		Assert.That(viewModel, Is.Not.Null);
 		Assert.That(viewModel!.IsActive, Is.False);
 		Assert.That(user.IsActive, Is.False);
+	}
+
+	[Test]
+	public async Task ResetPassword_WhenIdIsInvalid_ShouldReturnBadRequest()
+	{
+		var controller = new UsersController(new FakeUserService());
+
+		var result = await controller.ResetPassword(
+			"not-a-guid",
+			new ResetPasswordRequest
+			{
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task ResetPassword_WhenPasswordIsTooShort_ShouldReturnBadRequest()
+	{
+		var controller = new UsersController(new FakeUserService());
+
+		var result = await controller.ResetPassword(
+			Guid.NewGuid().ToString(),
+			new ResetPasswordRequest
+			{
+				NewPassword = "short"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task ResetPassword_WhenUserDoesNotExist_ShouldReturnNotFound()
+	{
+		var controller = new UsersController(new FakeUserService());
+
+		var result = await controller.ResetPassword(
+			Guid.NewGuid().ToString(),
+			new ResetPasswordRequest
+			{
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<NotFoundResult>());
+	}
+
+	[Test]
+	public async Task ResetPassword_WhenUserExists_ShouldResetPassword()
+	{
+		var user = CreateUser(UserRole.Coach);
+		var userService = new FakeUserService();
+		userService.Users.Add(user);
+		var controller = new UsersController(userService);
+
+		var result = await controller.ResetPassword(
+			user.Id.ToString(),
+			new ResetPasswordRequest
+			{
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<NoContentResult>());
+		Assert.That(userService.LastResetPasswordUserId, Is.EqualTo(user.Id));
+		Assert.That(userService.LastResetPassword, Is.EqualTo("NewPassword123!"));
 	}
 
 	private static AppUser CreateUser(UserRole role)
@@ -272,6 +355,8 @@ public class UsersControllerTests
 	private sealed class FakeUserService : IUserService
 	{
 		public List<AppUser> Users { get; } = new();
+		public Guid? LastResetPasswordUserId { get; private set; }
+		public string? LastResetPassword { get; private set; }
 
 		public Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
@@ -285,15 +370,24 @@ public class UsersControllerTests
 
 		public Task<AppUser?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(Users.FirstOrDefault(user => user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)));
+			return Task.FromResult(
+				Users.FirstOrDefault(user =>
+					user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+				)
+			);
 		}
 
-		public Task<AppUser> CreateAsync(AppUser user, string password, CancellationToken cancellationToken = default)
+		public Task<AppUser> CreateAsync(
+			AppUser user,
+			string password,
+			CancellationToken cancellationToken = default
+		)
 		{
 			user.Id = user.Id == Guid.Empty ? Guid.NewGuid() : user.Id;
 			user.CreatedAt = DateTime.UtcNow;
 			user.UpdatedAt = DateTime.UtcNow;
 			Users.Add(user);
+
 			return Task.FromResult(user);
 		}
 
@@ -315,7 +409,11 @@ public class UsersControllerTests
 			return Task.FromResult<AppUser?>(existingUser);
 		}
 
-		public Task<AppUser?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+		public Task<AppUser?> SetActiveAsync(
+			Guid id,
+			bool isActive,
+			CancellationToken cancellationToken = default
+		)
 		{
 			var user = Users.FirstOrDefault(existingUser => existingUser.Id == id);
 
@@ -328,14 +426,53 @@ public class UsersControllerTests
 			return Task.FromResult(user);
 		}
 
-		public Task<AppUser?> ValidateCredentialsAsync(string email, string password, CancellationToken cancellationToken = default)
+		public Task<AppUser?> ValidateCredentialsAsync(
+			string email,
+			string password,
+			CancellationToken cancellationToken = default
+		)
 		{
 			return Task.FromResult<AppUser?>(null);
 		}
 
-		public Task<AppUser> EnsureDefaultAdminUserAsync(string email, string password, CancellationToken cancellationToken = default)
+		public Task<bool> ChangePasswordAsync(
+			Guid id,
+			string currentPassword,
+			string newPassword,
+			CancellationToken cancellationToken = default
+		)
 		{
-			var existingUser = Users.FirstOrDefault(user => user.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+			return Task.FromResult(true);
+		}
+
+		public Task<bool> ResetPasswordAsync(
+			Guid id,
+			string newPassword,
+			CancellationToken cancellationToken = default
+		)
+		{
+			var user = Users.FirstOrDefault(existingUser => existingUser.Id == id);
+
+			if (user is null)
+			{
+				return Task.FromResult(false);
+			}
+
+			LastResetPasswordUserId = id;
+			LastResetPassword = newPassword;
+
+			return Task.FromResult(true);
+		}
+
+		public Task<AppUser> EnsureDefaultAdminUserAsync(
+			string email,
+			string password,
+			CancellationToken cancellationToken = default
+		)
+		{
+			var existingUser = Users.FirstOrDefault(user =>
+				user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+			);
 
 			if (existingUser is not null)
 			{
@@ -353,6 +490,7 @@ public class UsersControllerTests
 			};
 
 			Users.Add(adminUser);
+
 			return Task.FromResult(adminUser);
 		}
 	}

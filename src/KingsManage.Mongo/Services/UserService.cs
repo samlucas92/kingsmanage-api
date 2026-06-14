@@ -41,7 +41,11 @@ public class UserService : IUserService
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
-	public async Task<AppUser> CreateAsync(AppUser user, string password, CancellationToken cancellationToken = default)
+	public async Task<AppUser> CreateAsync(
+		AppUser user,
+		string password,
+		CancellationToken cancellationToken = default
+	)
 	{
 		if (string.IsNullOrWhiteSpace(password))
 		{
@@ -88,7 +92,11 @@ public class UserService : IUserService
 		return user;
 	}
 
-	public async Task<AppUser?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+	public async Task<AppUser?> SetActiveAsync(
+		Guid id,
+		bool isActive,
+		CancellationToken cancellationToken = default
+	)
 	{
 		var update = Builders<AppUser>.Update
 			.Set(user => user.IsActive, isActive)
@@ -102,7 +110,11 @@ public class UserService : IUserService
 		);
 	}
 
-	public async Task<AppUser?> ValidateCredentialsAsync(string email, string password, CancellationToken cancellationToken = default)
+	public async Task<AppUser?> ValidateCredentialsAsync(
+		string email,
+		string password,
+		CancellationToken cancellationToken = default
+	)
 	{
 		var user = await GetByEmailAsync(email, cancellationToken);
 
@@ -123,7 +135,67 @@ public class UserService : IUserService
 		);
 	}
 
-	public async Task<AppUser> EnsureDefaultAdminUserAsync(string email, string password, CancellationToken cancellationToken = default)
+	public async Task<bool> ChangePasswordAsync(
+		Guid id,
+		string currentPassword,
+		string newPassword,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (string.IsNullOrWhiteSpace(currentPassword) || string.IsNullOrWhiteSpace(newPassword))
+		{
+			return false;
+		}
+
+		var user = await GetByIdAsync(id, cancellationToken);
+
+		if (user is null || !user.IsActive || !VerifyPassword(currentPassword, user.PasswordHash))
+		{
+			return false;
+		}
+
+		var update = Builders<AppUser>.Update
+			.Set(existingUser => existingUser.PasswordHash, HashPassword(newPassword))
+			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
+
+		var result = await _users.UpdateOneAsync(
+			existingUser => existingUser.Id == id,
+			update,
+			cancellationToken: cancellationToken
+		);
+
+		return result.ModifiedCount == 1;
+	}
+
+	public async Task<bool> ResetPasswordAsync(
+		Guid id,
+		string newPassword,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (string.IsNullOrWhiteSpace(newPassword))
+		{
+			return false;
+		}
+
+		var update = Builders<AppUser>.Update
+			.Set(existingUser => existingUser.PasswordHash, HashPassword(newPassword))
+			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
+
+		var result = await _users.UpdateOneAsync(
+			existingUser => existingUser.Id == id,
+			update,
+			cancellationToken: cancellationToken
+		);
+
+		return result.ModifiedCount == 1;
+	}
+
+	public async Task<AppUser> EnsureDefaultAdminUserAsync(
+		string email,
+		string password,
+		CancellationToken cancellationToken = default
+	)
 	{
 		var existingUsers = await _users
 			.Find(_ => true)
@@ -153,6 +225,7 @@ public class UserService : IUserService
 	private static string HashPassword(string password)
 	{
 		var salt = RandomNumberGenerator.GetBytes(PasswordSaltBytes);
+
 		var hash = Rfc2898DeriveBytes.Pbkdf2(
 			password,
 			salt,
@@ -186,6 +259,7 @@ public class UserService : IUserService
 
 		var salt = Convert.FromBase64String(parts[2]);
 		var expectedHash = Convert.FromBase64String(parts[3]);
+
 		var actualHash = Rfc2898DeriveBytes.Pbkdf2(
 			password,
 			salt,

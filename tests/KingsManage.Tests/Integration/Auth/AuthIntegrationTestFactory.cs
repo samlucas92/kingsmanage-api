@@ -124,19 +124,14 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 
 		loginResponse.EnsureSuccessStatusCode();
 
-		var responseBody = await loginResponse.Content.ReadAsStringAsync();
-		using var document = JsonDocument.Parse(responseBody);
+		var json = await loginResponse.Content.ReadAsStringAsync();
+		using var document = JsonDocument.Parse(json);
 
-		if (!document.RootElement.TryGetProperty("token", out var tokenElement))
-		{
-			throw new InvalidOperationException($"Login response did not contain a token. Response: {responseBody}");
-		}
-
-		var token = tokenElement.GetString();
+		var token = document.RootElement.GetProperty("token").GetString();
 
 		if (string.IsNullOrWhiteSpace(token))
 		{
-			throw new InvalidOperationException($"Login response contained an empty token. Response: {responseBody}");
+			throw new InvalidOperationException("Login did not return a JWT token.");
 		}
 
 		client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
@@ -187,6 +182,8 @@ public sealed class TestUserService : IUserService
 			user.Id = Guid.NewGuid();
 		}
 
+		user.Email = NormaliseEmail(user.Email);
+
 		if (user.CreatedAt == default)
 		{
 			user.CreatedAt = DateTime.UtcNow;
@@ -210,9 +207,11 @@ public sealed class TestUserService : IUserService
 
 	public Task<AppUser?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
 	{
+		var normalisedEmail = NormaliseEmail(email);
+
 		return Task.FromResult(
 			_users.FirstOrDefault(user =>
-				user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+				user.Email.Equals(normalisedEmail, StringComparison.OrdinalIgnoreCase)
 			)
 		);
 	}
@@ -237,7 +236,7 @@ public sealed class TestUserService : IUserService
 			return Task.FromResult<AppUser?>(null);
 		}
 
-		existingUser.Email = user.Email;
+		existingUser.Email = NormaliseEmail(user.Email);
 		existingUser.Role = user.Role;
 		existingUser.PlayerId = user.PlayerId;
 		existingUser.IsActive = user.IsActive;
@@ -271,8 +270,10 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
+		var normalisedEmail = NormaliseEmail(email);
+
 		var user = _users.FirstOrDefault(currentUser =>
-			currentUser.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+			currentUser.Email.Equals(normalisedEmail, StringComparison.OrdinalIgnoreCase)
 		);
 
 		if (user is null || !user.IsActive)
@@ -294,6 +295,55 @@ public sealed class TestUserService : IUserService
 		user.UpdatedAt = DateTime.UtcNow;
 
 		return Task.FromResult<AppUser?>(user);
+	}
+
+	public Task<bool> ChangePasswordAsync(
+		Guid id,
+		string currentPassword,
+		string newPassword,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var user = _users.FirstOrDefault(currentUser => currentUser.Id == id);
+
+		if (user is null || !user.IsActive)
+		{
+			return Task.FromResult(false);
+		}
+
+		if (!_passwordsByUserId.TryGetValue(user.Id, out var savedPassword))
+		{
+			return Task.FromResult(false);
+		}
+
+		if (!savedPassword.Equals(currentPassword, StringComparison.Ordinal))
+		{
+			return Task.FromResult(false);
+		}
+
+		_passwordsByUserId[user.Id] = newPassword;
+		user.UpdatedAt = DateTime.UtcNow;
+
+		return Task.FromResult(true);
+	}
+
+	public Task<bool> ResetPasswordAsync(
+		Guid id,
+		string newPassword,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var user = _users.FirstOrDefault(currentUser => currentUser.Id == id);
+
+		if (user is null)
+		{
+			return Task.FromResult(false);
+		}
+
+		_passwordsByUserId[user.Id] = newPassword;
+		user.UpdatedAt = DateTime.UtcNow;
+
+		return Task.FromResult(true);
 	}
 
 	public Task<AppUser> EnsureDefaultAdminUserAsync(
@@ -320,6 +370,11 @@ public sealed class TestUserService : IUserService
 		AddUser(user, password);
 
 		return Task.FromResult(user);
+	}
+
+	private static string NormaliseEmail(string email)
+	{
+		return email.Trim().ToLowerInvariant();
 	}
 }
 

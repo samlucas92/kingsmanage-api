@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
 using KingsManage.Web.Security;
@@ -57,7 +58,7 @@ public class AuthController : ControllerBase
 	[Authorize]
 	public async Task<ActionResult<UserViewModel>> GetCurrentUser(CancellationToken cancellationToken)
 	{
-		var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+		var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
 		if (!Guid.TryParse(userIdClaim, out var userId))
 		{
@@ -72,5 +73,66 @@ public class AuthController : ControllerBase
 		}
 
 		return Ok(UserViewModel.FromUser(user));
+	}
+
+	[HttpPost("change-password")]
+	[Authorize]
+	public async Task<IActionResult> ChangePassword(
+		ChangePasswordRequest request,
+		CancellationToken cancellationToken
+	)
+	{
+		var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+		if (!Guid.TryParse(userIdClaim, out var userId))
+		{
+			return Unauthorized();
+		}
+
+		var validationError = ValidateChangePasswordRequest(request);
+
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
+		}
+
+		var changed = await _userService.ChangePasswordAsync(
+			userId,
+			request.CurrentPassword,
+			request.NewPassword,
+			cancellationToken
+		);
+
+		if (!changed)
+		{
+			return BadRequest("Current password is incorrect.");
+		}
+
+		return NoContent();
+	}
+
+	private static string? ValidateChangePasswordRequest(ChangePasswordRequest request)
+	{
+		if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+		{
+			return "Current password is required.";
+		}
+
+		if (string.IsNullOrWhiteSpace(request.NewPassword))
+		{
+			return "New password is required.";
+		}
+
+		if (request.NewPassword.Length < 8)
+		{
+			return "New password must be at least 8 characters long.";
+		}
+
+		if (request.CurrentPassword == request.NewPassword)
+		{
+			return "New password must be different to the current password.";
+		}
+
+		return null;
 	}
 }

@@ -18,9 +18,10 @@ public class UsersController : ControllerBase
 	}
 
 	[HttpGet]
-	public async Task<ActionResult<IReadOnlyList<UserViewModel>>> GetAll(CancellationToken cancellationToken)
+	public async Task<ActionResult<List<UserViewModel>>> GetAll(CancellationToken cancellationToken)
 	{
 		var users = await _userService.GetAllAsync(cancellationToken);
+
 		return Ok(users.Select(UserViewModel.FromUser).ToList());
 	}
 
@@ -149,6 +150,39 @@ public class UsersController : ControllerBase
 		return Ok(UserViewModel.FromUser(updatedUser));
 	}
 
+	[HttpPost("{id}/reset-password")]
+	public async Task<IActionResult> ResetPassword(
+		string id,
+		ResetPasswordRequest request,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "User", out var userId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var validationError = ValidateResetPasswordRequest(request);
+
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
+		}
+
+		var reset = await _userService.ResetPasswordAsync(
+			userId,
+			request.NewPassword,
+			cancellationToken
+		);
+
+		if (!reset)
+		{
+			return NotFound();
+		}
+
+		return NoContent();
+	}
+
 	private static string? ValidateCreateRequest(CreateUserRequest request)
 	{
 		if (string.IsNullOrWhiteSpace(request.Email))
@@ -179,6 +213,21 @@ public class UsersController : ControllerBase
 		return null;
 	}
 
+	private static string? ValidateResetPasswordRequest(ResetPasswordRequest request)
+	{
+		if (string.IsNullOrWhiteSpace(request.NewPassword))
+		{
+			return "New password is required.";
+		}
+
+		if (request.NewPassword.Length < 8)
+		{
+			return "New password must be at least 8 characters long.";
+		}
+
+		return null;
+	}
+
 	private bool TryParseGuid(
 		string id,
 		string entityName,
@@ -192,12 +241,14 @@ public class UsersController : ControllerBase
 		if (string.IsNullOrWhiteSpace(id))
 		{
 			errorResult = BadRequest($"{entityName} id is required.");
+
 			return false;
 		}
 
 		if (!Guid.TryParse(id, out parsedId))
 		{
 			errorResult = BadRequest($"{entityName} id must be a valid GUID.");
+
 			return false;
 		}
 

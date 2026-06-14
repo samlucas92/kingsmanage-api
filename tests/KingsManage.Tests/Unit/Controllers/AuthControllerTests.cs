@@ -82,9 +82,11 @@ public class AuthControllerTests
 		);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var response = okResult!.Value as LoginResponse;
+
 		Assert.That(response, Is.Not.Null);
 		Assert.That(response!.Token, Is.EqualTo("test-token"));
 		Assert.That(response.User.Id, Is.EqualTo(user.Id));
@@ -142,12 +144,114 @@ public class AuthControllerTests
 		var result = await controller.GetCurrentUser(CancellationToken.None);
 
 		var okResult = result.Result as OkObjectResult;
+
 		Assert.That(okResult, Is.Not.Null);
 
 		var viewModel = okResult!.Value as UserViewModel;
+
 		Assert.That(viewModel, Is.Not.Null);
 		Assert.That(viewModel!.Id, Is.EqualTo(user.Id));
 		Assert.That(viewModel.Role, Is.EqualTo(UserRole.Coach));
+	}
+
+	[Test]
+	public async Task ChangePassword_WhenClaimIsMissing_ShouldReturnUnauthorized()
+	{
+		var controller = CreateController();
+		SetUser(controller, new ClaimsPrincipal(new ClaimsIdentity()));
+
+		var result = await controller.ChangePassword(
+			new ChangePasswordRequest
+			{
+				CurrentPassword = "OldPassword123!",
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<UnauthorizedResult>());
+	}
+
+	[Test]
+	public async Task ChangePassword_WhenCurrentPasswordIsMissing_ShouldReturnBadRequest()
+	{
+		var user = CreateUser(UserRole.Admin);
+		var controller = CreateController();
+		SetUser(controller, CreatePrincipal(user.Id));
+
+		var result = await controller.ChangePassword(
+			new ChangePasswordRequest
+			{
+				CurrentPassword = string.Empty,
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task ChangePassword_WhenNewPasswordIsTooShort_ShouldReturnBadRequest()
+	{
+		var user = CreateUser(UserRole.Admin);
+		var controller = CreateController();
+		SetUser(controller, CreatePrincipal(user.Id));
+
+		var result = await controller.ChangePassword(
+			new ChangePasswordRequest
+			{
+				CurrentPassword = "OldPassword123!",
+				NewPassword = "short"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task ChangePassword_WhenPasswordCannotBeChanged_ShouldReturnBadRequest()
+	{
+		var user = CreateUser(UserRole.Admin);
+		var userService = new FakeUserService();
+		userService.ChangePasswordResult = false;
+		var controller = CreateController(userService);
+		SetUser(controller, CreatePrincipal(user.Id));
+
+		var result = await controller.ChangePassword(
+			new ChangePasswordRequest
+			{
+				CurrentPassword = "OldPassword123!",
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task ChangePassword_WhenRequestIsValid_ShouldReturnNoContent()
+	{
+		var user = CreateUser(UserRole.Admin);
+		var userService = new FakeUserService();
+		var controller = CreateController(userService);
+		SetUser(controller, CreatePrincipal(user.Id));
+
+		var result = await controller.ChangePassword(
+			new ChangePasswordRequest
+			{
+				CurrentPassword = "OldPassword123!",
+				NewPassword = "NewPassword123!"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result, Is.TypeOf<NoContentResult>());
+		Assert.That(userService.LastChangePasswordUserId, Is.EqualTo(user.Id));
+		Assert.That(userService.LastCurrentPassword, Is.EqualTo("OldPassword123!"));
+		Assert.That(userService.LastNewPassword, Is.EqualTo("NewPassword123!"));
 	}
 
 	private static AuthController CreateController(FakeUserService? userService = null)
@@ -211,8 +315,12 @@ public class AuthControllerTests
 	private sealed class FakeUserService : IUserService
 	{
 		public List<AppUser> Users { get; } = new();
-
 		public AppUser? ValidCredentialsUser { get; set; }
+		public bool ChangePasswordResult { get; set; } = true;
+		public bool ResetPasswordResult { get; set; } = true;
+		public Guid? LastChangePasswordUserId { get; private set; }
+		public string? LastCurrentPassword { get; private set; }
+		public string? LastNewPassword { get; private set; }
 
 		public Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
@@ -226,12 +334,21 @@ public class AuthControllerTests
 
 		public Task<AppUser?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(Users.FirstOrDefault(user => user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)));
+			return Task.FromResult(
+				Users.FirstOrDefault(user =>
+					user.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+				)
+			);
 		}
 
-		public Task<AppUser> CreateAsync(AppUser user, string password, CancellationToken cancellationToken = default)
+		public Task<AppUser> CreateAsync(
+			AppUser user,
+			string password,
+			CancellationToken cancellationToken = default
+		)
 		{
 			Users.Add(user);
+
 			return Task.FromResult(user);
 		}
 
@@ -240,7 +357,11 @@ public class AuthControllerTests
 			return Task.FromResult<AppUser?>(user);
 		}
 
-		public Task<AppUser?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+		public Task<AppUser?> SetActiveAsync(
+			Guid id,
+			bool isActive,
+			CancellationToken cancellationToken = default
+		)
 		{
 			var user = Users.FirstOrDefault(existingUser => existingUser.Id == id);
 
@@ -252,16 +373,48 @@ public class AuthControllerTests
 			return Task.FromResult(user);
 		}
 
-		public Task<AppUser?> ValidateCredentialsAsync(string email, string password, CancellationToken cancellationToken = default)
+		public Task<AppUser?> ValidateCredentialsAsync(
+			string email,
+			string password,
+			CancellationToken cancellationToken = default
+		)
 		{
 			return Task.FromResult(ValidCredentialsUser);
 		}
 
-		public Task<AppUser> EnsureDefaultAdminUserAsync(string email, string password, CancellationToken cancellationToken = default)
+		public Task<bool> ChangePasswordAsync(
+			Guid id,
+			string currentPassword,
+			string newPassword,
+			CancellationToken cancellationToken = default
+		)
+		{
+			LastChangePasswordUserId = id;
+			LastCurrentPassword = currentPassword;
+			LastNewPassword = newPassword;
+
+			return Task.FromResult(ChangePasswordResult);
+		}
+
+		public Task<bool> ResetPasswordAsync(
+			Guid id,
+			string newPassword,
+			CancellationToken cancellationToken = default
+		)
+		{
+			return Task.FromResult(ResetPasswordResult);
+		}
+
+		public Task<AppUser> EnsureDefaultAdminUserAsync(
+			string email,
+			string password,
+			CancellationToken cancellationToken = default
+		)
 		{
 			var user = CreateUser(UserRole.Admin);
 			user.Email = email;
 			Users.Add(user);
+
 			return Task.FromResult(user);
 		}
 	}
