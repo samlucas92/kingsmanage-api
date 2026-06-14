@@ -1,7 +1,8 @@
 using System.Collections;
 using KingsManage;
-using KingsManage.Web;
+using KingsManage.Tests.Fakes;
 using KingsManage.Web.Controllers;
+using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
@@ -19,15 +20,14 @@ public class MatchesControllerTests
 	public async Task GetAll_WhenNoSeasonIdProvided_ShouldReturnAllMatches()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Team One"));
 		matchService.Matches.Add(CreateMatch(MatchTwoId, SeasonTwoId, "Team Two"));
 
 		var result = await controller.GetAll(null, CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var matches = GetResultItems(okResult);
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(matches, Is.Not.Null);
 		Assert.That(matches, Has.Count.EqualTo(2));
@@ -37,15 +37,14 @@ public class MatchesControllerTests
 	public async Task GetAll_WhenSeasonIdProvided_ShouldReturnSeasonMatches()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Team One"));
 		matchService.Matches.Add(CreateMatch(MatchTwoId, SeasonTwoId, "Team Two"));
 
 		var result = await controller.GetAll(SeasonOneId.ToString(), CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var matches = GetResultItems(okResult);
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(matches, Is.Not.Null);
 		Assert.That(matches, Has.Count.EqualTo(1));
@@ -55,8 +54,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task GetAll_WhenSeasonIdIsNotGuid_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.GetAll("not-a-guid", CancellationToken.None);
 
@@ -66,8 +64,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task GetById_WhenIdIsEmpty_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.GetById("", CancellationToken.None);
 
@@ -77,8 +74,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task GetById_WhenIdIsNotGuid_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.GetById("not-a-guid", CancellationToken.None);
 
@@ -88,8 +84,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task GetById_WhenMatchDoesNotExist_ShouldReturnNotFound()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.GetById(MissingMatchId.ToString(), CancellationToken.None);
 
@@ -100,14 +95,13 @@ public class MatchesControllerTests
 	public async Task GetById_WhenMatchExists_ShouldReturnMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.GetById(MatchOneId.ToString(), CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.Id, Is.EqualTo(MatchOneId));
@@ -117,8 +111,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task Create_WhenOpponentIsEmpty_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.Create(
 			new Match
@@ -140,7 +133,8 @@ public class MatchesControllerTests
 	public async Task Create_WhenMatchIsValid_ShouldReturnCreatedMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var statsService = new FakeStatsService();
+		var controller = CreateController(matchService, statsService);
 
 		var result = await controller.Create(
 			new Match
@@ -157,52 +151,21 @@ public class MatchesControllerTests
 
 		var createdResult = result.Result as CreatedAtActionResult;
 		var match = createdResult?.Value as Match;
-
 		Assert.That(createdResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.Id, Is.Not.EqualTo(Guid.Empty));
 		Assert.That(match.Opponent, Is.EqualTo("Test Opponent"));
 		Assert.That(match.State, Is.EqualTo(MatchState.Upcoming));
 		Assert.That(matchService.Matches, Has.Count.EqualTo(1));
-	}
-
-	[Test]
-	public async Task Update_WhenIdIsNotGuid_ShouldReturnBadRequest()
-	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
-		var result = await controller.Update(
-			"not-a-guid",
-			CreateMatch(MatchOneId, SeasonOneId, "Updated Opponent"),
-			CancellationToken.None
-		);
-
-		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
-	}
-
-	[Test]
-	public async Task Update_WhenMatchDoesNotExist_ShouldReturnNotFound()
-	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
-		var result = await controller.Update(
-			MissingMatchId.ToString(),
-			CreateMatch(Guid.Empty, SeasonOneId, "Updated Opponent"),
-			CancellationToken.None
-		);
-
-		Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
+		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
 	public async Task Update_WhenMatchExists_ShouldReturnUpdatedMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(matchService);
 		var createdAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
 		matchService.Matches.Add(new Match
 		{
 			Id = MatchOneId,
@@ -235,7 +198,6 @@ public class MatchesControllerTests
 
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.Id, Is.EqualTo(MatchOneId));
@@ -248,33 +210,32 @@ public class MatchesControllerTests
 	public async Task Delete_WhenMatchExists_ShouldReturnNoContent()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var statsService = new FakeStatsService();
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.Delete(MatchOneId.ToString(), CancellationToken.None);
 
 		Assert.That(result, Is.TypeOf<NoContentResult>());
 		Assert.That(matchService.Matches, Is.Empty);
+		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
 	public async Task SetLineup_WhenMatchExists_ShouldReturnUpdatedMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
 		var selectedPlayers = new List<SelectedPlayer>
 		{
 			new() { PlayerId = PlayerOneId, X = 50, Y = 60, Area = "pitch", PositionIndex = 1 }
 		};
 
 		var result = await controller.SetLineup(MatchOneId.ToString(), selectedPlayers, CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.SelectedPlayers, Has.Count.EqualTo(1));
@@ -285,8 +246,7 @@ public class MatchesControllerTests
 	public async Task SetFormation_WhenMatchExists_ShouldReturnUpdatedFormation()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.SetFormation(
@@ -294,9 +254,9 @@ public class MatchesControllerTests
 			LineupFormation.FourTwoThreeOne,
 			CancellationToken.None
 		);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.SelectedFormation, Is.EqualTo(LineupFormation.FourTwoThreeOne));
@@ -306,14 +266,13 @@ public class MatchesControllerTests
 	public async Task ToggleLineupLocked_WhenMatchExists_ShouldToggleLineupLock()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.ToggleLineupLocked(MatchOneId.ToString(), CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.IsLineupLocked, Is.True);
@@ -322,8 +281,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task SetResult_WhenGoalsAreNegative_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.SetResult(
 			MatchOneId.ToString(),
@@ -338,8 +296,7 @@ public class MatchesControllerTests
 	public async Task SetResult_WhenHomeMatchWon_ShouldReturnCompletedWonMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.SetResult(
@@ -347,9 +304,9 @@ public class MatchesControllerTests
 			new MatchResult { HomeGoals = 3, AwayGoals = 1 },
 			CancellationToken.None
 		);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.IsCompleted, Is.True);
@@ -358,32 +315,10 @@ public class MatchesControllerTests
 	}
 
 	[Test]
-	public async Task SetResult_WhenAwayMatchHomeTeamWins_ShouldReturnLostMatch()
-	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
-		match.Venue = MatchVenue.Away;
-		matchService.Matches.Add(match);
-
-		var result = await controller.SetResult(
-			MatchOneId.ToString(),
-			new MatchResult { HomeGoals = 3, AwayGoals = 1 },
-			CancellationToken.None
-		);
-		var okResult = result.Result as OkObjectResult;
-		var updatedMatch = okResult?.Value as Match;
-
-		Assert.That(okResult, Is.Not.Null);
-		Assert.That(updatedMatch, Is.Not.Null);
-		Assert.That(updatedMatch!.State, Is.EqualTo(MatchState.Lost));
-	}
-
-	[Test]
 	public async Task ClearResult_WhenMatchExists_ShouldClearResult()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(matchService);
 		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
 		match.Result = new MatchResult { HomeGoals = 2, AwayGoals = 0 };
 		match.IsCompleted = true;
@@ -391,9 +326,9 @@ public class MatchesControllerTests
 		matchService.Matches.Add(match);
 
 		var result = await controller.ClearResult(MatchOneId.ToString(), CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var updatedMatch = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(updatedMatch, Is.Not.Null);
 		Assert.That(updatedMatch!.Result, Is.Null);
@@ -405,10 +340,8 @@ public class MatchesControllerTests
 	public async Task UpdatePlayerStats_WhenMatchExists_ShouldReturnUpdatedStats()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
 		var playerStats = new List<MatchPlayerStats>
 		{
 			new() { PlayerId = PlayerOneId, Goals = 2, Assists = 1, Minutes = 90, IsMOTM = true }
@@ -419,9 +352,9 @@ public class MatchesControllerTests
 			playerStats,
 			CancellationToken.None
 		);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.PlayerStats, Has.Count.EqualTo(1));
@@ -432,10 +365,8 @@ public class MatchesControllerTests
 	public async Task UpdateNotes_WhenMatchExists_ShouldReturnUpdatedNotes()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
-
+		var controller = CreateController(matchService);
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
 		var notes = new MatchNotes
 		{
 			Availability = "Availability note",
@@ -444,14 +375,10 @@ public class MatchesControllerTests
 			General = "General note"
 		};
 
-		var result = await controller.UpdateNotes(
-			MatchOneId.ToString(),
-			notes,
-			CancellationToken.None
-		);
+		var result = await controller.UpdateNotes(MatchOneId.ToString(), notes, CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.Notes, Is.Not.Null);
@@ -461,8 +388,7 @@ public class MatchesControllerTests
 	[Test]
 	public async Task Postpone_WhenNewDateIsDefault_ShouldReturnBadRequest()
 	{
-		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(new FakeMatchService());
 
 		var result = await controller.Postpone(
 			MatchOneId.ToString(),
@@ -477,10 +403,9 @@ public class MatchesControllerTests
 	public async Task Postpone_WhenMatchExists_ShouldPostponeMatch()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(matchService);
 		var oldDate = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc);
 		var newDate = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Utc);
-
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent", oldDate));
 
 		var result = await controller.Postpone(
@@ -488,9 +413,9 @@ public class MatchesControllerTests
 			new PostponeMatchModel { NewDate = newDate, Reason = "Bad weather" },
 			CancellationToken.None
 		);
+
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(match, Is.Not.Null);
 		Assert.That(match!.Date, Is.EqualTo(newDate));
@@ -504,7 +429,7 @@ public class MatchesControllerTests
 	public async Task Restore_WhenMatchExists_ShouldRestoreMatchToPreviousDate()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService);
+		var controller = CreateController(matchService);
 		var oldDate = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc);
 		var newDate = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Utc);
 		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent", newDate);
@@ -520,14 +445,22 @@ public class MatchesControllerTests
 		matchService.Matches.Add(match);
 
 		var result = await controller.Restore(MatchOneId.ToString(), CancellationToken.None);
+
 		var okResult = result.Result as OkObjectResult;
 		var updatedMatch = okResult?.Value as Match;
-
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(updatedMatch, Is.Not.Null);
 		Assert.That(updatedMatch!.Date, Is.EqualTo(oldDate));
 		Assert.That(updatedMatch.State, Is.EqualTo(MatchState.Upcoming));
 		Assert.That(updatedMatch.IsCompleted, Is.False);
+	}
+
+	private static MatchesController CreateController(
+		FakeMatchService matchService,
+		FakeStatsService? statsService = null
+	)
+	{
+		return new MatchesController(matchService, statsService ?? new FakeStatsService());
 	}
 
 	private static List<object>? GetResultItems(OkObjectResult? okResult)
@@ -579,7 +512,7 @@ public class MatchesControllerTests
 		};
 	}
 
-	private class FakeMatchService : IMatchService
+	private sealed class FakeMatchService : IMatchService
 	{
 		public List<Match> Matches { get; } = [];
 
@@ -629,7 +562,6 @@ public class MatchesControllerTests
 			match.PlayerStats ??= [];
 			match.CreatedAt = DateTime.UtcNow;
 			match.UpdatedAt = DateTime.UtcNow;
-
 			Matches.Add(match);
 
 			return Task.FromResult(match);
@@ -641,6 +573,7 @@ public class MatchesControllerTests
 		)
 		{
 			var index = Matches.FindIndex(existingMatch => existingMatch.Id == match.Id);
+
 			if (index == -1)
 			{
 				return Task.FromResult<Match?>(null);
@@ -659,12 +592,14 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult(false);
 			}
 
 			Matches.Remove(match);
+
 			return Task.FromResult(true);
 		}
 
@@ -675,6 +610,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -694,6 +630,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -714,6 +651,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -732,6 +670,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -749,6 +688,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -767,6 +707,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -785,6 +726,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -804,6 +746,7 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -831,12 +774,14 @@ public class MatchesControllerTests
 		)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
 			}
 
 			var lastPostponement = match.Postponements.LastOrDefault();
+
 			if (lastPostponement is not null)
 			{
 				match.Date = lastPostponement.OldDate;

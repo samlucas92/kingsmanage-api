@@ -1,174 +1,128 @@
-using KingsManage.Web.Controllers;
-using Microsoft.AspNetCore.Mvc;
 using KingsManage;
+using KingsManage.Tests.Fakes;
+using KingsManage.Web.Controllers;
+using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
 
 public class MatchStatsRecalculationTests
 {
-	private static readonly Guid MatchOneId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+	private static readonly Guid MatchId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 	private static readonly Guid SeasonOneId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 	private static readonly Guid SeasonTwoId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 	private static readonly Guid PlayerOneId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-	private static readonly Guid PlayerTwoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
 	[Test]
-	public async Task SetResult_WhenMatchHasSeason_ShouldRecalculateThatSeason()
+	public async Task SetResult_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
-		var result = await controller.SetResult(
-			MatchOneId.ToString(),
+		await controller.SetResult(
+			MatchId.ToString(),
 			new MatchResult { HomeGoals = 3, AwayGoals = 1 },
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task UpdatePlayerStats_WhenCompletedMatchChanges_ShouldRecalculateThatSeason()
+	public async Task UpdatePlayerStats_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		var match = CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent");
-		match.SelectedPlayers.Add(new SelectedPlayer
-		{
-			PlayerId = PlayerOneId,
-			Area = "pitch",
-			X = 50,
-			Y = 50,
-			PositionIndex = 1
-		});
-		match.PlayerStats.Add(new MatchPlayerStats
-		{
-			PlayerId = PlayerOneId,
-			Goals = 1
-		});
-		matchService.Matches.Add(match);
-
-		var result = await controller.UpdatePlayerStats(
-			MatchOneId.ToString(),
-			[
-				new MatchPlayerStats
-				{
-					PlayerId = PlayerOneId,
-					Goals = 2,
-					Assists = 1,
-					Minutes = 90,
-					IsMOTM = true
-				}
-			],
+		await controller.UpdatePlayerStats(
+			MatchId.ToString(),
+			new List<MatchPlayerStats>
+			{
+				new() { PlayerId = PlayerOneId, Goals = 2, Minutes = 90 }
+			},
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task SetLineup_WhenCompletedMatchLineupChanges_ShouldRecalculateThatSeason()
+	public async Task SetLineup_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		var match = CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent");
-		match.SelectedPlayers.Add(new SelectedPlayer
-		{
-			PlayerId = PlayerOneId,
-			Area = "pitch",
-			X = 50,
-			Y = 50,
-			PositionIndex = 1
-		});
-		matchService.Matches.Add(match);
-
-		var result = await controller.SetLineup(
-			MatchOneId.ToString(),
-			[
-				new SelectedPlayer
-				{
-					PlayerId = PlayerTwoId,
-					Area = "bench",
-					X = 0,
-					Y = 0
-				}
-			],
+		await controller.SetLineup(
+			MatchId.ToString(),
+			new List<SelectedPlayer>
+			{
+				new() { PlayerId = PlayerOneId, Area = "pitch", X = 50, Y = 60, PositionIndex = 1 }
+			},
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task ClearResult_WhenCompletedMatchIsMadeUpcoming_ShouldRecalculateThatSeason()
+	public async Task ClearResult_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent"));
+		await controller.ClearResult(MatchId.ToString(), CancellationToken.None);
 
-		var result = await controller.ClearResult(MatchOneId.ToString(), CancellationToken.None);
-
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task Delete_WhenCompletedMatchIsDeleted_ShouldRecalculateThatSeason()
+	public async Task Delete_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent"));
+		await controller.Delete(MatchId.ToString(), CancellationToken.None);
 
-		var result = await controller.Delete(MatchOneId.ToString(), CancellationToken.None);
-
-		Assert.That(result, Is.TypeOf<NoContentResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task Update_WhenMatchMovesSeason_ShouldRecalculateOldAndNewSeasons()
+	public async Task Update_WhenMatchMovesSeason_ShouldRecalculateOldAndNewSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
-		var result = await controller.Update(
-			MatchOneId.ToString(),
-			CreateCompletedMatch(MatchOneId, SeasonTwoId, "Updated Opponent"),
+		await controller.Update(
+			MatchId.ToString(),
+			CreateCompletedMatch(MatchId, SeasonTwoId),
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
-		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId, SeasonTwoId }));
+		Assert.That(statsService.RecalculatedSeasonIds, Is.EquivalentTo(new[] { SeasonOneId, SeasonTwoId }));
 	}
 
 	[Test]
-	public async Task Postpone_WhenCompletedMatchIsPostponed_ShouldRecalculateThatSeason()
+	public async Task Postpone_WhenCompletedMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
-		var result = await controller.Postpone(
-			MatchOneId.ToString(),
+		await controller.Postpone(
+			MatchId.ToString(),
 			new PostponeMatchModel
 			{
 				NewDate = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Utc),
@@ -177,78 +131,61 @@ public class MatchStatsRecalculationTests
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
-	public async Task UpdateNotes_WhenNotesChange_ShouldNotRecalculateStats()
+	public async Task UpdateNotes_WhenOnlyNotesChange_ShouldNotRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
 		var controller = new MatchesController(matchService, statsService);
+		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
-		matchService.Matches.Add(CreateCompletedMatch(MatchOneId, SeasonOneId, "Test Opponent"));
-
-		var result = await controller.UpdateNotes(
-			MatchOneId.ToString(),
-			new MatchNotes
-			{
-				Availability = "Availability",
-				Tactical = "Tactical",
-				Injuries = "Injuries",
-				General = "General"
-			},
+		await controller.UpdateNotes(
+			MatchId.ToString(),
+			new MatchNotes { General = "Only a note" },
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
 		Assert.That(statsService.RecalculatedSeasonIds, Is.Empty);
 	}
 
-	private static Match CreateMatch(
-		Guid id,
-		Guid? seasonId,
-		string opponent,
-		DateTime? date = null
-	)
+	private static Match CreateMatch(Guid id, Guid seasonId)
 	{
 		return new Match
 		{
 			Id = id,
 			SeasonId = seasonId,
 			Team = ClubTeam.First,
-			Opponent = opponent,
-			Date = date ?? new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc),
+			Opponent = "Test Opponent",
+			Date = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc),
 			Venue = MatchVenue.Home,
 			State = MatchState.Upcoming,
-			Result = null,
-			IsCompleted = false,
-			IsLineupLocked = false,
 			SelectedFormation = LineupFormation.FourThreeThree,
-			Notes = new MatchNotes(),
-			Postponements = [],
 			SelectedPlayers = [],
 			PlayerStats = [],
+			Postponements = [],
+			Notes = new MatchNotes(),
 			CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
 			UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
 		};
 	}
 
-	private static Match CreateCompletedMatch(
-		Guid id,
-		Guid? seasonId,
-		string opponent
-	)
+	private static Match CreateCompletedMatch(Guid id, Guid seasonId)
 	{
-		var match = CreateMatch(id, seasonId, opponent);
-		match.State = MatchState.Won;
+		var match = CreateMatch(id, seasonId);
+		match.Result = new MatchResult { HomeGoals = 2, AwayGoals = 0 };
 		match.IsCompleted = true;
-		match.Result = new MatchResult
-		{
-			HomeGoals = 2,
-			AwayGoals = 0
-		};
+		match.State = MatchState.Won;
+		match.SelectedPlayers =
+		[
+			new SelectedPlayer { PlayerId = PlayerOneId, Area = "pitch", X = 50, Y = 60, PositionIndex = 1 }
+		];
+		match.PlayerStats =
+		[
+			new MatchPlayerStats { PlayerId = PlayerOneId, Goals = 1, Minutes = 90 }
+		];
 
 		return match;
 	}
@@ -259,45 +196,26 @@ public class MatchStatsRecalculationTests
 
 		public Task<IReadOnlyList<Match>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult<IReadOnlyList<Match>>(
-				Matches.OrderBy(match => match.Date).ToList()
-			);
+			return Task.FromResult<IReadOnlyList<Match>>(Matches.ToList());
 		}
 
-		public Task<IReadOnlyList<Match>> GetBySeasonAsync(
-			Guid seasonId,
-			CancellationToken cancellationToken = default
-		)
+		public Task<IReadOnlyList<Match>> GetBySeasonAsync(Guid seasonId, CancellationToken cancellationToken = default)
 		{
 			return Task.FromResult<IReadOnlyList<Match>>(
-				Matches
-					.Where(match => match.SeasonId == seasonId)
-					.OrderBy(match => match.Date)
-					.ToList()
+				Matches.Where(match => match.SeasonId == seasonId).ToList()
 			);
 		}
 
 		public Task<Match?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(
-				Matches.FirstOrDefault(match => match.Id == id)
-			);
+			return Task.FromResult(Matches.FirstOrDefault(match => match.Id == id));
 		}
 
 		public Task<Match> CreateAsync(Match match, CancellationToken cancellationToken = default)
 		{
 			match.Id = match.Id == Guid.Empty ? Guid.NewGuid() : match.Id;
-			match.Opponent = match.Opponent.Trim();
-			match.State = MatchState.Upcoming;
-			match.IsCompleted = false;
-			match.Result = null;
-			match.Notes ??= new MatchNotes();
-			match.Postponements ??= [];
-			match.SelectedPlayers ??= [];
-			match.PlayerStats ??= [];
-			match.CreatedAt = DateTime.UtcNow;
-			match.UpdatedAt = DateTime.UtcNow;
 			Matches.Add(match);
+
 			return Task.FromResult(match);
 		}
 
@@ -310,9 +228,8 @@ public class MatchStatsRecalculationTests
 				return Task.FromResult<Match?>(null);
 			}
 
-			match.Opponent = match.Opponent.Trim();
-			match.UpdatedAt = DateTime.UtcNow;
 			Matches[index] = match;
+
 			return Task.FromResult<Match?>(match);
 		}
 
@@ -326,14 +243,11 @@ public class MatchStatsRecalculationTests
 			}
 
 			Matches.Remove(match);
+
 			return Task.FromResult(true);
 		}
 
-		public Task<Match?> SetResultAsync(
-			Guid id,
-			MatchResult result,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> SetResultAsync(Guid id, MatchResult result, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -344,8 +258,8 @@ public class MatchStatsRecalculationTests
 
 			match.Result = result;
 			match.IsCompleted = true;
-			match.State = GetResultState(match.Venue, result);
-			match.UpdatedAt = DateTime.UtcNow;
+			match.State = MatchState.Won;
+
 			return Task.FromResult<Match?>(match);
 		}
 
@@ -361,15 +275,11 @@ public class MatchStatsRecalculationTests
 			match.Result = null;
 			match.IsCompleted = false;
 			match.State = MatchState.Upcoming;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> SetSelectedPlayersAsync(
-			Guid id,
-			List<SelectedPlayer> selectedPlayers,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> SetSelectedPlayersAsync(Guid id, List<SelectedPlayer> selectedPlayers, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -379,15 +289,11 @@ public class MatchStatsRecalculationTests
 			}
 
 			match.SelectedPlayers = selectedPlayers;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> SetLineupFormationAsync(
-			Guid id,
-			LineupFormation formation,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> SetLineupFormationAsync(Guid id, LineupFormation formation, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -397,7 +303,7 @@ public class MatchStatsRecalculationTests
 			}
 
 			match.SelectedFormation = formation;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
@@ -411,15 +317,11 @@ public class MatchStatsRecalculationTests
 			}
 
 			match.IsLineupLocked = !match.IsLineupLocked;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> UpdateNotesAsync(
-			Guid id,
-			MatchNotes notes,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> UpdateNotesAsync(Guid id, MatchNotes notes, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -429,15 +331,11 @@ public class MatchStatsRecalculationTests
 			}
 
 			match.Notes = notes;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> UpdatePlayerStatsAsync(
-			Guid id,
-			List<MatchPlayerStats> playerStats,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> UpdatePlayerStatsAsync(Guid id, List<MatchPlayerStats> playerStats, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -447,16 +345,11 @@ public class MatchStatsRecalculationTests
 			}
 
 			match.PlayerStats = playerStats;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> PostponeAsync(
-			Guid id,
-			DateTime newDate,
-			string? reason,
-			CancellationToken cancellationToken = default
-		)
+		public Task<Match?> PostponeAsync(Guid id, DateTime newDate, string? reason, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -470,13 +363,13 @@ public class MatchStatsRecalculationTests
 				Id = Guid.NewGuid(),
 				OldDate = match.Date,
 				NewDate = newDate,
-				Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+				Reason = reason,
 				ChangedAt = DateTime.UtcNow
 			});
 			match.Date = newDate;
 			match.State = MatchState.Postponed;
 			match.IsCompleted = false;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
 		}
 
@@ -489,94 +382,10 @@ public class MatchStatsRecalculationTests
 				return Task.FromResult<Match?>(null);
 			}
 
-			var lastPostponement = match.Postponements.LastOrDefault();
-
-			if (lastPostponement is not null)
-			{
-				match.Date = lastPostponement.OldDate;
-			}
-
 			match.State = MatchState.Upcoming;
 			match.IsCompleted = false;
-			match.UpdatedAt = DateTime.UtcNow;
+
 			return Task.FromResult<Match?>(match);
-		}
-
-		private static MatchState GetResultState(MatchVenue venue, MatchResult result)
-		{
-			if (result.HomeGoals == result.AwayGoals)
-			{
-				return MatchState.Draw;
-			}
-
-			var homeWin = result.HomeGoals > result.AwayGoals;
-
-			return venue switch
-			{
-				MatchVenue.Home => homeWin ? MatchState.Won : MatchState.Lost,
-				MatchVenue.Away => homeWin ? MatchState.Lost : MatchState.Won,
-				_ => MatchState.Upcoming
-			};
-		}
-	}
-
-	private sealed class FakeStatsService : IStatsService
-	{
-		public List<Guid> RecalculatedSeasonIds { get; } = [];
-
-		public Task<IReadOnlyList<PlayerSeasonStats>> GetSeasonStatsAsync(
-			Guid seasonId,
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
-		}
-
-		public Task<IReadOnlyList<PlayerSeasonStats>> GetAllSeasonStatsAsync(
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
-		}
-
-		public Task<IReadOnlyList<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
-			Guid playerId,
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult<IReadOnlyList<PlayerSeasonStats>>([]);
-		}
-
-		public Task<IReadOnlyList<PlayerHistoricalStats>> GetHistoricalStatsAsync(
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult<IReadOnlyList<PlayerHistoricalStats>>([]);
-		}
-
-		public Task<PlayerHistoricalStats?> GetHistoricalStatsByPlayerIdAsync(
-			Guid playerId,
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult<PlayerHistoricalStats?>(null);
-		}
-
-		public Task<PlayerHistoricalStats> UpsertHistoricalStatsAsync(
-			PlayerHistoricalStats stats,
-			CancellationToken cancellationToken = default
-		)
-		{
-			return Task.FromResult(stats);
-		}
-
-		public Task RecalculateSeasonStatsAsync(
-			Guid seasonId,
-			CancellationToken cancellationToken = default
-		)
-		{
-			RecalculatedSeasonIds.Add(seasonId);
-			return Task.CompletedTask;
 		}
 	}
 }

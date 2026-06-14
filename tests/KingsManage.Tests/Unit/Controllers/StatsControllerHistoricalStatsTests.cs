@@ -199,9 +199,9 @@ public class StatsControllerHistoricalStatsTests
 			_players = players;
 		}
 
-		public Task<List<Player>> GetAllAsync(CancellationToken cancellationToken = default)
+		public Task<IReadOnlyList<Player>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(_players);
+			return Task.FromResult<IReadOnlyList<Player>>(_players);
 		}
 
 		public Task<Player?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -215,30 +215,32 @@ public class StatsControllerHistoricalStatsTests
 			return Task.FromResult(player);
 		}
 
-		public Task UpdateAsync(Player player, CancellationToken cancellationToken = default)
+		public Task<Player?> UpdateAsync(Player player, CancellationToken cancellationToken = default)
 		{
 			var index = _players.FindIndex(existingPlayer => existingPlayer.Id == player.Id);
-			if (index >= 0)
+			if (index < 0)
 			{
-				_players[index] = player;
+				return Task.FromResult<Player?>(null);
 			}
 
-			return Task.CompletedTask;
+			_players[index] = player;
+			return Task.FromResult<Player?>(player);
 		}
 
-		public Task SetActiveAsync(
+		public Task<Player?> SetActiveAsync(
 			Guid id,
 			bool isActive,
 			CancellationToken cancellationToken = default
 		)
 		{
 			var player = _players.FirstOrDefault(existingPlayer => existingPlayer.Id == id);
-			if (player is not null)
+			if (player is null)
 			{
-				player.IsActive = isActive;
+				return Task.FromResult<Player?>(null);
 			}
 
-			return Task.CompletedTask;
+			player.IsActive = isActive;
+			return Task.FromResult<Player?>(player);
 		}
 	}
 
