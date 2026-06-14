@@ -13,18 +13,13 @@ public class MatchesController : ControllerBase
 	private readonly IMatchService _matchService;
 	private readonly IStatsService _statsService;
 
-	public MatchesController(IMatchService matchService)
-		: this(matchService, new NoOpStatsService())
-	{
-	}
-
 	public MatchesController(
 		IMatchService matchService,
-		IStatsService statsService
+		IStatsService? statsService = null
 	)
 	{
 		_matchService = matchService;
-		_statsService = statsService;
+		_statsService = statsService ?? new NoOpStatsService();
 	}
 
 	[HttpGet]
