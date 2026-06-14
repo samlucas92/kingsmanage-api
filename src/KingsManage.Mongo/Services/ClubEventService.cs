@@ -1,4 +1,5 @@
 using KingsManage;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
 namespace KingsManage.Mongo.Services;
@@ -6,6 +7,20 @@ namespace KingsManage.Mongo.Services;
 public class ClubEventService : IClubEventService
 {
 	private readonly IMongoCollection<ClubEvent> _events;
+
+	static ClubEventService()
+	{
+		if (!BsonClassMap.IsClassMapRegistered(typeof(ClubEvent)))
+		{
+			BsonClassMap.RegisterClassMap<ClubEvent>(
+				classMap =>
+				{
+					classMap.AutoMap();
+					classMap.SetIgnoreExtraElements(true);
+				}
+			);
+		}
+	}
 
 	public ClubEventService(MongoContext context)
 	{
@@ -16,10 +31,12 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _events
+		var events = await _events
 			.Find(_ => true)
 			.SortBy(clubEvent => clubEvent.StartDateTime)
 			.ToListAsync(cancellationToken);
+
+		return events.Select(NormaliseFromStorage).ToList();
 	}
 
 	public async Task<ClubEvent?> GetByIdAsync(
@@ -27,9 +44,11 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _events
+		var clubEvent = await _events
 			.Find(clubEvent => clubEvent.Id == id)
 			.FirstOrDefaultAsync(cancellationToken);
+
+		return clubEvent is null ? null : NormaliseFromStorage(clubEvent);
 	}
 
 	public async Task<ClubEvent> CreateAsync(
@@ -171,6 +190,28 @@ public class ClubEventService : IClubEventService
 		return await UpdateAsync(clubEvent, cancellationToken);
 	}
 
+	private static ClubEvent NormaliseFromStorage(ClubEvent clubEvent)
+	{
+		clubEvent.Title ??= string.Empty;
+		clubEvent.Description ??= string.Empty;
+		clubEvent.Location ??= string.Empty;
+		clubEvent.MatchLinks ??= [];
+		clubEvent.AvailabilityResponses ??= [];
+		clubEvent.SeenBy ??= [];
+
+		if (clubEvent.CreatedAt == default)
+		{
+			clubEvent.CreatedAt = DateTime.UtcNow;
+		}
+
+		if (clubEvent.UpdatedAt == default)
+		{
+			clubEvent.UpdatedAt = clubEvent.CreatedAt;
+		}
+
+		return clubEvent;
+	}
+
 	private static void PrepareForSave(ClubEvent clubEvent, bool isNew)
 	{
 		clubEvent.Title = clubEvent.Title.Trim();
@@ -180,7 +221,7 @@ public class ClubEventService : IClubEventService
 		clubEvent.AvailabilityResponses ??= [];
 		clubEvent.SeenBy ??= [];
 
-		if (isNew)
+		if (isNew || clubEvent.CreatedAt == default)
 		{
 			clubEvent.CreatedAt = DateTime.UtcNow;
 		}
