@@ -1,4 +1,4 @@
-namespace KingsManage.Web;
+namespace KingsManage;
 
 public class PostponeMatchModel
 {

@@ -1,3 +1,4 @@
+using System.Collections;
 using KingsManage;
 using KingsManage.Web;
 using KingsManage.Web.Controllers;
@@ -24,9 +25,8 @@ public class MatchesControllerTests
 		matchService.Matches.Add(CreateMatch(MatchTwoId, SeasonTwoId, "Team Two"));
 
 		var result = await controller.GetAll(null, CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
-		var matches = okResult?.Value as IReadOnlyList<Match>;
+		var matches = GetResultItems(okResult);
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(matches, Is.Not.Null);
@@ -43,14 +43,13 @@ public class MatchesControllerTests
 		matchService.Matches.Add(CreateMatch(MatchTwoId, SeasonTwoId, "Team Two"));
 
 		var result = await controller.GetAll(SeasonOneId.ToString(), CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
-		var matches = okResult?.Value as IReadOnlyList<Match>;
+		var matches = GetResultItems(okResult);
 
 		Assert.That(okResult, Is.Not.Null);
 		Assert.That(matches, Is.Not.Null);
 		Assert.That(matches, Has.Count.EqualTo(1));
-		Assert.That(matches![0].SeasonId, Is.EqualTo(SeasonOneId));
+		Assert.That(GetGuidProperty(matches![0], nameof(Match.SeasonId)), Is.EqualTo(SeasonOneId));
 	}
 
 	[Test]
@@ -106,7 +105,6 @@ public class MatchesControllerTests
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.GetById(MatchOneId.ToString(), CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -270,18 +268,10 @@ public class MatchesControllerTests
 
 		var selectedPlayers = new List<SelectedPlayer>
 		{
-			new()
-			{
-				PlayerId = PlayerOneId,
-				X = 50,
-				Y = 60,
-				Area = "pitch",
-				PositionIndex = 1
-			}
+			new() { PlayerId = PlayerOneId, X = 50, Y = 60, Area = "pitch", PositionIndex = 1 }
 		};
 
 		var result = await controller.SetLineup(MatchOneId.ToString(), selectedPlayers, CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -304,7 +294,6 @@ public class MatchesControllerTests
 			LineupFormation.FourTwoThreeOne,
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -322,7 +311,6 @@ public class MatchesControllerTests
 		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
 
 		var result = await controller.ToggleLineupLocked(MatchOneId.ToString(), CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -339,11 +327,7 @@ public class MatchesControllerTests
 
 		var result = await controller.SetResult(
 			MatchOneId.ToString(),
-			new MatchResult
-			{
-				HomeGoals = -1,
-				AwayGoals = 0
-			},
+			new MatchResult { HomeGoals = -1, AwayGoals = 0 },
 			CancellationToken.None
 		);
 
@@ -360,14 +344,9 @@ public class MatchesControllerTests
 
 		var result = await controller.SetResult(
 			MatchOneId.ToString(),
-			new MatchResult
-			{
-				HomeGoals = 3,
-				AwayGoals = 1
-			},
+			new MatchResult { HomeGoals = 3, AwayGoals = 1 },
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -385,19 +364,13 @@ public class MatchesControllerTests
 		var controller = new MatchesController(matchService);
 		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
 		match.Venue = MatchVenue.Away;
-
 		matchService.Matches.Add(match);
 
 		var result = await controller.SetResult(
 			MatchOneId.ToString(),
-			new MatchResult
-			{
-				HomeGoals = 3,
-				AwayGoals = 1
-			},
+			new MatchResult { HomeGoals = 3, AwayGoals = 1 },
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var updatedMatch = okResult?.Value as Match;
 
@@ -412,18 +385,12 @@ public class MatchesControllerTests
 		var matchService = new FakeMatchService();
 		var controller = new MatchesController(matchService);
 		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
-
-		match.Result = new MatchResult
-		{
-			HomeGoals = 2,
-			AwayGoals = 0
-		};
+		match.Result = new MatchResult { HomeGoals = 2, AwayGoals = 0 };
 		match.IsCompleted = true;
 		match.State = MatchState.Won;
 		matchService.Matches.Add(match);
 
 		var result = await controller.ClearResult(MatchOneId.ToString(), CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
 		var updatedMatch = okResult?.Value as Match;
 
@@ -444,14 +411,7 @@ public class MatchesControllerTests
 
 		var playerStats = new List<MatchPlayerStats>
 		{
-			new()
-			{
-				PlayerId = PlayerOneId,
-				Goals = 2,
-				Assists = 1,
-				Minutes = 90,
-				IsMOTM = true
-			}
+			new() { PlayerId = PlayerOneId, Goals = 2, Assists = 1, Minutes = 90, IsMOTM = true }
 		};
 
 		var result = await controller.UpdatePlayerStats(
@@ -459,7 +419,6 @@ public class MatchesControllerTests
 			playerStats,
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -490,7 +449,6 @@ public class MatchesControllerTests
 			notes,
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -508,11 +466,7 @@ public class MatchesControllerTests
 
 		var result = await controller.Postpone(
 			MatchOneId.ToString(),
-			new PostponeMatchModel
-			{
-				NewDate = default,
-				Reason = "Bad weather"
-			},
+			new PostponeMatchModel { NewDate = default, Reason = "Bad weather" },
 			CancellationToken.None
 		);
 
@@ -531,14 +485,9 @@ public class MatchesControllerTests
 
 		var result = await controller.Postpone(
 			MatchOneId.ToString(),
-			new PostponeMatchModel
-			{
-				NewDate = newDate,
-				Reason = "Bad weather"
-			},
+			new PostponeMatchModel { NewDate = newDate, Reason = "Bad weather" },
 			CancellationToken.None
 		);
-
 		var okResult = result.Result as OkObjectResult;
 		var match = okResult?.Value as Match;
 
@@ -559,7 +508,6 @@ public class MatchesControllerTests
 		var oldDate = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc);
 		var newDate = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Utc);
 		var match = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent", newDate);
-
 		match.State = MatchState.Postponed;
 		match.Postponements.Add(new PostponementAudit
 		{
@@ -572,7 +520,6 @@ public class MatchesControllerTests
 		matchService.Matches.Add(match);
 
 		var result = await controller.Restore(MatchOneId.ToString(), CancellationToken.None);
-
 		var okResult = result.Result as OkObjectResult;
 		var updatedMatch = okResult?.Value as Match;
 
@@ -581,6 +528,26 @@ public class MatchesControllerTests
 		Assert.That(updatedMatch!.Date, Is.EqualTo(oldDate));
 		Assert.That(updatedMatch.State, Is.EqualTo(MatchState.Upcoming));
 		Assert.That(updatedMatch.IsCompleted, Is.False);
+	}
+
+	private static List<object>? GetResultItems(OkObjectResult? okResult)
+	{
+		return okResult?.Value is IEnumerable items
+			? items.Cast<object>().ToList()
+			: null;
+	}
+
+	private static Guid? GetGuidProperty(object item, string propertyName)
+	{
+		var property = item.GetType().GetProperty(propertyName);
+		var value = property?.GetValue(item);
+
+		if (value is Guid guid)
+		{
+			return guid;
+		}
+
+		return null;
 	}
 
 	private static Match CreateMatch(
@@ -643,9 +610,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			return Task.FromResult(
-				Matches.FirstOrDefault(match => match.Id == id)
-			);
+			return Task.FromResult(Matches.FirstOrDefault(match => match.Id == id));
 		}
 
 		public Task<Match> CreateAsync(
@@ -653,10 +618,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			match.Id = match.Id == Guid.Empty
-				? Guid.NewGuid()
-				: match.Id;
-
+			match.Id = match.Id == Guid.Empty ? Guid.NewGuid() : match.Id;
 			match.Opponent = match.Opponent.Trim();
 			match.State = MatchState.Upcoming;
 			match.IsCompleted = false;
@@ -667,6 +629,7 @@ public class MatchesControllerTests
 			match.PlayerStats ??= [];
 			match.CreatedAt = DateTime.UtcNow;
 			match.UpdatedAt = DateTime.UtcNow;
+
 			Matches.Add(match);
 
 			return Task.FromResult(match);
@@ -677,10 +640,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var index = Matches.FindIndex(
-				existingMatch => existingMatch.Id == match.Id
-			);
-
+			var index = Matches.FindIndex(existingMatch => existingMatch.Id == match.Id);
 			if (index == -1)
 			{
 				return Task.FromResult<Match?>(null);
@@ -698,17 +658,13 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult(false);
 			}
 
 			Matches.Remove(match);
-
 			return Task.FromResult(true);
 		}
 
@@ -718,10 +674,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -740,10 +693,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -763,10 +713,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -784,10 +731,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -804,10 +748,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -825,10 +766,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -846,10 +784,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -868,10 +803,7 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
@@ -885,7 +817,6 @@ public class MatchesControllerTests
 				Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
 				ChangedAt = DateTime.UtcNow
 			});
-
 			match.Date = newDate;
 			match.State = MatchState.Postponed;
 			match.IsCompleted = false;
@@ -899,17 +830,13 @@ public class MatchesControllerTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var match = Matches.FirstOrDefault(
-				currentMatch => currentMatch.Id == id
-			);
-
+			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 			if (match is null)
 			{
 				return Task.FromResult<Match?>(null);
 			}
 
 			var lastPostponement = match.Postponements.LastOrDefault();
-
 			if (lastPostponement is not null)
 			{
 				match.Date = lastPostponement.OldDate;

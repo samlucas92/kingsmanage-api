@@ -18,6 +18,7 @@ public class DevSeedController : ControllerBase
 	private readonly IMongoCollection<Match> _matches;
 	private readonly IMongoCollection<PlayerHistoricalStats> _historicalStats;
 	private readonly IMongoCollection<PlayerSeasonStats> _seasonStats;
+	private readonly IMongoCollection<FinanceTransaction> _financeTransactions;
 
 	public DevSeedController(
 		IHostEnvironment environment,
@@ -32,6 +33,7 @@ public class DevSeedController : ControllerBase
 		_matches = context.Database.GetCollection<Match>("matches");
 		_historicalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
 		_seasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
+		_financeTransactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
 	}
 
 	[HttpPost("all")]
@@ -87,6 +89,7 @@ public class DevSeedController : ControllerBase
 			await _seasons.DeleteManyAsync(_ => true, cancellationToken);
 			await _historicalStats.DeleteManyAsync(_ => true, cancellationToken);
 			await _seasonStats.DeleteManyAsync(_ => true, cancellationToken);
+			await _financeTransactions.DeleteManyAsync(_ => true, cancellationToken);
 		}
 
 		var result = new SeedImportResult();
@@ -138,6 +141,18 @@ public class DevSeedController : ControllerBase
 			);
 			result.MatchesCreated = matchResult.Created;
 			result.MatchesUpdated = matchResult.Updated;
+		}
+
+		if (request.FinanceRecords is not null)
+		{
+			var financeResult = await ImportFinanceRecordsInternal(
+				request.FinanceRecords,
+				seasonIdMap,
+				playerIdMap,
+				cancellationToken
+			);
+			result.FinanceTransactionsCreated = financeResult.Created;
+			result.FinanceTransactionsUpdated = financeResult.Updated;
 		}
 
 		foreach (var seasonId in seasonIdsToRecalculate)
@@ -299,6 +314,112 @@ public class DevSeedController : ControllerBase
 			}
 
 			counter.Updated++;
+		}
+
+		return counter;
+	}
+
+	private async Task<SeedImportCounter> ImportFinanceRecordsInternal(
+		List<SeedFinanceRecord> seedFinanceRecords,
+		Dictionary<string, Guid> seasonIdMap,
+		Dictionary<string, Guid> playerIdMap,
+		CancellationToken cancellationToken
+	)
+	{
+		var counter = new SeedImportCounter();
+
+		foreach (var seedRecord in seedFinanceRecords)
+		{
+			if (string.IsNullOrWhiteSpace(seedRecord.PlayerId))
+			{
+				continue;
+			}
+
+			var playerId = GetPlayerId(seedRecord.PlayerId, playerIdMap);
+			var seasonId = GetSeasonId(seedRecord.SeasonId, seasonIdMap);
+
+			if (seedRecord.AmountOwed > 0)
+			{
+				var chargeId = CreateStableGuid(
+					"finance-charge",
+					$"{seedRecord.PlayerId}:{seedRecord.SeasonId ?? "default"}:amount-owed"
+				);
+
+				var charge = new FinanceTransaction
+				{
+					Id = chargeId,
+					PlayerId = playerId,
+					SeasonId = seasonId,
+					Type = FinanceTransactionType.Charge,
+					Amount = decimal.Round(Math.Max(0, seedRecord.AmountOwed), 2),
+					Note = "Season amount owed",
+					TransactionDate = DateTime.UtcNow,
+					CreatedAt = DateTime.UtcNow,
+					UpdatedAt = DateTime.UtcNow
+				};
+
+				var result = await _financeTransactions.ReplaceOneAsync(
+					existing => existing.Id == charge.Id,
+					charge,
+					new ReplaceOptions { IsUpsert = true },
+					cancellationToken
+				);
+
+				if (result.MatchedCount == 0)
+				{
+					counter.Created++;
+				}
+				else
+				{
+					counter.Updated++;
+				}
+			}
+
+			foreach (var payment in seedRecord.Payments ?? [])
+			{
+				if (payment.Amount <= 0)
+				{
+					continue;
+				}
+
+				var paymentId = string.IsNullOrWhiteSpace(payment.Id)
+					? CreateStableGuid(
+						"finance-payment",
+						$"{seedRecord.PlayerId}:{seedRecord.SeasonId ?? "default"}:{payment.Amount}:{payment.PaidAt:O}:{payment.Note}"
+					)
+					: CreateStableGuid("finance-payment", payment.Id);
+
+				var transaction = new FinanceTransaction
+				{
+					Id = paymentId,
+					PlayerId = playerId,
+					SeasonId = seasonId,
+					Type = FinanceTransactionType.Payment,
+					Amount = decimal.Round(Math.Max(0, payment.Amount), 2),
+					Note = payment.Note ?? string.Empty,
+					TransactionDate = payment.PaidAt == default
+						? DateTime.UtcNow
+						: payment.PaidAt,
+					CreatedAt = DateTime.UtcNow,
+					UpdatedAt = DateTime.UtcNow
+				};
+
+				var result = await _financeTransactions.ReplaceOneAsync(
+					existing => existing.Id == transaction.Id,
+					transaction,
+					new ReplaceOptions { IsUpsert = true },
+					cancellationToken
+				);
+
+				if (result.MatchedCount == 0)
+				{
+					counter.Created++;
+				}
+				else
+				{
+					counter.Updated++;
+				}
+			}
 		}
 
 		return counter;
@@ -623,6 +744,8 @@ public class SeedImportRequest
 	public List<SeedMatch>? Matches { get; set; }
 
 	public List<SeedHistoricalStats>? HistoricalStats { get; set; }
+
+	public List<SeedFinanceRecord>? FinanceRecords { get; set; }
 }
 
 public class SeedImportResult
@@ -644,6 +767,10 @@ public class SeedImportResult
 	public int HistoricalStatsUpdated { get; set; }
 
 	public int SeasonsRecalculated { get; set; }
+
+	public int FinanceTransactionsCreated { get; set; }
+
+	public int FinanceTransactionsUpdated { get; set; }
 }
 
 public class SeedImportCounter
@@ -692,6 +819,28 @@ public class SeedHistoricalStats
 	public int Appearances { get; set; }
 
 	public int Goals { get; set; }
+}
+
+public class SeedFinanceRecord
+{
+	public string PlayerId { get; set; } = "";
+
+	public string? SeasonId { get; set; }
+
+	public decimal AmountOwed { get; set; }
+
+	public List<SeedFinancePayment>? Payments { get; set; }
+}
+
+public class SeedFinancePayment
+{
+	public string Id { get; set; } = "";
+
+	public decimal Amount { get; set; }
+
+	public string? Note { get; set; }
+
+	public DateTime PaidAt { get; set; }
 }
 
 public class SeedMatch
