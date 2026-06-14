@@ -15,7 +15,9 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 {
 	public TestUserService UserService { get; } = new();
 	public TestPlayerService PlayerService { get; } = new();
+	public TestMatchService MatchService { get; } = new();
 	public TestStatsService StatsService { get; } = new();
+	public TestClubEventService ClubEventService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -40,11 +42,15 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 		{
 			services.RemoveAll<IUserService>();
 			services.RemoveAll<IPlayerService>();
+			services.RemoveAll<IMatchService>();
 			services.RemoveAll<IStatsService>();
+			services.RemoveAll<IClubEventService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
+			services.AddSingleton<IMatchService>(MatchService);
 			services.AddSingleton<IStatsService>(StatsService);
+			services.AddSingleton<IClubEventService>(ClubEventService);
 		});
 	}
 
@@ -125,6 +131,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 		loginResponse.EnsureSuccessStatusCode();
 
 		var json = await loginResponse.Content.ReadAsStringAsync();
+
 		using var document = JsonDocument.Parse(json);
 
 		var token = document.RootElement.GetProperty("token").GetString();
@@ -435,6 +442,316 @@ public sealed class TestPlayerService : IPlayerService
 		player.IsActive = isActive;
 
 		return Task.FromResult<Player?>(player);
+	}
+}
+
+public sealed class TestMatchService : IMatchService
+{
+	public List<Match> Matches { get; } = new();
+
+	public Task<IReadOnlyList<Match>> GetAllAsync(CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult<IReadOnlyList<Match>>(Matches.OrderBy(match => match.Date).ToList());
+	}
+
+	public Task<IReadOnlyList<Match>> GetBySeasonAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult<IReadOnlyList<Match>>(
+			Matches
+				.Where(match => match.SeasonId == seasonId)
+				.OrderBy(match => match.Date)
+				.ToList()
+		);
+	}
+
+	public Task<Match?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult(Matches.FirstOrDefault(match => match.Id == id));
+	}
+
+	public Task<Match> CreateAsync(Match match, CancellationToken cancellationToken = default)
+	{
+		if (match.Id == Guid.Empty)
+		{
+			match.Id = Guid.NewGuid();
+		}
+
+		match.CreatedAt = DateTime.UtcNow;
+		match.UpdatedAt = DateTime.UtcNow;
+		Matches.Add(match);
+
+		return Task.FromResult(match);
+	}
+
+	public Task<Match?> UpdateAsync(Match match, CancellationToken cancellationToken = default)
+	{
+		var existingMatch = Matches.FirstOrDefault(currentMatch => currentMatch.Id == match.Id);
+
+		if (existingMatch is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		var index = Matches.IndexOf(existingMatch);
+		Matches[index] = match;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult(false);
+		}
+
+		Matches.Remove(match);
+
+		return Task.FromResult(true);
+	}
+
+	public Task<Match?> SetResultAsync(
+		Guid id,
+		MatchResult result,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.Result = result;
+		match.IsCompleted = true;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> ClearResultAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.Result = null;
+		match.IsCompleted = false;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> SetSelectedPlayersAsync(
+		Guid id,
+		List<SelectedPlayer> selectedPlayers,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.SelectedPlayers = selectedPlayers;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> SetLineupFormationAsync(
+		Guid id,
+		LineupFormation formation,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.SelectedFormation = formation;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> ToggleLineupLockedAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.IsLineupLocked = !match.IsLineupLocked;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> UpdateNotesAsync(
+		Guid id,
+		MatchNotes notes,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.Notes = notes;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> UpdatePlayerStatsAsync(
+		Guid id,
+		List<MatchPlayerStats> playerStats,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.PlayerStats = playerStats;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> PostponeAsync(
+		Guid id,
+		DateTime newDate,
+		string? reason,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.Date = newDate;
+		match.State = MatchState.Postponed;
+
+		return Task.FromResult<Match?>(match);
+	}
+
+	public Task<Match?> RestoreAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
+
+		if (match is null)
+		{
+			return Task.FromResult<Match?>(null);
+		}
+
+		match.State = MatchState.Upcoming;
+
+		return Task.FromResult<Match?>(match);
+	}
+}
+
+public sealed class TestClubEventService : IClubEventService
+{
+	public List<ClubEvent> Events { get; } = new();
+
+	public Task<IReadOnlyList<ClubEvent>> GetAllAsync(CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult<IReadOnlyList<ClubEvent>>(
+			Events.OrderBy(clubEvent => clubEvent.StartDateTime).ToList()
+		);
+	}
+
+	public Task<IReadOnlyList<ClubEvent>> GetBySeasonAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult<IReadOnlyList<ClubEvent>>(
+			Events
+				.Where(clubEvent => clubEvent.SeasonId == seasonId)
+				.OrderBy(clubEvent => clubEvent.StartDateTime)
+				.ToList()
+		);
+	}
+
+	public Task<ClubEvent?> GetByIdAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult(Events.FirstOrDefault(clubEvent => clubEvent.Id == id));
+	}
+
+	public Task<ClubEvent> CreateAsync(
+		ClubEvent clubEvent,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (clubEvent.Id == Guid.Empty)
+		{
+			clubEvent.Id = Guid.NewGuid();
+		}
+
+		clubEvent.CreatedAt = DateTime.UtcNow;
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+		Events.Add(clubEvent);
+
+		return Task.FromResult(clubEvent);
+	}
+
+	public Task<ClubEvent?> UpdateAsync(
+		ClubEvent clubEvent,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var existingEvent = Events.FirstOrDefault(currentEvent => currentEvent.Id == clubEvent.Id);
+
+		if (existingEvent is null)
+		{
+			return Task.FromResult<ClubEvent?>(null);
+		}
+
+		var index = Events.IndexOf(existingEvent);
+		Events[index] = clubEvent;
+
+		return Task.FromResult<ClubEvent?>(clubEvent);
+	}
+
+	public Task<bool> DeleteAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var existingEvent = Events.FirstOrDefault(currentEvent => currentEvent.Id == id);
+
+		if (existingEvent is null)
+		{
+			return Task.FromResult(false);
+		}
+
+		Events.Remove(existingEvent);
+
+		return Task.FromResult(true);
 	}
 }
 

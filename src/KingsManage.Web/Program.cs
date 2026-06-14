@@ -5,6 +5,7 @@ using KingsManage.Web.Models;
 using KingsManage.Web.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using MongoClubEventService = KingsManage.Mongo.Services.ClubEventService;
 using MongoFinanceService = KingsManage.Mongo.Services.FinanceService;
 using MongoMatchService = KingsManage.Mongo.Services.MatchService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
@@ -35,8 +36,7 @@ var jwtSettings = builder.Configuration
 	.GetSection("Jwt")
 	.Get<JwtSettings>() ?? new JwtSettings();
 
-jwtSettings.Secret = Environment.GetEnvironmentVariable("JWT_SECRET")
-	?? jwtSettings.Secret;
+jwtSettings.Secret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings.Secret;
 
 if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 {
@@ -44,6 +44,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 }
 
 builder.Services.AddSingleton(mongoDbSettings);
+
 builder.Services.Configure<JwtSettings>(options =>
 {
 	options.Issuer = jwtSettings.Issuer;
@@ -59,6 +60,7 @@ builder.Services.AddScoped<IMatchService, MongoMatchService>();
 builder.Services.AddScoped<IStatsService, MongoStatsService>();
 builder.Services.AddScoped<IFinanceService, MongoFinanceService>();
 builder.Services.AddScoped<IUserService, MongoUserService>();
+builder.Services.AddScoped<IClubEventService, MongoClubEventService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
@@ -94,8 +96,7 @@ builder.Services.AddSwaggerGen();
 
 var allowedCorsOrigins = builder.Configuration
 	.GetSection("AllowedCorsOrigins")
-	.Get<string[]>() ??
-	[
+	.Get<string[]>() ?? [
 		"http://localhost:5173",
 		"https://localhost:5173"
 	];
@@ -117,20 +118,13 @@ await EnsureDefaultAdminUserAsync(app);
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
 app.UseCors("Frontend");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/api/health", () =>
-{
-	return Results.Ok(new
-	{
-		status = "Healthy",
-		service = "KingsManage.Web",
-		timestamp = DateTime.UtcNow
-	});
-});
 
 app.Run();
 
@@ -140,14 +134,18 @@ static async Task EnsureDefaultAdminUserAsync(WebApplication app)
 
 	var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 	var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+
 	var defaultAdminSettings = configuration
 		.GetSection("DefaultAdmin")
 		.Get<DefaultAdminSettings>() ?? new DefaultAdminSettings();
 
-	var defaultAdminEmail = Environment.GetEnvironmentVariable("DEFAULT_ADMIN_EMAIL")
-		?? defaultAdminSettings.Email;
-	var defaultAdminPassword = Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD")
-		?? defaultAdminSettings.Password;
+	var defaultAdminEmail =
+		Environment.GetEnvironmentVariable("DEFAULT_ADMIN_EMAIL") ??
+		defaultAdminSettings.Email;
+
+	var defaultAdminPassword =
+		Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD") ??
+		defaultAdminSettings.Password;
 
 	if (string.IsNullOrWhiteSpace(defaultAdminEmail))
 	{
