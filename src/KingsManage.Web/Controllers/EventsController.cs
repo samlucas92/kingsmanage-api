@@ -214,7 +214,7 @@ public class EventsController : ControllerBase
 	}
 
 	[HttpPut("{id}/availability")]
-	public async Task<ActionResult<ClubEvent>> SetAvailability(
+	public async Task<ActionResult<ClubEvent>> SetOwnAvailability(
 		string id,
 		UpdateClubEventAvailabilityModel model,
 		CancellationToken cancellationToken
@@ -242,6 +242,47 @@ public class EventsController : ControllerBase
 		var updatedEvent = await _eventService.SetAvailabilityAsync(
 			eventId,
 			playerIdResult.PlayerId,
+			model.Status,
+			cancellationToken
+		);
+
+		if (updatedEvent is null)
+		{
+			return NotFound();
+		}
+
+		return Ok(updatedEvent);
+	}
+
+	[Authorize(Roles = "Admin,Coach")]
+	[HttpPut("{id}/availability/{playerId}")]
+	public async Task<ActionResult<ClubEvent>> SetPlayerAvailability(
+		string id,
+		string playerId,
+		UpdateClubEventAvailabilityModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "Event", out var eventId, out var eventErrorResult))
+		{
+			return eventErrorResult!;
+		}
+
+		if (!TryParseGuid(playerId, "Player", out var parsedPlayerId, out var playerErrorResult))
+		{
+			return playerErrorResult!;
+		}
+
+		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+
+		if (clubEvent is null)
+		{
+			return NotFound();
+		}
+
+		var updatedEvent = await _eventService.SetAvailabilityAsync(
+			eventId,
+			parsedPlayerId,
 			model.Status,
 			cancellationToken
 		);
