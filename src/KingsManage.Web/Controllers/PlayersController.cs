@@ -1,9 +1,11 @@
 using KingsManage;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin,Coach")]
 [Route("api/players")]
 public class PlayersController : ControllerBase
 {
@@ -20,7 +22,6 @@ public class PlayersController : ControllerBase
 	)
 	{
 		var players = await _playerService.GetAllAsync(cancellationToken);
-
 		return Ok(players);
 	}
 

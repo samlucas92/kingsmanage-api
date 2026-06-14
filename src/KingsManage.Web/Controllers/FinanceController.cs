@@ -1,10 +1,12 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin")]
 [Route("api/finance")]
 public class FinanceController : ControllerBase
 {

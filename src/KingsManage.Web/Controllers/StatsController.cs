@@ -1,10 +1,12 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin,Coach")]
 [Route("api/stats")]
 public class StatsController : ControllerBase
 {
@@ -71,16 +73,6 @@ public class StatsController : ControllerBase
 		return NoContent();
 	}
 
-	[HttpGet("historical")]
-	public async Task<ActionResult<IReadOnlyList<PlayerHistoricalStats>>> GetHistoricalStats(
-		CancellationToken cancellationToken
-	)
-	{
-		var historicalStats = await _statsService.GetHistoricalStatsAsync(cancellationToken);
-
-		return Ok(historicalStats);
-	}
-
 	[HttpPut("historical/{playerId}")]
 	public async Task<ActionResult<PlayerHistoricalStats>> UpdateHistoricalStats(
 		string playerId,
@@ -94,6 +86,7 @@ public class StatsController : ControllerBase
 		}
 
 		var player = await _playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
+
 		if (player is null)
 		{
 			return NotFound();

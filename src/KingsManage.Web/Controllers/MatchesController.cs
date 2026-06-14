@@ -1,10 +1,12 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin,Coach")]
 [Route("api/matches")]
 public class MatchesController : ControllerBase
 {
@@ -16,7 +18,6 @@ public class MatchesController : ControllerBase
 	{
 	}
 
-	[ActivatorUtilitiesConstructor]
 	public MatchesController(
 		IMatchService matchService,
 		IStatsService statsService
@@ -86,10 +87,9 @@ public class MatchesController : ControllerBase
 		}
 
 		var playerMatches = matches
-			.Where(match =>
-				match.IsCompleted &&
-				match.SelectedPlayers.Any(selectedPlayer => selectedPlayer.PlayerId == parsedPlayerId)
-			)
+			.Where(match => match.IsCompleted && match.SelectedPlayers.Any(selectedPlayer =>
+				selectedPlayer.PlayerId == parsedPlayerId
+			))
 			.OrderByDescending(match => match.Date)
 			.Select(match => PlayerMatchViewModel.FromMatch(match, parsedPlayerId))
 			.ToList();
@@ -566,6 +566,7 @@ public class MatchesController : ControllerBase
 
 		return true;
 	}
+
 	private sealed class NoOpStatsService : IStatsService
 	{
 		public Task<IReadOnlyList<PlayerSeasonStats>> GetSeasonStatsAsync(
@@ -622,5 +623,4 @@ public class MatchesController : ControllerBase
 			return Task.CompletedTask;
 		}
 	}
-
 }

@@ -1,10 +1,12 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin,Coach")]
 [Route("api/seasons")]
 public class SeasonsController : ControllerBase
 {
@@ -60,6 +62,7 @@ public class SeasonsController : ControllerBase
 		return Ok(season);
 	}
 
+	[Authorize(Roles = "Admin")]
 	[HttpPost]
 	public async Task<ActionResult<Season>> Create(
 		Season season,
@@ -85,6 +88,7 @@ public class SeasonsController : ControllerBase
 		);
 	}
 
+	[Authorize(Roles = "Admin")]
 	[HttpPost("setup")]
 	public async Task<ActionResult<SeasonSetupResult>> SetupSeason(
 		SeasonSetupRequest request,
@@ -114,13 +118,11 @@ public class SeasonsController : ControllerBase
 		}
 
 		var existingSeasons = await _seasonService.GetAllAsync(cancellationToken);
-		var existingSeason = existingSeasons.FirstOrDefault(existing =>
-			string.Equals(
-				existing.Name.Trim(),
-				request.Name.Trim(),
-				StringComparison.OrdinalIgnoreCase
-			)
-		);
+		var existingSeason = existingSeasons.FirstOrDefault(existing => string.Equals(
+			existing.Name.Trim(),
+			request.Name.Trim(),
+			StringComparison.OrdinalIgnoreCase
+		));
 
 		var createdSeason = false;
 
@@ -157,6 +159,7 @@ public class SeasonsController : ControllerBase
 					request.StartingFinanceAmount,
 					cancellationToken
 				);
+
 				financeChargesCreatedOrUpdated++;
 			}
 		}
@@ -169,6 +172,7 @@ public class SeasonsController : ControllerBase
 		});
 	}
 
+	[Authorize(Roles = "Admin")]
 	[HttpPut("{id}")]
 	public async Task<ActionResult<Season>> Update(
 		string id,
@@ -214,6 +218,7 @@ public class SeasonsController : ControllerBase
 		return Ok(updatedSeason);
 	}
 
+	[Authorize(Roles = "Admin")]
 	[HttpPatch("{id}/set-active")]
 	public async Task<ActionResult<Season>> SetActive(
 		string id,
