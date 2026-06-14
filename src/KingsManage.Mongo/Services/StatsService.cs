@@ -16,7 +16,7 @@ public class StatsService : IStatsService
 		_playerHistoricalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
 	}
 
-	public async Task<IReadOnlyList<PlayerSeasonStats>> GetSeasonStatsAsync(
+	public async Task<List<PlayerSeasonStats>> GetSeasonStatsAsync(
 		Guid seasonId,
 		CancellationToken cancellationToken = default
 	)
@@ -26,7 +26,7 @@ public class StatsService : IStatsService
 			.ToListAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<PlayerSeasonStats>> GetAllSeasonStatsAsync(
+	public async Task<List<PlayerSeasonStats>> GetAllSeasonStatsAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -35,7 +35,7 @@ public class StatsService : IStatsService
 			.ToListAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
+	public async Task<List<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
 		Guid playerId,
 		CancellationToken cancellationToken = default
 	)
@@ -45,7 +45,7 @@ public class StatsService : IStatsService
 			.ToListAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<PlayerHistoricalStats>> GetHistoricalStatsAsync(
+	public async Task<List<PlayerHistoricalStats>> GetHistoricalStatsAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -121,7 +121,6 @@ public class StatsService : IStatsService
 		);
 
 		var seasonStats = groupedStats.Values.ToList();
-
 		if (seasonStats.Count == 0)
 		{
 			return;
@@ -141,6 +140,7 @@ public class StatsService : IStatsService
 	{
 		var selectedPlayers = match.SelectedPlayers ?? [];
 		var playerStats = match.PlayerStats ?? [];
+
 		var playerIds = selectedPlayers
 			.Select(selectedPlayer => selectedPlayer.PlayerId)
 			.Concat(playerStats.Select(stats => stats.PlayerId))
@@ -152,10 +152,10 @@ public class StatsService : IStatsService
 		{
 			var key = new PlayerSeasonStatsKey(playerId, seasonId, match.Team);
 			var stats = GetOrCreateStats(groupedStats, key);
-			var playerSelections = selectedPlayers
-				.Where(selectedPlayer => selectedPlayer.PlayerId == playerId)
-				.ToList();
-			var selectedPlayer = playerSelections.FirstOrDefault();
+
+			var selectedPlayer = selectedPlayers.FirstOrDefault(
+				selectedPlayer => selectedPlayer.PlayerId == playerId
+			);
 			var matchPlayerStats = playerStats.FirstOrDefault(
 				playerStat => playerStat.PlayerId == playerId
 			);
@@ -164,10 +164,7 @@ public class StatsService : IStatsService
 			{
 				stats.Appearances++;
 
-				if (selectedPlayer.Area.Equals(
-					"pitch",
-					StringComparison.OrdinalIgnoreCase
-				))
+				if (selectedPlayer.Area.Equals("pitch", StringComparison.OrdinalIgnoreCase))
 				{
 					stats.Starts++;
 				}
@@ -216,6 +213,7 @@ public class StatsService : IStatsService
 		};
 
 		groupedStats[key] = stats;
+
 		return stats;
 	}
 

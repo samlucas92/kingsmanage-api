@@ -2,21 +2,21 @@ namespace KingsManage;
 
 public interface IStatsService
 {
-	Task<IReadOnlyList<PlayerSeasonStats>> GetSeasonStatsAsync(
+	Task<List<PlayerSeasonStats>> GetSeasonStatsAsync(
 		Guid seasonId,
 		CancellationToken cancellationToken = default
 	);
 
-	Task<IReadOnlyList<PlayerSeasonStats>> GetAllSeasonStatsAsync(
+	Task<List<PlayerSeasonStats>> GetAllSeasonStatsAsync(
 		CancellationToken cancellationToken = default
 	);
 
-	Task<IReadOnlyList<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
+	Task<List<PlayerSeasonStats>> GetPlayerSeasonStatsAsync(
 		Guid playerId,
 		CancellationToken cancellationToken = default
 	);
 
-	Task<IReadOnlyList<PlayerHistoricalStats>> GetHistoricalStatsAsync(
+	Task<List<PlayerHistoricalStats>> GetHistoricalStatsAsync(
 		CancellationToken cancellationToken = default
 	);
 

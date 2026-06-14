@@ -23,7 +23,7 @@ public class StatsController : ControllerBase
 	}
 
 	[HttpGet("season/{seasonId}")]
-	public async Task<ActionResult<IReadOnlyList<PlayerStatsViewModel>>> GetSeasonStats(
+	public async Task<ActionResult<List<PlayerStatsViewModel>>> GetSeasonStats(
 		string seasonId,
 		CancellationToken cancellationToken
 	)
@@ -73,6 +73,16 @@ public class StatsController : ControllerBase
 		return NoContent();
 	}
 
+	[HttpGet("historical")]
+	public async Task<ActionResult<List<PlayerHistoricalStats>>> GetHistoricalStats(
+		CancellationToken cancellationToken
+	)
+	{
+		var historicalStats = await _statsService.GetHistoricalStatsAsync(cancellationToken);
+
+		return Ok(historicalStats);
+	}
+
 	[HttpPut("historical/{playerId}")]
 	public async Task<ActionResult<PlayerHistoricalStats>> UpdateHistoricalStats(
 		string playerId,
@@ -86,7 +96,6 @@ public class StatsController : ControllerBase
 		}
 
 		var player = await _playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
-
 		if (player is null)
 		{
 			return NotFound();
