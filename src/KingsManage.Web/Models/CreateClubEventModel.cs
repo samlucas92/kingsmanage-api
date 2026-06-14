@@ -14,6 +14,9 @@ public class CreateClubEventModel
 	public Guid? MatchId { get; set; }
 	public ClubTeam? Team { get; set; }
 
+	public bool CreateLinkedMatch { get; set; }
+	public CreateMatchForEventModel? CreateMatch { get; set; }
+
 	public ClubEvent ToClubEvent()
 	{
 		return new ClubEvent

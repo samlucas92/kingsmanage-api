@@ -78,12 +78,8 @@ public class EventsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var validationError = await ValidateEventModelAsync(
-			model.Type,
-			model.Title,
-			model.StartDateTime,
-			model.EndDateTime,
-			model.MatchId,
+		var validationError = await ValidateCreateEventModelAsync(
+			model,
 			cancellationToken
 		);
 
@@ -92,8 +88,26 @@ public class EventsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
+		var clubEvent = model.ToClubEvent();
+
+		if (
+			model.Type == ClubEventType.Match &&
+			model.CreateLinkedMatch &&
+			model.CreateMatch is not null
+		)
+		{
+			var createdMatch = await _matchService.CreateAsync(
+				model.CreateMatch.ToMatch(model.StartDateTime),
+				cancellationToken
+			);
+
+			clubEvent.MatchId = createdMatch.Id;
+			clubEvent.SeasonId ??= createdMatch.SeasonId;
+			clubEvent.Team ??= createdMatch.Team;
+		}
+
 		var createdEvent = await _eventService.CreateAsync(
-			model.ToClubEvent(),
+			clubEvent,
 			cancellationToken
 		);
 
@@ -124,7 +138,7 @@ public class EventsController : ControllerBase
 			return NotFound();
 		}
 
-		var validationError = await ValidateEventModelAsync(
+		var validationError = await ValidateUpdateEventModelAsync(
 			model.Type,
 			model.Title,
 			model.StartDateTime,
@@ -196,7 +210,76 @@ public class EventsController : ControllerBase
 		return true;
 	}
 
-	private async Task<string?> ValidateEventModelAsync(
+	private async Task<string?> ValidateCreateEventModelAsync(
+		CreateClubEventModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		var sharedValidationError = ValidateSharedEventFields(
+			model.Title,
+			model.StartDateTime,
+			model.EndDateTime
+		);
+
+		if (sharedValidationError is not null)
+		{
+			return sharedValidationError;
+		}
+
+		if (model.Type != ClubEventType.Match)
+		{
+			if (model.MatchId.HasValue)
+			{
+				return "Only match events can be linked to a match.";
+			}
+
+			if (model.CreateLinkedMatch || model.CreateMatch is not null)
+			{
+				return "Only match events can create a linked match.";
+			}
+
+			return null;
+		}
+
+		if (model.MatchId.HasValue && model.CreateLinkedMatch)
+		{
+			return "A match event cannot link to an existing match and create a new match at the same time.";
+		}
+
+		if (model.MatchId.HasValue)
+		{
+			var linkedMatch = await _matchService.GetByIdAsync(
+				model.MatchId.Value,
+				cancellationToken
+			);
+
+			if (linkedMatch is null)
+			{
+				return "Linked match was not found.";
+			}
+
+			return null;
+		}
+
+		if (model.CreateMatch is not null && !model.CreateLinkedMatch)
+		{
+			return "Set createLinkedMatch to true to create and link a new match.";
+		}
+
+		if (model.CreateLinkedMatch)
+		{
+			if (model.CreateMatch is null)
+			{
+				return "Match details are required when creating a linked match.";
+			}
+
+			return ValidateCreateMatchModel(model.CreateMatch);
+		}
+
+		return null;
+	}
+
+	private async Task<string?> ValidateUpdateEventModelAsync(
 		ClubEventType type,
 		string title,
 		DateTime startDateTime,
@@ -205,19 +288,15 @@ public class EventsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (string.IsNullOrWhiteSpace(title))
-		{
-			return "Event title is required.";
-		}
+		var sharedValidationError = ValidateSharedEventFields(
+			title,
+			startDateTime,
+			endDateTime
+		);
 
-		if (startDateTime == default)
+		if (sharedValidationError is not null)
 		{
-			return "Event start date is required.";
-		}
-
-		if (endDateTime.HasValue && endDateTime.Value < startDateTime)
-		{
-			return "Event end date cannot be before the start date.";
+			return sharedValidationError;
 		}
 
 		if (type != ClubEventType.Match && matchId.HasValue)
@@ -236,6 +315,40 @@ public class EventsController : ControllerBase
 			{
 				return "Linked match was not found.";
 			}
+		}
+
+		return null;
+	}
+
+	private static string? ValidateSharedEventFields(
+		string title,
+		DateTime startDateTime,
+		DateTime? endDateTime
+	)
+	{
+		if (string.IsNullOrWhiteSpace(title))
+		{
+			return "Event title is required.";
+		}
+
+		if (startDateTime == default)
+		{
+			return "Event start date is required.";
+		}
+
+		if (endDateTime.HasValue && endDateTime.Value < startDateTime)
+		{
+			return "Event end date cannot be before the start date.";
+		}
+
+		return null;
+	}
+
+	private static string? ValidateCreateMatchModel(CreateMatchForEventModel matchModel)
+	{
+		if (string.IsNullOrWhiteSpace(matchModel.Opponent))
+		{
+			return "Match opponent is required.";
 		}
 
 		return null;

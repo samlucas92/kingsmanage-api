@@ -185,6 +185,37 @@ public sealed class EventsIntegrationTests
 	}
 
 	[Test]
+	public async Task CreateMatchEvent_WhenNoMatchOptionIsChosen_ShouldCreateEventOnly()
+	{
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				Title = "Placeholder fixture",
+				Description = "Match event without a linked match yet.",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "TBC",
+				Team = "First"
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+		Assert.That(_factory.MatchService.Matches, Is.Empty);
+
+		var json = await response.Content.ReadAsStringAsync();
+		using var document = JsonDocument.Parse(json);
+
+		Assert.That(document.RootElement.GetProperty("type").GetString(), Is.EqualTo("Match"));
+		Assert.That(document.RootElement.GetProperty("matchId").ValueKind, Is.EqualTo(JsonValueKind.Null));
+	}
+
+	[Test]
 	public async Task CreateMatchEvent_WhenLinkedMatchExists_ShouldCreateLinkedEvent()
 	{
 		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000001");
@@ -247,6 +278,159 @@ public sealed class EventsIntegrationTests
 				StartDateTime = DateTime.UtcNow.AddDays(10),
 				Location = "Home pitch",
 				MatchId = Guid.Parse("40000000-0000-0000-0000-000000000099")
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+	}
+
+	[Test]
+	public async Task CreateMatchEvent_WhenCreateLinkedMatchIsTrue_ShouldCreateMatchAndLinkedEvent()
+	{
+		var seasonId = Guid.Parse("50000000-0000-0000-0000-000000000002");
+		var eventStartDate = DateTime.UtcNow.AddDays(14);
+
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				Title = "Kingsbridge Colts vs Loughor",
+				Description = "League fixture.",
+				StartDateTime = eventStartDate,
+				Location = "Garden Village Recreation Ground",
+				CreateLinkedMatch = true,
+				CreateMatch = new
+				{
+					SeasonId = seasonId,
+					Team = "First",
+					Opponent = "Loughor",
+					Venue = "Home",
+					SelectedFormation = "FourThreeThree"
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+
+		Assert.That(_factory.MatchService.Matches, Has.Count.EqualTo(1));
+
+		var createdMatch = _factory.MatchService.Matches.Single();
+
+		Assert.That(createdMatch.SeasonId, Is.EqualTo(seasonId));
+		Assert.That(createdMatch.Team, Is.EqualTo(ClubTeam.First));
+		Assert.That(createdMatch.Opponent, Is.EqualTo("Loughor"));
+		Assert.That(createdMatch.Date, Is.EqualTo(eventStartDate).Within(TimeSpan.FromSeconds(1)));
+		Assert.That(createdMatch.Venue, Is.EqualTo(MatchVenue.Home));
+
+		var json = await response.Content.ReadAsStringAsync();
+		using var document = JsonDocument.Parse(json);
+
+		Assert.That(document.RootElement.GetProperty("matchId").GetGuid(), Is.EqualTo(createdMatch.Id));
+		Assert.That(document.RootElement.GetProperty("seasonId").GetGuid(), Is.EqualTo(seasonId));
+		Assert.That(document.RootElement.GetProperty("team").GetString(), Is.EqualTo("First"));
+	}
+
+	[Test]
+	public async Task CreateMatchEvent_WhenCreateMatchIsProvidedButCreateLinkedMatchIsFalse_ShouldReturnBadRequest()
+	{
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				Title = "Should not silently create match",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "Home pitch",
+				CreateMatch = new
+				{
+					Team = "First",
+					Opponent = "Loughor",
+					Venue = "Home"
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+		Assert.That(_factory.MatchService.Matches, Is.Empty);
+	}
+
+	[Test]
+	public async Task CreateMatchEvent_WhenMatchIdAndCreateLinkedMatchAreProvided_ShouldReturnBadRequest()
+	{
+		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000003");
+
+		_factory.MatchService.Matches.Add(
+			new Match
+			{
+				Id = matchId,
+				Team = ClubTeam.First,
+				Opponent = "Gors AFC",
+				Date = DateTime.UtcNow.AddDays(10),
+				Venue = MatchVenue.Home
+			}
+		);
+
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				Title = "Invalid match event",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "Home pitch",
+				MatchId = matchId,
+				CreateLinkedMatch = true,
+				CreateMatch = new
+				{
+					Team = "First",
+					Opponent = "Loughor",
+					Venue = "Home"
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+	}
+
+	[Test]
+	public async Task CreateNonMatchEvent_WhenCreateLinkedMatchIsProvided_ShouldReturnBadRequest()
+	{
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Training",
+				Title = "Invalid training event",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "Training pitch",
+				CreateLinkedMatch = true,
+				CreateMatch = new
+				{
+					Team = "First",
+					Opponent = "Loughor",
+					Venue = "Home"
+				}
 			}
 		);
 
