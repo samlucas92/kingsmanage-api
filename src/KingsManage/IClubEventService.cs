@@ -4,11 +4,6 @@ public interface IClubEventService
 {
 	Task<IReadOnlyList<ClubEvent>> GetAllAsync(CancellationToken cancellationToken = default);
 
-	Task<IReadOnlyList<ClubEvent>> GetBySeasonAsync(
-		Guid seasonId,
-		CancellationToken cancellationToken = default
-	);
-
 	Task<ClubEvent?> GetByIdAsync(
 		Guid id,
 		CancellationToken cancellationToken = default
@@ -26,6 +21,19 @@ public interface IClubEventService
 
 	Task<bool> DeleteAsync(
 		Guid id,
+		CancellationToken cancellationToken = default
+	);
+
+	Task<ClubEvent?> MarkSeenAsync(
+		Guid eventId,
+		Guid playerId,
+		CancellationToken cancellationToken = default
+	);
+
+	Task<ClubEvent?> SetAvailabilityAsync(
+		Guid eventId,
+		Guid playerId,
+		ClubEventAvailabilityStatus status,
 		CancellationToken cancellationToken = default
 	);
 }

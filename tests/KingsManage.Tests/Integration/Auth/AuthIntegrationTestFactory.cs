@@ -681,19 +681,6 @@ public sealed class TestClubEventService : IClubEventService
 		);
 	}
 
-	public Task<IReadOnlyList<ClubEvent>> GetBySeasonAsync(
-		Guid seasonId,
-		CancellationToken cancellationToken = default
-	)
-	{
-		return Task.FromResult<IReadOnlyList<ClubEvent>>(
-			Events
-				.Where(clubEvent => clubEvent.SeasonId == seasonId)
-				.OrderBy(clubEvent => clubEvent.StartDateTime)
-				.ToList()
-		);
-	}
-
 	public Task<ClubEvent?> GetByIdAsync(
 		Guid id,
 		CancellationToken cancellationToken = default
@@ -714,6 +701,10 @@ public sealed class TestClubEventService : IClubEventService
 
 		clubEvent.CreatedAt = DateTime.UtcNow;
 		clubEvent.UpdatedAt = DateTime.UtcNow;
+		clubEvent.MatchLinks ??= [];
+		clubEvent.AvailabilityResponses ??= [];
+		clubEvent.SeenBy ??= [];
+
 		Events.Add(clubEvent);
 
 		return Task.FromResult(clubEvent);
@@ -730,6 +721,11 @@ public sealed class TestClubEventService : IClubEventService
 		{
 			return Task.FromResult<ClubEvent?>(null);
 		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+		clubEvent.MatchLinks ??= [];
+		clubEvent.AvailabilityResponses ??= [];
+		clubEvent.SeenBy ??= [];
 
 		var index = Events.IndexOf(existingEvent);
 		Events[index] = clubEvent;
@@ -752,6 +748,103 @@ public sealed class TestClubEventService : IClubEventService
 		Events.Remove(existingEvent);
 
 		return Task.FromResult(true);
+	}
+
+	public Task<ClubEvent?> MarkSeenAsync(
+		Guid eventId,
+		Guid playerId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = Events.FirstOrDefault(currentEvent => currentEvent.Id == eventId);
+
+		if (clubEvent is null)
+		{
+			return Task.FromResult<ClubEvent?>(null);
+		}
+
+		clubEvent.SeenBy ??= [];
+
+		var existingSeenStatus = clubEvent.SeenBy.FirstOrDefault(seen => seen.PlayerId == playerId);
+
+		if (existingSeenStatus is null)
+		{
+			clubEvent.SeenBy.Add(
+				new ClubEventSeenStatus
+				{
+					PlayerId = playerId,
+					SeenAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingSeenStatus.SeenAt = DateTime.UtcNow;
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+
+		return Task.FromResult<ClubEvent?>(clubEvent);
+	}
+
+	public Task<ClubEvent?> SetAvailabilityAsync(
+		Guid eventId,
+		Guid playerId,
+		ClubEventAvailabilityStatus status,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = Events.FirstOrDefault(currentEvent => currentEvent.Id == eventId);
+
+		if (clubEvent is null)
+		{
+			return Task.FromResult<ClubEvent?>(null);
+		}
+
+		clubEvent.AvailabilityResponses ??= [];
+		clubEvent.SeenBy ??= [];
+
+		var existingAvailability = clubEvent.AvailabilityResponses.FirstOrDefault(
+			response => response.PlayerId == playerId
+		);
+
+		if (existingAvailability is null)
+		{
+			clubEvent.AvailabilityResponses.Add(
+				new ClubEventAvailabilityResponse
+				{
+					PlayerId = playerId,
+					Status = status,
+					UpdatedAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingAvailability.Status = status;
+			existingAvailability.UpdatedAt = DateTime.UtcNow;
+		}
+
+		var existingSeenStatus = clubEvent.SeenBy.FirstOrDefault(seen => seen.PlayerId == playerId);
+
+		if (existingSeenStatus is null)
+		{
+			clubEvent.SeenBy.Add(
+				new ClubEventSeenStatus
+				{
+					PlayerId = playerId,
+					SeenAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingSeenStatus.SeenAt = DateTime.UtcNow;
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+
+		return Task.FromResult<ClubEvent?>(clubEvent);
 	}
 }
 

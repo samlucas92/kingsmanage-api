@@ -22,17 +22,6 @@ public class ClubEventService : IClubEventService
 			.ToListAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<ClubEvent>> GetBySeasonAsync(
-		Guid seasonId,
-		CancellationToken cancellationToken = default
-	)
-	{
-		return await _events
-			.Find(clubEvent => clubEvent.SeasonId == seasonId)
-			.SortBy(clubEvent => clubEvent.StartDateTime)
-			.ToListAsync(cancellationToken);
-	}
-
 	public async Task<ClubEvent?> GetByIdAsync(
 		Guid id,
 		CancellationToken cancellationToken = default
@@ -49,11 +38,7 @@ public class ClubEventService : IClubEventService
 	)
 	{
 		clubEvent.Id = clubEvent.Id == Guid.Empty ? Guid.NewGuid() : clubEvent.Id;
-		clubEvent.Title = clubEvent.Title.Trim();
-		clubEvent.Description = clubEvent.Description.Trim();
-		clubEvent.Location = clubEvent.Location.Trim();
-		clubEvent.CreatedAt = DateTime.UtcNow;
-		clubEvent.UpdatedAt = DateTime.UtcNow;
+		PrepareForSave(clubEvent, true);
 
 		await _events.InsertOneAsync(clubEvent, cancellationToken: cancellationToken);
 
@@ -65,10 +50,7 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
-		clubEvent.Title = clubEvent.Title.Trim();
-		clubEvent.Description = clubEvent.Description.Trim();
-		clubEvent.Location = clubEvent.Location.Trim();
-		clubEvent.UpdatedAt = DateTime.UtcNow;
+		PrepareForSave(clubEvent, false);
 
 		var result = await _events.ReplaceOneAsync(
 			existingEvent => existingEvent.Id == clubEvent.Id,
@@ -95,5 +77,114 @@ public class ClubEventService : IClubEventService
 		);
 
 		return result.DeletedCount > 0;
+	}
+
+	public async Task<ClubEvent?> MarkSeenAsync(
+		Guid eventId,
+		Guid playerId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = await GetByIdAsync(eventId, cancellationToken);
+
+		if (clubEvent is null)
+		{
+			return null;
+		}
+
+		var existingSeenStatus = clubEvent.SeenBy.FirstOrDefault(seen => seen.PlayerId == playerId);
+
+		if (existingSeenStatus is null)
+		{
+			clubEvent.SeenBy.Add(
+				new ClubEventSeenStatus
+				{
+					PlayerId = playerId,
+					SeenAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingSeenStatus.SeenAt = DateTime.UtcNow;
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+
+		return await UpdateAsync(clubEvent, cancellationToken);
+	}
+
+	public async Task<ClubEvent?> SetAvailabilityAsync(
+		Guid eventId,
+		Guid playerId,
+		ClubEventAvailabilityStatus status,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = await GetByIdAsync(eventId, cancellationToken);
+
+		if (clubEvent is null)
+		{
+			return null;
+		}
+
+		var existingAvailability = clubEvent.AvailabilityResponses.FirstOrDefault(
+			response => response.PlayerId == playerId
+		);
+
+		if (existingAvailability is null)
+		{
+			clubEvent.AvailabilityResponses.Add(
+				new ClubEventAvailabilityResponse
+				{
+					PlayerId = playerId,
+					Status = status,
+					UpdatedAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingAvailability.Status = status;
+			existingAvailability.UpdatedAt = DateTime.UtcNow;
+		}
+
+		var existingSeenStatus = clubEvent.SeenBy.FirstOrDefault(seen => seen.PlayerId == playerId);
+
+		if (existingSeenStatus is null)
+		{
+			clubEvent.SeenBy.Add(
+				new ClubEventSeenStatus
+				{
+					PlayerId = playerId,
+					SeenAt = DateTime.UtcNow
+				}
+			);
+		}
+		else
+		{
+			existingSeenStatus.SeenAt = DateTime.UtcNow;
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+
+		return await UpdateAsync(clubEvent, cancellationToken);
+	}
+
+	private static void PrepareForSave(ClubEvent clubEvent, bool isNew)
+	{
+		clubEvent.Title = clubEvent.Title.Trim();
+		clubEvent.Description = clubEvent.Description.Trim();
+		clubEvent.Location = clubEvent.Location.Trim();
+		clubEvent.MatchLinks ??= [];
+		clubEvent.AvailabilityResponses ??= [];
+		clubEvent.SeenBy ??= [];
+
+		if (isNew)
+		{
+			clubEvent.CreatedAt = DateTime.UtcNow;
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
 	}
 }

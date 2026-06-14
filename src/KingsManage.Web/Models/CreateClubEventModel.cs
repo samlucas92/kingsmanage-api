@@ -4,32 +4,29 @@ namespace KingsManage.Web.Models;
 
 public class CreateClubEventModel
 {
-	public Guid? SeasonId { get; set; }
 	public ClubEventType Type { get; set; }
+	public ClubEventTeamScope TeamScope { get; set; } = ClubEventTeamScope.Both;
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public DateTime StartDateTime { get; set; }
 	public DateTime? EndDateTime { get; set; }
 	public string Location { get; set; } = string.Empty;
-	public Guid? MatchId { get; set; }
-	public ClubTeam? Team { get; set; }
-
-	public bool CreateLinkedMatch { get; set; }
-	public CreateMatchForEventModel? CreateMatch { get; set; }
+	public List<ClubEventMatchLinkModel> MatchLinks { get; set; } = [];
+	public bool CreateLinkedMatches { get; set; }
+	public List<CreateMatchForEventModel> CreateMatches { get; set; } = [];
 
 	public ClubEvent ToClubEvent()
 	{
 		return new ClubEvent
 		{
-			SeasonId = SeasonId,
 			Type = Type,
+			TeamScope = TeamScope,
 			Title = Title,
 			Description = Description,
 			StartDateTime = StartDateTime,
 			EndDateTime = EndDateTime,
 			Location = Location,
-			MatchId = MatchId,
-			Team = Team
+			MatchLinks = MatchLinks.Select(matchLink => matchLink.ToMatchLink()).ToList()
 		};
 	}
 }
