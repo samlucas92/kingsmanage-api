@@ -6,6 +6,7 @@ using KingsManage.Web.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MongoClubEventService = KingsManage.Mongo.Services.ClubEventService;
+using MongoClubPostService = KingsManage.Mongo.Services.ClubPostService;
 using MongoFinanceService = KingsManage.Mongo.Services.FinanceService;
 using MongoMatchService = KingsManage.Mongo.Services.MatchService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
@@ -61,6 +62,7 @@ builder.Services.AddScoped<IStatsService, MongoStatsService>();
 builder.Services.AddScoped<IFinanceService, MongoFinanceService>();
 builder.Services.AddScoped<IUserService, MongoUserService>();
 builder.Services.AddScoped<IClubEventService, MongoClubEventService>();
+builder.Services.AddScoped<IClubPostService, MongoClubPostService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));

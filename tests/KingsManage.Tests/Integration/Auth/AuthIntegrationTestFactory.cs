@@ -19,6 +19,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestSeasonService SeasonService { get; } = new();
 	public TestStatsService StatsService { get; } = new();
 	public TestClubEventService ClubEventService { get; } = new();
+	public TestClubPostService ClubPostService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -47,6 +48,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<ISeasonService>();
 			services.RemoveAll<IStatsService>();
 			services.RemoveAll<IClubEventService>();
+			services.RemoveAll<IClubPostService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
@@ -54,6 +56,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<ISeasonService>(SeasonService);
 			services.AddSingleton<IStatsService>(StatsService);
 			services.AddSingleton<IClubEventService>(ClubEventService);
+			services.AddSingleton<IClubPostService>(ClubPostService);
 		});
 	}
 
@@ -1002,5 +1005,90 @@ public sealed class TestStatsService : IStatsService
 	)
 	{
 		return Task.CompletedTask;
+	}
+}
+
+
+public sealed class TestClubPostService : IClubPostService
+{
+	public List<ClubPost> Posts { get; } = new();
+
+	public Task<IReadOnlyList<ClubPost>> GetAllAsync(CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult<IReadOnlyList<ClubPost>>(
+			Posts
+				.OrderByDescending(post => post.IsPinned)
+				.ThenByDescending(post => post.CreatedAt)
+				.ToList()
+		);
+	}
+
+	public Task<ClubPost?> GetByIdAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult(Posts.FirstOrDefault(post => post.Id == id));
+	}
+
+	public Task<ClubPost> CreateAsync(
+		ClubPost post,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (post.Id == Guid.Empty)
+		{
+			post.Id = Guid.NewGuid();
+		}
+
+		post.Title = post.Title.Trim();
+		post.Body = post.Body.Trim();
+		post.CreatedByUserEmail = post.CreatedByUserEmail.Trim();
+		post.CreatedAt = DateTime.UtcNow;
+		post.UpdatedAt = DateTime.UtcNow;
+
+		Posts.Add(post);
+
+		return Task.FromResult(post);
+	}
+
+	public Task<ClubPost?> UpdateAsync(
+		ClubPost post,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var existingPost = Posts.FirstOrDefault(currentPost => currentPost.Id == post.Id);
+
+		if (existingPost is null)
+		{
+			return Task.FromResult<ClubPost?>(null);
+		}
+
+		post.Title = post.Title.Trim();
+		post.Body = post.Body.Trim();
+		post.CreatedByUserEmail = post.CreatedByUserEmail.Trim();
+		post.UpdatedAt = DateTime.UtcNow;
+
+		var index = Posts.IndexOf(existingPost);
+		Posts[index] = post;
+
+		return Task.FromResult<ClubPost?>(post);
+	}
+
+	public Task<bool> DeleteAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var existingPost = Posts.FirstOrDefault(currentPost => currentPost.Id == id);
+
+		if (existingPost is null)
+		{
+			return Task.FromResult(false);
+		}
+
+		Posts.Remove(existingPost);
+
+		return Task.FromResult(true);
 	}
 }
