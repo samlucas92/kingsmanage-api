@@ -13,16 +13,19 @@ public class EventsController : ControllerBase
 {
 	private readonly IClubEventService _eventService;
 	private readonly IMatchService _matchService;
+	private readonly IStatsService _statsService;
 	private readonly IUserService _userService;
 
 	public EventsController(
 		IClubEventService eventService,
 		IMatchService matchService,
+		IStatsService statsService,
 		IUserService userService
 	)
 	{
 		_eventService = eventService;
 		_matchService = matchService;
+		_statsService = statsService;
 		_userService = userService;
 	}
 
@@ -191,6 +194,24 @@ public class EventsController : ControllerBase
 			return NotFound();
 		}
 
+		var linkedMatchIds = existingEvent.MatchLinks
+			.Where(matchLink => matchLink.MatchId.HasValue)
+			.Select(matchLink => matchLink.MatchId!.Value)
+			.Distinct()
+			.ToList();
+
+		var linkedMatches = new List<Match>();
+
+		foreach (var matchId in linkedMatchIds)
+		{
+			var linkedMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+
+			if (linkedMatch is not null)
+			{
+				linkedMatches.Add(linkedMatch);
+			}
+		}
+
 		var deleted = await _eventService.DeleteAsync(eventId, cancellationToken);
 
 		if (!deleted)
@@ -198,11 +219,12 @@ public class EventsController : ControllerBase
 			return NotFound();
 		}
 
-		await SynchroniseMatchEventLinksAsync(
-			existingEvent,
-			null,
-			cancellationToken
-		);
+		foreach (var match in linkedMatches)
+		{
+			await _matchService.DeleteAsync(match.Id, cancellationToken);
+		}
+
+		await RecalculateDeletedLinkedMatchesAsync(linkedMatches, cancellationToken);
 
 		return NoContent();
 	}
@@ -336,6 +358,26 @@ public class EventsController : ControllerBase
 		}
 
 		return events;
+	}
+
+	private async Task RecalculateDeletedLinkedMatchesAsync(
+		IEnumerable<Match> deletedMatches,
+		CancellationToken cancellationToken
+	)
+	{
+		var affectedSeasonIds = deletedMatches
+			.Where(match => match.SeasonId.HasValue)
+			.Select(match => match.SeasonId!.Value)
+			.Distinct()
+			.ToList();
+
+		foreach (var seasonId in affectedSeasonIds)
+		{
+			await _statsService.RecalculateSeasonStatsAsync(
+				seasonId,
+				cancellationToken
+			);
+		}
 	}
 
 	private bool CanViewEvent(ClubEvent clubEvent)

@@ -662,6 +662,85 @@ public sealed class EventsIntegrationTests
 	}
 
 	[Test]
+	public async Task DeleteMatchEvent_WithLinkedMatches_DeletesEventAndLinkedMatches()
+	{
+		var eventId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+		var firstMatchId = Guid.Parse("50000000-0000-0000-0000-000000000101");
+		var secondMatchId = Guid.Parse("50000000-0000-0000-0000-000000000102");
+		var unrelatedMatchId = Guid.Parse("50000000-0000-0000-0000-000000000103");
+
+		_factory.ClubEventService.Events.Add(
+			new ClubEvent
+			{
+				Id = eventId,
+				Type = ClubEventType.Match,
+				TeamScope = ClubEventTeamScope.Both,
+				Title = "Double header",
+				StartDateTime = DateTime.UtcNow.AddDays(5),
+				Location = "Garden Village Recreation Ground",
+				MatchLinks =
+				[
+					new ClubEventMatchLink
+					{
+						Team = ClubTeam.First,
+						MatchId = firstMatchId
+					},
+					new ClubEventMatchLink
+					{
+						Team = ClubTeam.Second,
+						MatchId = secondMatchId
+					}
+				]
+			}
+		);
+
+		_factory.MatchService.Matches.AddRange(
+			new[]
+			{
+				new Match
+				{
+					Id = firstMatchId,
+					Team = ClubTeam.First,
+					Opponent = "Loughor",
+					Date = DateTime.UtcNow.AddDays(5),
+					Venue = MatchVenue.Home,
+					ClubEventId = eventId
+				},
+				new Match
+				{
+					Id = secondMatchId,
+					Team = ClubTeam.Second,
+					Opponent = "Gors AFC",
+					Date = DateTime.UtcNow.AddDays(5),
+					Venue = MatchVenue.Away,
+					ClubEventId = eventId
+				},
+				new Match
+				{
+					Id = unrelatedMatchId,
+					Team = ClubTeam.First,
+					Opponent = "Unrelated",
+					Date = DateTime.UtcNow.AddDays(8),
+					Venue = MatchVenue.Home
+				}
+			}
+		);
+
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.DeleteAsync($"/api/events/{eventId}");
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+		Assert.That(_factory.ClubEventService.Events.Any(clubEvent => clubEvent.Id == eventId), Is.False);
+		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == firstMatchId), Is.False);
+		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == secondMatchId), Is.False);
+		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == unrelatedMatchId), Is.True);
+	}
+
+	[Test]
 	public async Task MarkSeen_AsLinkedPlayer_AddsSeenStatus()
 	{
 		var eventId = Guid.Parse("60000000-0000-0000-0000-000000000001");
