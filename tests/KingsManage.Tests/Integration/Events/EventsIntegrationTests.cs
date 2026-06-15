@@ -285,10 +285,59 @@ public sealed class EventsIntegrationTests
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
 		var matchLinks = document.RootElement.GetProperty("matchLinks");
+		var eventId = document.RootElement.GetProperty("id").GetGuid();
+		var linkedMatch = _factory.MatchService.Matches.Single(match => match.Id == matchId);
 
 		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(1));
 		Assert.That(matchLinks[0].GetProperty("team").GetString(), Is.EqualTo("First"));
 		Assert.That(matchLinks[0].GetProperty("matchId").GetGuid(), Is.EqualTo(matchId));
+		Assert.That(linkedMatch.ClubEventId, Is.EqualTo(eventId));
+	}
+
+	[Test]
+	public async Task CreateMatchEvent_WithExistingMatchLinkForWrongTeam_ReturnsBadRequest()
+	{
+		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000101");
+
+		_factory.MatchService.Matches.Add(
+			new Match
+			{
+				Id = matchId,
+				Team = ClubTeam.Second,
+				Opponent = "Gors AFC",
+				Date = DateTime.UtcNow.AddDays(10),
+				Venue = MatchVenue.Home
+			}
+		);
+
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				TeamScope = "First",
+				Title = "Wrong team link",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "Home pitch",
+				MatchLinks = new[]
+				{
+					new
+					{
+						Team = "First",
+						MatchId = matchId
+					}
+				},
+				CreateLinkedMatches = false,
+				CreateMatches = Array.Empty<object>()
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 	}
 
 	[Test]
@@ -353,7 +402,9 @@ public sealed class EventsIntegrationTests
 					{
 						Team = "First",
 						Opponent = "Loughor",
+						Competition = "League",
 						Venue = "Home",
+						Location = "Garden Village Recreation Ground",
 						SelectedFormation = "FourThreeThree"
 					}
 				}
@@ -367,16 +418,20 @@ public sealed class EventsIntegrationTests
 
 		Assert.That(createdMatch.Team, Is.EqualTo(ClubTeam.First));
 		Assert.That(createdMatch.Opponent, Is.EqualTo("Loughor"));
+		Assert.That(createdMatch.Competition, Is.EqualTo("League"));
 		Assert.That(createdMatch.Date, Is.EqualTo(eventStartDate).Within(TimeSpan.FromSeconds(1)));
 		Assert.That(createdMatch.Venue, Is.EqualTo(MatchVenue.Home));
+		Assert.That(createdMatch.Location, Is.EqualTo("Garden Village Recreation Ground"));
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
 		var matchLinks = document.RootElement.GetProperty("matchLinks");
+		var eventId = document.RootElement.GetProperty("id").GetGuid();
 
 		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(1));
 		Assert.That(matchLinks[0].GetProperty("team").GetString(), Is.EqualTo("First"));
 		Assert.That(matchLinks[0].GetProperty("matchId").GetGuid(), Is.EqualTo(createdMatch.Id));
+		Assert.That(createdMatch.ClubEventId, Is.EqualTo(eventId));
 	}
 
 	[Test]
@@ -407,14 +462,18 @@ public sealed class EventsIntegrationTests
 					{
 						Team = "First",
 						Opponent = "Loughor",
+						Competition = "League",
 						Venue = "Home",
+						Location = "Garden Village Recreation Ground",
 						SelectedFormation = "FourThreeThree"
 					},
 					new
 					{
 						Team = "Second",
 						Opponent = "Gors AFC",
-						Venue = "Home",
+						Competition = "Cup",
+						Venue = "Away",
+						Location = "Gors Ground",
 						SelectedFormation = "FourThreeThree"
 					}
 				}
@@ -427,10 +486,56 @@ public sealed class EventsIntegrationTests
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
 		var matchLinks = document.RootElement.GetProperty("matchLinks");
+		var eventId = document.RootElement.GetProperty("id").GetGuid();
+		var firstTeamMatch = _factory.MatchService.Matches.Single(match => match.Team == ClubTeam.First);
+		var secondTeamMatch = _factory.MatchService.Matches.Single(match => match.Team == ClubTeam.Second);
 
 		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(2));
 		Assert.That(matchLinks.EnumerateArray().Any(matchLink => matchLink.GetProperty("team").GetString() == "First"), Is.True);
 		Assert.That(matchLinks.EnumerateArray().Any(matchLink => matchLink.GetProperty("team").GetString() == "Second"), Is.True);
+		Assert.That(firstTeamMatch.Venue, Is.EqualTo(MatchVenue.Home));
+		Assert.That(firstTeamMatch.Competition, Is.EqualTo("League"));
+		Assert.That(firstTeamMatch.Location, Is.EqualTo("Garden Village Recreation Ground"));
+		Assert.That(firstTeamMatch.ClubEventId, Is.EqualTo(eventId));
+		Assert.That(secondTeamMatch.Venue, Is.EqualTo(MatchVenue.Away));
+		Assert.That(secondTeamMatch.Competition, Is.EqualTo("Cup"));
+		Assert.That(secondTeamMatch.Location, Is.EqualTo("Gors Ground"));
+		Assert.That(secondTeamMatch.ClubEventId, Is.EqualTo(eventId));
+	}
+
+	[Test]
+	public async Task CreateMatchEvent_WithBothTeamCreationMissingOneTeam_ReturnsBadRequest()
+	{
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				TeamScope = "Both",
+				Title = "Incomplete double header",
+				StartDateTime = DateTime.UtcNow.AddDays(10),
+				Location = "Home pitch",
+				MatchLinks = Array.Empty<object>(),
+				CreateLinkedMatches = true,
+				CreateMatches = new[]
+				{
+					new
+					{
+						Team = "First",
+						Opponent = "Loughor",
+						Venue = "Home"
+					}
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+		Assert.That(_factory.MatchService.Matches, Is.Empty);
 	}
 
 	[Test]

@@ -52,7 +52,9 @@ public class MatchService : IMatchService
 			? Guid.NewGuid()
 			: match.Id;
 
-		match.Opponent = match.Opponent.Trim();
+		match.Opponent = (match.Opponent ?? string.Empty).Trim();
+		match.Competition = (match.Competition ?? string.Empty).Trim();
+		match.Location = (match.Location ?? string.Empty).Trim();
 		match.State = MatchState.Upcoming;
 		match.IsCompleted = false;
 		match.Result = null;
@@ -73,7 +75,9 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
-		match.Opponent = match.Opponent.Trim();
+		match.Opponent = (match.Opponent ?? string.Empty).Trim();
+		match.Competition = (match.Competition ?? string.Empty).Trim();
+		match.Location = (match.Location ?? string.Empty).Trim();
 		match.UpdatedAt = DateTime.UtcNow;
 
 		var result = await _matches.ReplaceOneAsync(

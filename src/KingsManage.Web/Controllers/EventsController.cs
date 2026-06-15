@@ -75,6 +75,9 @@ public class EventsController : ControllerBase
 		}
 
 		var clubEvent = model.ToClubEvent();
+		clubEvent.Id = clubEvent.Id == Guid.Empty
+			? Guid.NewGuid()
+			: clubEvent.Id;
 
 		if (model.Type == ClubEventType.Match && model.CreateLinkedMatches)
 		{
@@ -83,7 +86,11 @@ public class EventsController : ControllerBase
 			foreach (var matchToCreate in model.CreateMatches)
 			{
 				var createdMatch = await _matchService.CreateAsync(
-					matchToCreate.ToMatch(model.StartDateTime),
+					matchToCreate.ToMatch(
+						model.StartDateTime,
+						model.Location,
+						clubEvent.Id
+					),
 					cancellationToken
 				);
 
@@ -99,6 +106,12 @@ public class EventsController : ControllerBase
 
 		var createdEvent = await _eventService.CreateAsync(
 			clubEvent,
+			cancellationToken
+		);
+
+		await SynchroniseMatchEventLinksAsync(
+			null,
+			createdEvent,
 			cancellationToken
 		);
 
@@ -131,6 +144,7 @@ public class EventsController : ControllerBase
 
 		var validationError = await ValidateUpdateEventModelAsync(
 			model,
+			existingEvent.Id,
 			cancellationToken
 		);
 
@@ -149,6 +163,12 @@ public class EventsController : ControllerBase
 			return NotFound();
 		}
 
+		await SynchroniseMatchEventLinksAsync(
+			existingEvent,
+			updatedEvent,
+			cancellationToken
+		);
+
 		return Ok(updatedEvent);
 	}
 
@@ -164,12 +184,25 @@ public class EventsController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+
+		if (existingEvent is null)
+		{
+			return NotFound();
+		}
+
 		var deleted = await _eventService.DeleteAsync(eventId, cancellationToken);
 
 		if (!deleted)
 		{
 			return NotFound();
 		}
+
+		await SynchroniseMatchEventLinksAsync(
+			existingEvent,
+			null,
+			cancellationToken
+		);
 
 		return NoContent();
 	}
@@ -380,6 +413,17 @@ public class EventsController : ControllerBase
 				return "A match event cannot create duplicate matches for the same team.";
 			}
 
+			var teamCoverageError = ValidateTeamCoverage(
+				model.CreateMatches.Select(match => match.Team),
+				model.TeamScope,
+				"Created matches"
+			);
+
+			if (teamCoverageError is not null)
+			{
+				return teamCoverageError;
+			}
+
 			foreach (var createMatchModel in model.CreateMatches)
 			{
 				if (string.IsNullOrWhiteSpace(createMatchModel.Opponent))
@@ -399,12 +443,14 @@ public class EventsController : ControllerBase
 		return await ValidateMatchLinksAsync(
 			matchLinks,
 			model.TeamScope,
+			null,
 			cancellationToken
 		);
 	}
 
 	private async Task<string?> ValidateUpdateEventModelAsync(
 		UpdateClubEventModel model,
+		Guid eventId,
 		CancellationToken cancellationToken
 	)
 	{
@@ -432,6 +478,7 @@ public class EventsController : ControllerBase
 		return await ValidateMatchLinksAsync(
 			matchLinks,
 			model.TeamScope,
+			eventId,
 			cancellationToken
 		);
 	}
@@ -470,6 +517,16 @@ public class EventsController : ControllerBase
 			{
 				return "A match event cannot have duplicate match links for the same team.";
 			}
+
+			var duplicateMatchId = matchLinks
+				.Where(matchLink => matchLink.MatchId.HasValue)
+				.GroupBy(matchLink => matchLink.MatchId!.Value)
+				.FirstOrDefault(group => group.Count() > 1);
+
+			if (duplicateMatchId is not null)
+			{
+				return "A match event cannot link the same match more than once.";
+			}
 		}
 
 		return null;
@@ -478,9 +535,24 @@ public class EventsController : ControllerBase
 	private async Task<string?> ValidateMatchLinksAsync(
 		List<ClubEventMatchLink> matchLinks,
 		ClubEventTeamScope teamScope,
+		Guid? currentEventId,
 		CancellationToken cancellationToken
 	)
 	{
+		if (matchLinks.Count > 0)
+		{
+			var teamCoverageError = ValidateTeamCoverage(
+				matchLinks.Select(matchLink => matchLink.Team),
+				teamScope,
+				"Linked matches"
+			);
+
+			if (teamCoverageError is not null)
+			{
+				return teamCoverageError;
+			}
+		}
+
 		foreach (var matchLink in matchLinks)
 		{
 			if (!IsTeamInScope(matchLink.Team, teamScope))
@@ -488,21 +560,78 @@ public class EventsController : ControllerBase
 				return "Linked match team must be inside the event team scope.";
 			}
 
-			if (matchLink.MatchId.HasValue)
+			if (!matchLink.MatchId.HasValue || matchLink.MatchId.Value == Guid.Empty)
 			{
-				var linkedMatch = await _matchService.GetByIdAsync(
-					matchLink.MatchId.Value,
-					cancellationToken
-				);
+				return "Linked match id is required.";
+			}
 
-				if (linkedMatch is null)
-				{
-					return "Linked match was not found.";
-				}
+			var linkedMatch = await _matchService.GetByIdAsync(
+				matchLink.MatchId.Value,
+				cancellationToken
+			);
+
+			if (linkedMatch is null)
+			{
+				return "Linked match was not found.";
+			}
+
+			if (linkedMatch.Team != matchLink.Team)
+			{
+				return "Linked match team must match the selected event team.";
+			}
+
+			if (
+				linkedMatch.ClubEventId.HasValue &&
+				(!currentEventId.HasValue || linkedMatch.ClubEventId.Value != currentEventId.Value)
+			)
+			{
+				return "Linked match is already linked to another event.";
 			}
 		}
 
 		return null;
+	}
+
+	private static string? ValidateTeamCoverage(
+		IEnumerable<ClubTeam> teams,
+		ClubEventTeamScope teamScope,
+		string label
+	)
+	{
+		var selectedTeams = teams.Distinct().ToList();
+		var expectedTeams = GetTeamsForScope(teamScope);
+
+		if (selectedTeams.Any(team => !expectedTeams.Contains(team)))
+		{
+			return $"{label} must be inside the event team scope.";
+		}
+
+		if (selectedTeams.Count == 0)
+		{
+			return null;
+		}
+
+		var missingTeams = expectedTeams
+			.Where(expectedTeam => !selectedTeams.Contains(expectedTeam))
+			.ToList();
+
+		if (missingTeams.Count > 0)
+		{
+			return $"{label} must include separate details for every team in the event scope.";
+		}
+
+		return null;
+	}
+
+	private static List<ClubTeam> GetTeamsForScope(ClubEventTeamScope teamScope)
+	{
+		return teamScope switch
+		{
+			ClubEventTeamScope.First => [ClubTeam.First],
+			ClubEventTeamScope.Second => [ClubTeam.Second],
+			ClubEventTeamScope.Both => [ClubTeam.First, ClubTeam.Second],
+			_ => []
+		};
 	}
 
 	private static bool IsTeamInScope(ClubTeam team, ClubEventTeamScope teamScope)
@@ -514,6 +643,69 @@ public class EventsController : ControllerBase
 			ClubEventTeamScope.Both => true,
 			_ => false
 		};
+	}
+
+	private async Task SynchroniseMatchEventLinksAsync(
+		ClubEvent? previousEvent,
+		ClubEvent? updatedEvent,
+		CancellationToken cancellationToken
+	)
+	{
+		var eventId = updatedEvent?.Id ?? previousEvent?.Id;
+
+		if (!eventId.HasValue)
+		{
+			return;
+		}
+
+		var previousMatchIds = GetLinkedMatchIds(previousEvent).ToList();
+		var updatedMatchIds = GetLinkedMatchIds(updatedEvent).ToList();
+
+		foreach (var removedMatchId in previousMatchIds.Except(updatedMatchIds))
+		{
+			var match = await _matchService.GetByIdAsync(
+				removedMatchId,
+				cancellationToken
+			);
+
+			if (match is null || match.ClubEventId != eventId.Value)
+			{
+				continue;
+			}
+
+			match.ClubEventId = null;
+
+			await _matchService.UpdateAsync(match, cancellationToken);
+		}
+
+		foreach (var updatedMatchId in updatedMatchIds)
+		{
+			var match = await _matchService.GetByIdAsync(
+				updatedMatchId,
+				cancellationToken
+			);
+
+			if (match is null || match.ClubEventId == eventId.Value)
+			{
+				continue;
+			}
+
+			match.ClubEventId = eventId.Value;
+
+			await _matchService.UpdateAsync(match, cancellationToken);
+		}
+	}
+
+	private static IEnumerable<Guid> GetLinkedMatchIds(ClubEvent? clubEvent)
+	{
+		if (clubEvent?.MatchLinks is null)
+		{
+			return [];
+		}
+
+		return clubEvent.MatchLinks
+			.Where(matchLink => matchLink.MatchId.HasValue)
+			.Select(matchLink => matchLink.MatchId!.Value);
 	}
 
 	private async Task<PlayerIdResult> GetCurrentUserPlayerIdAsync(

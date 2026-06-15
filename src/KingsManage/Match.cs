@@ -4,10 +4,13 @@ public class Match
 {
 	public Guid Id { get; set; }
 	public Guid? SeasonId { get; set; }
+	public Guid? ClubEventId { get; set; }
 	public ClubTeam Team { get; set; }
 	public string Opponent { get; set; } = string.Empty;
+	public string Competition { get; set; } = string.Empty;
 	public DateTime Date { get; set; }
 	public MatchVenue Venue { get; set; }
+	public string Location { get; set; } = string.Empty;
 	public MatchState State { get; set; } = MatchState.Upcoming;
 	public MatchResult? Result { get; set; }
 	public bool IsCompleted { get; set; }
