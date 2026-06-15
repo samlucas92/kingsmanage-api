@@ -16,6 +16,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestUserService UserService { get; } = new();
 	public TestPlayerService PlayerService { get; } = new();
 	public TestMatchService MatchService { get; } = new();
+	public TestSeasonService SeasonService { get; } = new();
 	public TestStatsService StatsService { get; } = new();
 	public TestClubEventService ClubEventService { get; } = new();
 
@@ -43,12 +44,14 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IUserService>();
 			services.RemoveAll<IPlayerService>();
 			services.RemoveAll<IMatchService>();
+			services.RemoveAll<ISeasonService>();
 			services.RemoveAll<IStatsService>();
 			services.RemoveAll<IClubEventService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
 			services.AddSingleton<IMatchService>(MatchService);
+			services.AddSingleton<ISeasonService>(SeasonService);
 			services.AddSingleton<IStatsService>(StatsService);
 			services.AddSingleton<IClubEventService>(ClubEventService);
 		});
@@ -167,6 +170,12 @@ public static class TestUsers
 	public const string CoachPassword = "Coach123!";
 	public const string PlayerPassword = "Player123!";
 	public const string InactivePassword = "Inactive123!";
+}
+
+
+public static class TestSeasons
+{
+	public static readonly Guid ActiveSeasonId = Guid.Parse("70000000-0000-0000-0000-000000000001");
 }
 
 public sealed class TestUserService : IUserService
@@ -845,6 +854,97 @@ public sealed class TestClubEventService : IClubEventService
 		clubEvent.UpdatedAt = DateTime.UtcNow;
 
 		return Task.FromResult<ClubEvent?>(clubEvent);
+	}
+}
+
+
+public sealed class TestSeasonService : ISeasonService
+{
+	public List<Season> Seasons { get; } =
+	[
+		new Season
+		{
+			Id = TestSeasons.ActiveSeasonId,
+			Name = "2025-2026",
+			StartDate = new DateTime(2025, 7, 1),
+			EndDate = new DateTime(2026, 6, 30),
+			IsActive = true,
+			CreatedAt = DateTime.UtcNow,
+			UpdatedAt = DateTime.UtcNow
+		}
+	];
+
+	public Task<IReadOnlyList<Season>> GetAllAsync(CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult<IReadOnlyList<Season>>(Seasons.ToList());
+	}
+
+	public Task<Season?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult(Seasons.FirstOrDefault(season => season.Id == id));
+	}
+
+	public Task<Season?> GetActiveAsync(CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult(Seasons.FirstOrDefault(season => season.IsActive));
+	}
+
+	public Task<Season> CreateAsync(Season season, CancellationToken cancellationToken = default)
+	{
+		if (season.Id == Guid.Empty)
+		{
+			season.Id = Guid.NewGuid();
+		}
+
+		if (season.IsActive)
+		{
+			foreach (var existingSeason in Seasons)
+			{
+				existingSeason.IsActive = false;
+			}
+		}
+
+		season.CreatedAt = DateTime.UtcNow;
+		season.UpdatedAt = DateTime.UtcNow;
+
+		Seasons.Add(season);
+
+		return Task.FromResult(season);
+	}
+
+	public Task<Season?> UpdateAsync(Season season, CancellationToken cancellationToken = default)
+	{
+		var existingSeason = Seasons.FirstOrDefault(currentSeason => currentSeason.Id == season.Id);
+
+		if (existingSeason is null)
+		{
+			return Task.FromResult<Season?>(null);
+		}
+
+		var index = Seasons.IndexOf(existingSeason);
+		Seasons[index] = season;
+
+		return Task.FromResult<Season?>(season);
+	}
+
+	public Task<Season?> SetActiveAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var season = Seasons.FirstOrDefault(currentSeason => currentSeason.Id == id);
+
+		if (season is null)
+		{
+			return Task.FromResult<Season?>(null);
+		}
+
+		foreach (var existingSeason in Seasons)
+		{
+			existingSeason.IsActive = false;
+		}
+
+		season.IsActive = true;
+		season.UpdatedAt = DateTime.UtcNow;
+
+		return Task.FromResult<Season?>(season);
 	}
 }
 

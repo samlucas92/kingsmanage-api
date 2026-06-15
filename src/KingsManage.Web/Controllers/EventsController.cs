@@ -13,18 +13,21 @@ public class EventsController : ControllerBase
 {
 	private readonly IClubEventService _eventService;
 	private readonly IMatchService _matchService;
+	private readonly ISeasonService _seasonService;
 	private readonly IStatsService _statsService;
 	private readonly IUserService _userService;
 
 	public EventsController(
 		IClubEventService eventService,
 		IMatchService matchService,
+		ISeasonService seasonService,
 		IStatsService statsService,
 		IUserService userService
 	)
 	{
 		_eventService = eventService;
 		_matchService = matchService;
+		_seasonService = seasonService;
 		_statsService = statsService;
 		_userService = userService;
 	}
@@ -84,12 +87,20 @@ public class EventsController : ControllerBase
 
 		if (model.Type == ClubEventType.Match && model.CreateLinkedMatches)
 		{
+			var activeSeason = await _seasonService.GetActiveAsync(cancellationToken);
+
+			if (activeSeason is null)
+			{
+				return BadRequest("An active season must be set before creating linked matches from an event.");
+			}
+
 			clubEvent.MatchLinks = [];
 
 			foreach (var matchToCreate in model.CreateMatches)
 			{
 				var createdMatch = await _matchService.CreateAsync(
 					matchToCreate.ToMatch(
+						activeSeason.Id,
 						model.StartDateTime,
 						model.Location,
 						clubEvent.Id

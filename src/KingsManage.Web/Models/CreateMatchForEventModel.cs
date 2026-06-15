@@ -14,6 +14,7 @@ public class CreateMatchForEventModel
 	public LineupFormation SelectedFormation { get; set; } = LineupFormation.FourThreeThree;
 
 	public Match ToMatch(
+		Guid activeSeasonId,
 		DateTime eventStartDateTime,
 		string eventLocation,
 		Guid? clubEventId = null
@@ -21,7 +22,7 @@ public class CreateMatchForEventModel
 	{
 		return new Match
 		{
-			SeasonId = SeasonId,
+			SeasonId = activeSeasonId,
 			ClubEventId = clubEventId,
 			Team = Team,
 			Opponent = Opponent,

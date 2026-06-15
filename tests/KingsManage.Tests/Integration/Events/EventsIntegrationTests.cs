@@ -422,6 +422,7 @@ public sealed class EventsIntegrationTests
 		Assert.That(createdMatch.Date, Is.EqualTo(eventStartDate).Within(TimeSpan.FromSeconds(1)));
 		Assert.That(createdMatch.Venue, Is.EqualTo(MatchVenue.Home));
 		Assert.That(createdMatch.Location, Is.EqualTo("Garden Village Recreation Ground"));
+		Assert.That(createdMatch.SeasonId, Is.EqualTo(TestSeasons.ActiveSeasonId));
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
@@ -432,6 +433,48 @@ public sealed class EventsIntegrationTests
 		Assert.That(matchLinks[0].GetProperty("team").GetString(), Is.EqualTo("First"));
 		Assert.That(matchLinks[0].GetProperty("matchId").GetGuid(), Is.EqualTo(createdMatch.Id));
 		Assert.That(createdMatch.ClubEventId, Is.EqualTo(eventId));
+	}
+
+
+	[Test]
+	public async Task CreateMatchEvent_WithExplicitMatchCreationAndNoActiveSeason_ReturnsBadRequest()
+	{
+		_factory.SeasonService.Seasons.ForEach(season => season.IsActive = false);
+
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				TeamScope = "First",
+				Title = "Kingsbridge Colts vs Loughor",
+				Description = "League fixture.",
+				StartDateTime = DateTime.UtcNow.AddDays(14),
+				Location = "Garden Village Recreation Ground",
+				MatchLinks = Array.Empty<object>(),
+				CreateLinkedMatches = true,
+				CreateMatches = new[]
+				{
+					new
+					{
+						Team = "First",
+						Opponent = "Loughor",
+						Competition = "League",
+						Venue = "Home",
+						Location = "Garden Village Recreation Ground",
+						SelectedFormation = "FourThreeThree"
+					}
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+		Assert.That(_factory.MatchService.Matches, Is.Empty);
 	}
 
 	[Test]
@@ -496,10 +539,12 @@ public sealed class EventsIntegrationTests
 		Assert.That(firstTeamMatch.Venue, Is.EqualTo(MatchVenue.Home));
 		Assert.That(firstTeamMatch.Competition, Is.EqualTo("League"));
 		Assert.That(firstTeamMatch.Location, Is.EqualTo("Garden Village Recreation Ground"));
+		Assert.That(firstTeamMatch.SeasonId, Is.EqualTo(TestSeasons.ActiveSeasonId));
 		Assert.That(firstTeamMatch.ClubEventId, Is.EqualTo(eventId));
 		Assert.That(secondTeamMatch.Venue, Is.EqualTo(MatchVenue.Away));
 		Assert.That(secondTeamMatch.Competition, Is.EqualTo("Cup"));
 		Assert.That(secondTeamMatch.Location, Is.EqualTo("Gors Ground"));
+		Assert.That(secondTeamMatch.SeasonId, Is.EqualTo(TestSeasons.ActiveSeasonId));
 		Assert.That(secondTeamMatch.ClubEventId, Is.EqualTo(eventId));
 	}
 
