@@ -6,7 +6,7 @@ using KingsManage.Web.Security;
 using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using MongoClubEventService = KingsManage.Mongo.Services.ClubEventService;
 using MongoClubFileService = KingsManage.Mongo.Services.ClubFileService;
 using MongoClubPostService = KingsManage.Mongo.Services.ClubPostService;
@@ -112,29 +112,19 @@ builder.Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-	options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+	options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
 	{
 		Name = "Authorization",
 		Type = SecuritySchemeType.Http,
-		Scheme = "bearer",
+		Scheme = JwtBearerDefaults.AuthenticationScheme,
 		BearerFormat = "JWT",
 		In = ParameterLocation.Header,
-		Description = "Enter a valid JWT bearer token. Example: Bearer eyJhbGciOi..."
+		Description = "JWT Authorization header using the Bearer scheme."
 	});
 
-	options.AddSecurityRequirement(new OpenApiSecurityRequirement
+	options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
 	{
-		{
-			new OpenApiSecurityScheme
-			{
-				Reference = new OpenApiReference
-				{
-					Type = ReferenceType.SecurityScheme,
-					Id = "Bearer"
-				}
-			},
-			Array.Empty<string>()
-		}
+		[new OpenApiSecuritySchemeReference("bearer", document)] = []
 	});
 });
 
