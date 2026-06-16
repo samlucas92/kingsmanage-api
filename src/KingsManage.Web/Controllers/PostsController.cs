@@ -12,10 +12,18 @@ namespace KingsManage.Web.Controllers;
 public class PostsController : ControllerBase
 {
 	private readonly IClubPostService _postService;
+	private readonly IClubNotificationService _notificationService;
+	private readonly IUserService _userService;
 
-	public PostsController(IClubPostService postService)
+	public PostsController(
+		IClubPostService postService,
+		IClubNotificationService notificationService,
+		IUserService userService
+	)
 	{
 		_postService = postService;
+		_notificationService = notificationService;
+		_userService = userService;
 	}
 
 	[HttpGet]
@@ -75,6 +83,12 @@ public class PostsController : ControllerBase
 				userIdResult.UserId,
 				User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
 			),
+			cancellationToken
+		);
+
+		await CreatePostNotificationAsync(
+			createdPost,
+			userIdResult.UserId,
 			cancellationToken
 		);
 
@@ -145,6 +159,54 @@ public class PostsController : ControllerBase
 		}
 
 		return NoContent();
+	}
+
+	private async Task CreatePostNotificationAsync(
+		ClubPost post,
+		Guid createdByUserId,
+		CancellationToken cancellationToken
+	)
+	{
+		var recipients = await GetActiveUsersExceptAsync(
+			createdByUserId,
+			cancellationToken
+		);
+
+		if (recipients.Count == 0)
+		{
+			return;
+		}
+
+		await _notificationService.CreateAsync(
+			new ClubNotification
+			{
+				Type = NotificationType.NewPost,
+				SourceType = NotificationSourceType.Post,
+				SourceId = post.Id,
+				Title = $"New post: {post.Title}",
+				Message = "A new club post has been published.",
+				ActionPath = $"/posts/{post.Id}",
+				CreatedByUserId = createdByUserId,
+				CreatedByUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+				Recipients = recipients
+					.Select(user => new ClubNotificationRecipient { UserId = user.Id })
+					.ToList()
+			},
+			cancellationToken
+		);
+	}
+
+	private async Task<List<AppUser>> GetActiveUsersExceptAsync(
+		Guid excludedUserId,
+		CancellationToken cancellationToken
+	)
+	{
+		var users = await _userService.GetAllAsync(cancellationToken);
+
+		return users
+			.Where(user => user.IsActive)
+			.Where(user => user.Id != excludedUserId)
+			.ToList();
 	}
 
 	private static string? ValidateCreateModel(CreateClubPostModel model)

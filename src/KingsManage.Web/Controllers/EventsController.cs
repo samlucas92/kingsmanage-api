@@ -13,6 +13,7 @@ public class EventsController : ControllerBase
 {
 	private readonly IClubEventService _eventService;
 	private readonly IMatchService _matchService;
+	private readonly IClubNotificationService _notificationService;
 	private readonly ISeasonService _seasonService;
 	private readonly IStatsService _statsService;
 	private readonly IUserService _userService;
@@ -20,6 +21,7 @@ public class EventsController : ControllerBase
 	public EventsController(
 		IClubEventService eventService,
 		IMatchService matchService,
+		IClubNotificationService notificationService,
 		ISeasonService seasonService,
 		IStatsService statsService,
 		IUserService userService
@@ -27,6 +29,7 @@ public class EventsController : ControllerBase
 	{
 		_eventService = eventService;
 		_matchService = matchService;
+		_notificationService = notificationService;
 		_seasonService = seasonService;
 		_statsService = statsService;
 		_userService = userService;
@@ -80,6 +83,13 @@ public class EventsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
+		var userIdResult = GetCurrentUserId();
+
+		if (!userIdResult.Success)
+		{
+			return BadRequest(userIdResult.ErrorMessage);
+		}
+
 		var clubEvent = model.ToClubEvent();
 		clubEvent.Id = clubEvent.Id == Guid.Empty
 			? Guid.NewGuid()
@@ -126,6 +136,12 @@ public class EventsController : ControllerBase
 		await SynchroniseMatchEventLinksAsync(
 			null,
 			createdEvent,
+			cancellationToken
+		);
+
+		await CreateEventNotificationAsync(
+			createdEvent,
+			userIdResult.UserId,
 			cancellationToken
 		);
 
@@ -180,6 +196,19 @@ public class EventsController : ControllerBase
 		await SynchroniseMatchEventLinksAsync(
 			existingEvent,
 			updatedEvent,
+			cancellationToken
+		);
+
+		var userIdResult = GetCurrentUserId();
+
+		if (!userIdResult.Success)
+		{
+			return BadRequest(userIdResult.ErrorMessage);
+		}
+
+		await CreateEventUpdatedNotificationAsync(
+			updatedEvent,
+			userIdResult.UserId,
 			cancellationToken
 		);
 
@@ -359,6 +388,110 @@ public class EventsController : ControllerBase
 		}
 
 		return Ok(updatedEvent);
+	}
+
+	private async Task CreateEventNotificationAsync(
+		ClubEvent clubEvent,
+		Guid createdByUserId,
+		CancellationToken cancellationToken
+	)
+	{
+		await CreateEventNotificationAsync(
+			clubEvent,
+			createdByUserId,
+			NotificationType.NewEvent,
+			$"New event: {clubEvent.Title}",
+			$"A new {FormatEventType(clubEvent.Type)} event has been created.",
+			cancellationToken
+		);
+	}
+
+	private async Task CreateEventUpdatedNotificationAsync(
+		ClubEvent clubEvent,
+		Guid createdByUserId,
+		CancellationToken cancellationToken
+	)
+	{
+		await CreateEventNotificationAsync(
+			clubEvent,
+			createdByUserId,
+			NotificationType.EventUpdated,
+			$"Event updated: {clubEvent.Title}",
+			$"A {FormatEventType(clubEvent.Type)} event has been updated.",
+			cancellationToken
+		);
+	}
+
+	private async Task CreateEventNotificationAsync(
+		ClubEvent clubEvent,
+		Guid createdByUserId,
+		NotificationType notificationType,
+		string title,
+		string message,
+		CancellationToken cancellationToken
+	)
+	{
+		var recipients = await GetVisibleActiveUsersExceptAsync(
+			clubEvent,
+			createdByUserId,
+			cancellationToken
+		);
+
+		if (recipients.Count == 0)
+		{
+			return;
+		}
+
+		await _notificationService.CreateAsync(
+			new ClubNotification
+			{
+				Type = notificationType,
+				SourceType = NotificationSourceType.Event,
+				SourceId = clubEvent.Id,
+				Title = title,
+				Message = message,
+				ActionPath = "/dashboard?tab=events",
+				CreatedByUserId = createdByUserId,
+				CreatedByUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+				Recipients = recipients
+					.Select(user => new ClubNotificationRecipient { UserId = user.Id })
+					.ToList()
+			},
+			cancellationToken
+		);
+	}
+
+	private async Task<List<AppUser>> GetVisibleActiveUsersExceptAsync(
+		ClubEvent clubEvent,
+		Guid excludedUserId,
+		CancellationToken cancellationToken
+	)
+	{
+		var users = await _userService.GetAllAsync(cancellationToken);
+
+		return users
+			.Where(user => user.IsActive)
+			.Where(user => user.Id != excludedUserId)
+			.Where(user => CanUserRoleViewEvent(user.Role, clubEvent))
+			.ToList();
+	}
+
+	private static bool CanUserRoleViewEvent(UserRole role, ClubEvent clubEvent)
+	{
+		if (role == UserRole.Player)
+		{
+			return clubEvent.Type is
+				ClubEventType.Match or
+				ClubEventType.Training or
+				ClubEventType.Social;
+		}
+
+		return true;
+	}
+
+	private static string FormatEventType(ClubEventType type)
+	{
+		return type.ToString().ToLowerInvariant();
 	}
 
 	private IEnumerable<ClubEvent> FilterVisibleEvents(IEnumerable<ClubEvent> events)
@@ -761,6 +894,26 @@ public class EventsController : ControllerBase
 			.Select(matchLink => matchLink.MatchId!.Value);
 	}
 
+	private CurrentUserIdResult GetCurrentUserId()
+	{
+		var userIdClaim =
+			User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+			User.FindFirstValue("sub") ??
+			User.FindFirstValue("id");
+
+		if (string.IsNullOrWhiteSpace(userIdClaim))
+		{
+			return CurrentUserIdResult.Failed("Current user id was not found in the auth token.");
+		}
+
+		if (!Guid.TryParse(userIdClaim, out var userId))
+		{
+			return CurrentUserIdResult.Failed("Current user id in the auth token is invalid.");
+		}
+
+		return CurrentUserIdResult.SuccessResult(userId);
+	}
+
 	private async Task<PlayerIdResult> GetCurrentUserPlayerIdAsync(
 		CancellationToken cancellationToken
 	)
@@ -808,6 +961,19 @@ public class EventsController : ControllerBase
 		}
 
 		return true;
+	}
+
+	private sealed record CurrentUserIdResult(
+		bool Success,
+		Guid UserId,
+		string ErrorMessage
+	)
+	{
+		public static CurrentUserIdResult SuccessResult(Guid userId) =>
+			new(true, userId, string.Empty);
+
+		public static CurrentUserIdResult Failed(string errorMessage) =>
+			new(false, Guid.Empty, errorMessage);
 	}
 
 	private sealed record PlayerIdResult(

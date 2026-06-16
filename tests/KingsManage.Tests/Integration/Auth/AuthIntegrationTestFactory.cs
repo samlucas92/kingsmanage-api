@@ -20,6 +20,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestStatsService StatsService { get; } = new();
 	public TestClubEventService ClubEventService { get; } = new();
 	public TestClubPostService ClubPostService { get; } = new();
+	public TestClubNotificationService ClubNotificationService { get; } = new();
 	public TestClubFileService ClubFileService { get; } = new();
 	public TestFileStorageService FileStorageService { get; } = new();
 
@@ -51,6 +52,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IStatsService>();
 			services.RemoveAll<IClubEventService>();
 			services.RemoveAll<IClubPostService>();
+			services.RemoveAll<IClubNotificationService>();
 			services.RemoveAll<IClubFileService>();
 			services.RemoveAll<IFileStorageService>();
 
@@ -61,6 +63,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IStatsService>(StatsService);
 			services.AddSingleton<IClubEventService>(ClubEventService);
 			services.AddSingleton<IClubPostService>(ClubPostService);
+			services.AddSingleton<IClubNotificationService>(ClubNotificationService);
 			services.AddSingleton<IClubFileService>(ClubFileService);
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 		});
@@ -1096,5 +1099,111 @@ public sealed class TestClubPostService : IClubPostService
 		Posts.Remove(existingPost);
 
 		return Task.FromResult(true);
+	}
+}
+
+
+public sealed class TestClubNotificationService : IClubNotificationService
+{
+	public List<ClubNotification> Notifications { get; } = new();
+
+	public Task<IReadOnlyList<ClubNotification>> GetForUserAsync(
+		Guid userId,
+		bool unreadOnly = false,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult<IReadOnlyList<ClubNotification>>(
+			Notifications
+				.Where(notification => notification.Recipients.Any(recipient =>
+					recipient.UserId == userId &&
+					(!unreadOnly || recipient.Status == NotificationStatus.Unread)))
+				.OrderByDescending(notification => notification.CreatedAt)
+				.ToList()
+		);
+	}
+
+	public Task<int> GetUnreadCountAsync(
+		Guid userId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult(
+			Notifications.Count(notification => notification.Recipients.Any(recipient =>
+				recipient.UserId == userId &&
+				recipient.Status == NotificationStatus.Unread))
+		);
+	}
+
+	public Task<ClubNotification> CreateAsync(
+		ClubNotification notification,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (notification.Id == Guid.Empty)
+		{
+			notification.Id = Guid.NewGuid();
+		}
+
+		notification.Title = notification.Title.Trim();
+		notification.Message = notification.Message.Trim();
+		notification.ActionPath = notification.ActionPath.Trim();
+		notification.CreatedByUserEmail = notification.CreatedByUserEmail.Trim();
+		notification.Recipients ??= [];
+		notification.CreatedAt = DateTime.UtcNow;
+
+		Notifications.Add(notification);
+
+		return Task.FromResult(notification);
+	}
+
+	public Task<ClubNotification?> MarkReadAsync(
+		Guid notificationId,
+		Guid userId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var notification = Notifications.FirstOrDefault(currentNotification => currentNotification.Id == notificationId);
+
+		if (notification is null)
+		{
+			return Task.FromResult<ClubNotification?>(null);
+		}
+
+		var recipient = notification.Recipients.FirstOrDefault(currentRecipient => currentRecipient.UserId == userId);
+
+		if (recipient is null)
+		{
+			return Task.FromResult<ClubNotification?>(null);
+		}
+
+		recipient.Status = NotificationStatus.Read;
+		recipient.ReadAt ??= DateTime.UtcNow;
+
+		return Task.FromResult<ClubNotification?>(notification);
+	}
+
+	public Task<int> MarkAllReadAsync(
+		Guid userId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var updatedCount = 0;
+
+		foreach (var notification in Notifications)
+		{
+			var recipient = notification.Recipients.FirstOrDefault(currentRecipient => currentRecipient.UserId == userId);
+
+			if (recipient is null || recipient.Status == NotificationStatus.Read)
+			{
+				continue;
+			}
+
+			recipient.Status = NotificationStatus.Read;
+			recipient.ReadAt = DateTime.UtcNow;
+			updatedCount++;
+		}
+
+		return Task.FromResult(updatedCount);
 	}
 }
