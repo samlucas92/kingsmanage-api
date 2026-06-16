@@ -6,6 +6,7 @@ using KingsManage.Web.Security;
 using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using MongoClubEventService = KingsManage.Mongo.Services.ClubEventService;
 using MongoClubFileService = KingsManage.Mongo.Services.ClubFileService;
 using MongoClubPostService = KingsManage.Mongo.Services.ClubPostService;
@@ -109,7 +110,33 @@ builder.Services
 	});
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+	options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+	{
+		Name = "Authorization",
+		Type = SecuritySchemeType.Http,
+		Scheme = "bearer",
+		BearerFormat = "JWT",
+		In = ParameterLocation.Header,
+		Description = "Enter a valid JWT bearer token. Example: Bearer eyJhbGciOi..."
+	});
+
+	options.AddSecurityRequirement(new OpenApiSecurityRequirement
+	{
+		{
+			new OpenApiSecurityScheme
+			{
+				Reference = new OpenApiReference
+				{
+					Type = ReferenceType.SecurityScheme,
+					Id = "Bearer"
+				}
+			},
+			Array.Empty<string>()
+		}
+	});
+});
 
 var allowedCorsOrigins = builder.Configuration
 	.GetSection("AllowedCorsOrigins")
