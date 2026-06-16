@@ -20,6 +20,8 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestStatsService StatsService { get; } = new();
 	public TestClubEventService ClubEventService { get; } = new();
 	public TestClubPostService ClubPostService { get; } = new();
+	public TestClubFileService ClubFileService { get; } = new();
+	public TestFileStorageService FileStorageService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -49,6 +51,8 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IStatsService>();
 			services.RemoveAll<IClubEventService>();
 			services.RemoveAll<IClubPostService>();
+			services.RemoveAll<IClubFileService>();
+			services.RemoveAll<IFileStorageService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
@@ -57,6 +61,8 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IStatsService>(StatsService);
 			services.AddSingleton<IClubEventService>(ClubEventService);
 			services.AddSingleton<IClubPostService>(ClubPostService);
+			services.AddSingleton<IClubFileService>(ClubFileService);
+			services.AddSingleton<IFileStorageService>(FileStorageService);
 		});
 	}
 

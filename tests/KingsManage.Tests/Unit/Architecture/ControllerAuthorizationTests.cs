@@ -52,6 +52,22 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
+	public void FilesController_ShouldRequireAuthorization()
+	{
+		var authorizeAttributes = GetAuthorizeAttributes(typeof(FilesController));
+
+		Assert.That(authorizeAttributes, Is.Not.Empty, "FilesController should require authorization.");
+	}
+
+	[Test]
+	public void FilesController_WriteActions_ShouldAllowAdminAndCoachOnly()
+	{
+		AssertMethodHasRoles(typeof(FilesController), "CreateUploadUrl", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasRoles(typeof(FilesController), "MarkUploaded", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasRoles(typeof(FilesController), "Delete", UserRole.Admin, UserRole.Coach);
+	}
+
+	[Test]
 	public void SeasonsController_ShouldRequireAuthorization()
 	{
 		var authorizeAttributes = GetAuthorizeAttributes(typeof(SeasonsController));

@@ -3,9 +3,11 @@ using KingsManage;
 using KingsManage.Mongo;
 using KingsManage.Web.Models;
 using KingsManage.Web.Security;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MongoClubEventService = KingsManage.Mongo.Services.ClubEventService;
+using MongoClubFileService = KingsManage.Mongo.Services.ClubFileService;
 using MongoClubPostService = KingsManage.Mongo.Services.ClubPostService;
 using MongoFinanceService = KingsManage.Mongo.Services.FinanceService;
 using MongoMatchService = KingsManage.Mongo.Services.MatchService;
@@ -37,6 +39,16 @@ var jwtSettings = builder.Configuration
 	.GetSection("Jwt")
 	.Get<JwtSettings>() ?? new JwtSettings();
 
+var r2StorageSettings = builder.Configuration
+	.GetSection("R2")
+	.Get<R2StorageSettings>() ?? new R2StorageSettings();
+
+r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
+r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
+r2StorageSettings.SecretAccessKey = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? r2StorageSettings.SecretAccessKey;
+r2StorageSettings.BucketName = Environment.GetEnvironmentVariable("R2_BUCKET_NAME") ?? r2StorageSettings.BucketName;
+r2StorageSettings.PublicBaseUrl = Environment.GetEnvironmentVariable("R2_PUBLIC_BASE_URL") ?? r2StorageSettings.PublicBaseUrl;
+
 jwtSettings.Secret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings.Secret;
 
 if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
@@ -45,6 +57,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 }
 
 builder.Services.AddSingleton(mongoDbSettings);
+builder.Services.AddSingleton(r2StorageSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -63,6 +76,8 @@ builder.Services.AddScoped<IFinanceService, MongoFinanceService>();
 builder.Services.AddScoped<IUserService, MongoUserService>();
 builder.Services.AddScoped<IClubEventService, MongoClubEventService>();
 builder.Services.AddScoped<IClubPostService, MongoClubPostService>();
+builder.Services.AddScoped<IClubFileService, MongoClubFileService>();
+builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
