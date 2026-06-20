@@ -178,6 +178,63 @@ public class MatchesController : ControllerBase
 		return Ok(updatedMatch);
 	}
 
+	private static string? ValidatePlayerStats(Match match, List<MatchPlayerStats> playerStats)
+	{
+		if (playerStats.Any(stats => stats.PlayerId == Guid.Empty))
+		{
+			return "Every player report must have a valid player id.";
+		}
+
+		if (playerStats.GroupBy(stats => stats.PlayerId).Any(group => group.Count() > 1))
+		{
+			return "A player can only appear once in a match report.";
+		}
+
+		var selectedPlayerIds = match.SelectedPlayers
+			.Select(selectedPlayer => selectedPlayer.PlayerId)
+			.ToHashSet();
+		if (playerStats.Any(stats => !selectedPlayerIds.Contains(stats.PlayerId)))
+		{
+			return "Match reports can only contain players selected in the lineup.";
+		}
+
+		if (playerStats.Any(stats =>
+			stats.Goals < 0 ||
+			stats.Assists < 0 ||
+			stats.YellowCards < 0 ||
+			stats.RedCards < 0 ||
+			stats.Minutes is < 0 or > 180
+		))
+		{
+			return "Stats cannot be negative and minutes cannot exceed 180.";
+		}
+
+		if (playerStats.Any(stats => !Enum.IsDefined(stats.AppearanceType)))
+		{
+			return "The appearance type is invalid.";
+		}
+
+		if (playerStats.Count(stats => stats.IsMOTM) > 1)
+		{
+			return "Only one player can be named player of the match.";
+		}
+
+		if (playerStats.Any(stats =>
+			stats.AppearanceType == MatchAppearanceType.UnusedSubstitute &&
+			(stats.Goals > 0 ||
+			 stats.Assists > 0 ||
+			 stats.YellowCards > 0 ||
+			 stats.RedCards > 0 ||
+			 stats.Minutes > 0 ||
+			 stats.IsMOTM)
+		))
+		{
+			return "Unused substitutes cannot have playing stats.";
+		}
+
+		return null;
+	}
+
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,
@@ -383,6 +440,12 @@ public class MatchesController : ControllerBase
 		if (existingMatch is null)
 		{
 			return NotFound();
+		}
+
+		var validationError = ValidatePlayerStats(existingMatch, playerStats);
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
 		}
 
 		var updatedMatch = await _matchService.UpdatePlayerStatsAsync(

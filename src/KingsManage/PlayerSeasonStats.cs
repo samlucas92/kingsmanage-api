@@ -16,6 +16,8 @@ public class PlayerSeasonStats
 
 	public int Bench { get; set; }
 
+	public int UnusedSubstitutes { get; set; }
+
 	public int Goals { get; set; }
 
 	public int Assists { get; set; }

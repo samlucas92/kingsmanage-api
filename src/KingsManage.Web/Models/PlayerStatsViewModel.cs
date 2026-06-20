@@ -40,6 +40,8 @@ public class PlayerStatsViewModel
 
 	public int Bench { get; set; }
 
+	public int UnusedSubstitutes { get; set; }
+
 	public int Motm { get; set; }
 
 	public int Minutes { get; set; }
@@ -92,6 +94,7 @@ public class PlayerStatsViewModel
 			Assists = playerSelectedSeasonStats.Sum(stats => stats.Assists),
 			Starts = playerSelectedSeasonStats.Sum(stats => stats.Starts),
 			Bench = playerSelectedSeasonStats.Sum(stats => stats.Bench),
+			UnusedSubstitutes = playerSelectedSeasonStats.Sum(stats => stats.UnusedSubstitutes),
 			Motm = playerSelectedSeasonStats.Sum(stats => stats.Motm),
 			Minutes = playerSelectedSeasonStats.Sum(stats => stats.Minutes),
 			YellowCards = playerSelectedSeasonStats.Sum(stats => stats.YellowCards),

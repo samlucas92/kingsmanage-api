@@ -341,7 +341,13 @@ public class MatchesControllerTests
 	{
 		var matchService = new FakeMatchService();
 		var controller = CreateController(matchService);
-		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
+		var existingMatch = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
+		existingMatch.SelectedPlayers.Add(new SelectedPlayer
+		{
+			PlayerId = PlayerOneId,
+			Area = "pitch"
+		});
+		matchService.Matches.Add(existingMatch);
 		var playerStats = new List<MatchPlayerStats>
 		{
 			new() { PlayerId = PlayerOneId, Goals = 2, Assists = 1, Minutes = 90, IsMOTM = true }

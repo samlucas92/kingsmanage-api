@@ -51,6 +51,28 @@ public class MatchStatsRecalculationTests
 	}
 
 	[Test]
+	public async Task UpdatePlayerStats_WithMoreThanOneMotm_ShouldReturnBadRequest()
+	{
+		var matchService = new FakeMatchService();
+		var controller = new MatchesController(matchService, new FakeStatsService());
+		var match = CreateCompletedMatch(MatchId, SeasonOneId);
+		var playerTwoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		match.SelectedPlayers.Add(new SelectedPlayer { PlayerId = playerTwoId, Area = "bench" });
+		matchService.Matches.Add(match);
+
+		var result = await controller.UpdatePlayerStats(
+			MatchId.ToString(),
+			[
+				new MatchPlayerStats { PlayerId = PlayerOneId, IsMOTM = true },
+				new MatchPlayerStats { PlayerId = playerTwoId, IsMOTM = true }
+			],
+			CancellationToken.None
+		);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
 	public async Task SetLineup_WhenMatchChanges_ShouldRecalculateSeasonStats()
 	{
 		var matchService = new FakeMatchService();

@@ -108,19 +108,13 @@ public class StatsService : IStatsService
 			.Find(match => match.SeasonId == seasonId && match.IsCompleted)
 			.ToListAsync(cancellationToken);
 
-		var groupedStats = new Dictionary<PlayerSeasonStatsKey, PlayerSeasonStats>();
-
-		foreach (var match in completedMatches)
-		{
-			ApplyMatchToSeasonStats(match, seasonId, groupedStats);
-		}
+		var seasonStats = SeasonStatsCalculator.Calculate(seasonId, completedMatches);
 
 		await _playerSeasonStats.DeleteManyAsync(
 			stats => stats.SeasonId == seasonId,
 			cancellationToken
 		);
 
-		var seasonStats = groupedStats.Values.ToList();
 		if (seasonStats.Count == 0)
 		{
 			return;
@@ -132,99 +126,9 @@ public class StatsService : IStatsService
 		);
 	}
 
-	private static void ApplyMatchToSeasonStats(
-		Match match,
-		Guid seasonId,
-		Dictionary<PlayerSeasonStatsKey, PlayerSeasonStats> groupedStats
-	)
-	{
-		var selectedPlayers = match.SelectedPlayers ?? [];
-		var playerStats = match.PlayerStats ?? [];
-
-		var playerIds = selectedPlayers
-			.Select(selectedPlayer => selectedPlayer.PlayerId)
-			.Concat(playerStats.Select(stats => stats.PlayerId))
-			.Where(playerId => playerId != Guid.Empty)
-			.Distinct()
-			.ToList();
-
-		foreach (var playerId in playerIds)
-		{
-			var key = new PlayerSeasonStatsKey(playerId, seasonId, match.Team);
-			var stats = GetOrCreateStats(groupedStats, key);
-
-			var selectedPlayer = selectedPlayers.FirstOrDefault(
-				selectedPlayer => selectedPlayer.PlayerId == playerId
-			);
-			var matchPlayerStats = playerStats.FirstOrDefault(
-				playerStat => playerStat.PlayerId == playerId
-			);
-
-			if (selectedPlayer is not null)
-			{
-				stats.Appearances++;
-
-				if (selectedPlayer.Area.Equals("pitch", StringComparison.OrdinalIgnoreCase))
-				{
-					stats.Starts++;
-				}
-				else
-				{
-					stats.Bench++;
-				}
-			}
-
-			if (matchPlayerStats is null)
-			{
-				continue;
-			}
-
-			stats.Goals += NormaliseStat(matchPlayerStats.Goals);
-			stats.Assists += NormaliseStat(matchPlayerStats.Assists);
-			stats.Minutes += NormaliseStat(matchPlayerStats.Minutes);
-			stats.YellowCards += NormaliseStat(matchPlayerStats.YellowCards);
-			stats.RedCards += NormaliseStat(matchPlayerStats.RedCards);
-
-			if (matchPlayerStats.IsMOTM)
-			{
-				stats.Motm++;
-			}
-		}
-	}
-
-	private static PlayerSeasonStats GetOrCreateStats(
-		Dictionary<PlayerSeasonStatsKey, PlayerSeasonStats> groupedStats,
-		PlayerSeasonStatsKey key
-	)
-	{
-		if (groupedStats.TryGetValue(key, out var existingStats))
-		{
-			return existingStats;
-		}
-
-		var stats = new PlayerSeasonStats
-		{
-			Id = Guid.NewGuid(),
-			PlayerId = key.PlayerId,
-			SeasonId = key.SeasonId,
-			Team = key.Team,
-			CreatedAt = DateTime.UtcNow,
-			UpdatedAt = DateTime.UtcNow
-		};
-
-		groupedStats[key] = stats;
-
-		return stats;
-	}
-
 	private static int NormaliseStat(int value)
 	{
-		return value < 0 ? 0 : value;
+		return Math.Max(value, 0);
 	}
 
-	private readonly record struct PlayerSeasonStatsKey(
-		Guid PlayerId,
-		Guid SeasonId,
-		ClubTeam Team
-	);
 }
