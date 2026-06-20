@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {}
+    "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {}
   },
   "projects": {
-    "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
+    "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj",
+        "projectUniqueName": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj",
         "projectName": "KingsManage",
-        "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj",
+        "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj",
         "packagesPath": "/Users/samlucas/.nuget/packages/",
-        "outputPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/",
+        "outputPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/samlucas/.nuget/NuGet/NuGet.Config"

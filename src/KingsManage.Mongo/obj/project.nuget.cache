@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "9Qtzvpu/h28=",
+  "dgSpecHash": "U7arguaFncA=",
   "success": true,
-  "projectFilePath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
+  "projectFilePath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
   "expectedPackageFiles": [
     "/Users/samlucas/.nuget/packages/dnsclient/1.6.1/dnsclient.1.6.1.nupkg.sha512",
     "/Users/samlucas/.nuget/packages/microsoft.extensions.logging.abstractions/2.0.0/microsoft.extensions.logging.abstractions.2.0.0.nupkg.sha512",

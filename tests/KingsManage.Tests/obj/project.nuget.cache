@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "fKqQB+eaR6E=",
+  "dgSpecHash": "ZhM2XbjlWTI=",
   "success": true,
-  "projectFilePath": "/Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
+  "projectFilePath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
   "expectedPackageFiles": [
     "/Users/samlucas/.nuget/packages/coverlet.collector/6.0.4/coverlet.collector.6.0.4.nupkg.sha512",
     "/Users/samlucas/.nuget/packages/dnsclient/1.6.1/dnsclient.1.6.1.nupkg.sha512",

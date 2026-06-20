@@ -21,6 +21,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestClubEventService ClubEventService { get; } = new();
 	public TestClubPostService ClubPostService { get; } = new();
 	public TestClubNotificationService ClubNotificationService { get; } = new();
+	public TestMessageService MessageService { get; } = new();
 	public TestClubFileService ClubFileService { get; } = new();
 	public TestFileStorageService FileStorageService { get; } = new();
 
@@ -53,6 +54,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IClubEventService>();
 			services.RemoveAll<IClubPostService>();
 			services.RemoveAll<IClubNotificationService>();
+			services.RemoveAll<IMessageService>();
 			services.RemoveAll<IClubFileService>();
 			services.RemoveAll<IFileStorageService>();
 
@@ -64,6 +66,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IClubEventService>(ClubEventService);
 			services.AddSingleton<IClubPostService>(ClubPostService);
 			services.AddSingleton<IClubNotificationService>(ClubNotificationService);
+			services.AddSingleton<IMessageService>(MessageService);
 			services.AddSingleton<IClubFileService>(ClubFileService);
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 		});
@@ -188,6 +191,86 @@ public static class TestUsers
 public static class TestSeasons
 {
 	public static readonly Guid ActiveSeasonId = Guid.Parse("70000000-0000-0000-0000-000000000001");
+}
+
+public sealed class TestMessageService : IMessageService
+{
+	public List<MessageThread> Threads { get; } = [];
+	public List<Message> Messages { get; } = [];
+
+	public Task<IReadOnlyList<MessageThread>> GetThreadsForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+		Task.FromResult<IReadOnlyList<MessageThread>>(Threads
+			.Where(thread => thread.Participants.Any(participant => participant.UserId == userId))
+			.OrderByDescending(thread => thread.UpdatedAt)
+			.ToList());
+
+	public Task<MessageThread?> GetThreadForUserAsync(Guid threadId, Guid userId, CancellationToken cancellationToken = default) =>
+		Task.FromResult(Threads.FirstOrDefault(thread =>
+			thread.Id == threadId && thread.Participants.Any(participant => participant.UserId == userId)));
+
+	public Task<MessageThread> GetOrCreateDirectThreadAsync(Guid firstUserId, Guid secondUserId, CancellationToken cancellationToken = default)
+	{
+		var ids = new[] { firstUserId, secondUserId }.OrderBy(id => id).ToArray();
+		var pairKey = $"{ids[0]}:{ids[1]}";
+		var existing = Threads.FirstOrDefault(thread => thread.DirectPairKey == pairKey);
+		if (existing is not null)
+		{
+			return Task.FromResult(existing);
+		}
+
+		var now = DateTime.UtcNow;
+		var thread = new MessageThread
+		{
+			Id = Guid.NewGuid(),
+			DirectPairKey = pairKey,
+			Participants =
+			[
+				new MessageThreadParticipant { UserId = firstUserId, JoinedAt = now, LastReadAt = now },
+				new MessageThreadParticipant { UserId = secondUserId, JoinedAt = now, LastReadAt = now }
+			],
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+		Threads.Add(thread);
+		return Task.FromResult(thread);
+	}
+
+	public Task<IReadOnlyList<Message>> GetMessagesAsync(Guid threadId, CancellationToken cancellationToken = default) =>
+		Task.FromResult<IReadOnlyList<Message>>(Messages.Where(message => message.ThreadId == threadId).OrderBy(message => message.CreatedAt).ToList());
+
+	public Task<Message> CreateMessageAsync(Message message, CancellationToken cancellationToken = default)
+	{
+		message.Id = message.Id == Guid.Empty ? Guid.NewGuid() : message.Id;
+		message.Body = message.Body.Trim();
+		message.Status = MessageStatus.Active;
+		message.CreatedAt = DateTime.UtcNow;
+		Messages.Add(message);
+		var thread = Threads.Single(item => item.Id == message.ThreadId);
+		thread.UpdatedAt = message.CreatedAt;
+		return Task.FromResult(message);
+	}
+
+	public Task<MessageThread?> MarkReadAsync(Guid threadId, Guid userId, CancellationToken cancellationToken = default)
+	{
+		var thread = Threads.FirstOrDefault(item => item.Id == threadId && item.Participants.Any(participant => participant.UserId == userId));
+		if (thread is not null)
+		{
+			thread.Participants.First(participant => participant.UserId == userId).LastReadAt = DateTime.UtcNow;
+		}
+		return Task.FromResult(thread);
+	}
+
+	public Task<Message?> DeleteOwnMessageAsync(Guid messageId, Guid userId, CancellationToken cancellationToken = default)
+	{
+		var message = Messages.FirstOrDefault(item => item.Id == messageId && item.SenderUserId == userId && item.Status == MessageStatus.Active);
+		if (message is not null)
+		{
+			message.Status = MessageStatus.Deleted;
+			message.Body = string.Empty;
+			message.DeletedAt = DateTime.UtcNow;
+		}
+		return Task.FromResult(message);
+	}
 }
 
 public sealed class TestUserService : IUserService

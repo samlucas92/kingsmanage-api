@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {}
+    "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {}
   },
   "projects": {
-    "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
+    "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
+        "projectUniqueName": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
         "projectName": "KingsManage.Mongo",
-        "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
+        "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj",
         "packagesPath": "/Users/samlucas/.nuget/packages/",
-        "outputPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/obj/",
+        "outputPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/samlucas/.nuget/NuGet/NuGet.Config"
@@ -27,8 +27,8 @@
             "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
-                "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj"
+              "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
+                "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj"
               }
             }
           }
@@ -349,14 +349,14 @@
         }
       }
     },
-    "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
+    "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj",
+        "projectUniqueName": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj",
         "projectName": "KingsManage",
-        "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj",
+        "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj",
         "packagesPath": "/Users/samlucas/.nuget/packages/",
-        "outputPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/obj/",
+        "outputPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/samlucas/.nuget/NuGet/NuGet.Config"

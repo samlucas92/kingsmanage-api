@@ -13,6 +13,7 @@ using MongoClubNotificationService = KingsManage.Mongo.Services.ClubNotification
 using MongoClubPostService = KingsManage.Mongo.Services.ClubPostService;
 using MongoFinanceService = KingsManage.Mongo.Services.FinanceService;
 using MongoMatchService = KingsManage.Mongo.Services.MatchService;
+using MongoMessageService = KingsManage.Mongo.Services.MessageService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
 using MongoStatsService = KingsManage.Mongo.Services.StatsService;
@@ -73,6 +74,7 @@ builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddScoped<IPlayerService, MongoPlayerService>();
 builder.Services.AddScoped<ISeasonService, MongoSeasonService>();
 builder.Services.AddScoped<IMatchService, MongoMatchService>();
+builder.Services.AddScoped<IMessageService, MongoMessageService>();
 builder.Services.AddScoped<IStatsService, MongoStatsService>();
 builder.Services.AddScoped<IFinanceService, MongoFinanceService>();
 builder.Services.AddScoped<IUserService, MongoUserService>();

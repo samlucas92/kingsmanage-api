@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "RaAXoztDPgw=",
+  "dgSpecHash": "UUMpYcDFGrg=",
   "success": true,
-  "projectFilePath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
+  "projectFilePath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
   "expectedPackageFiles": [
     "/Users/samlucas/.nuget/packages/dnsclient/1.6.1/dnsclient.1.6.1.nupkg.sha512",
     "/Users/samlucas/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/10.0.0/microsoft.aspnetcore.authentication.jwtbearer.10.0.0.nupkg.sha512",

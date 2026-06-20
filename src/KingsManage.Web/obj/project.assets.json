@@ -1163,11 +1163,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
+      "projectUniqueName": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
       "projectName": "KingsManage.Web",
-      "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
+      "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj",
       "packagesPath": "/Users/samlucas/.nuget/packages/",
-      "outputPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/obj/",
+      "outputPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/Users/samlucas/.nuget/NuGet/NuGet.Config"
@@ -1183,11 +1183,11 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
-              "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj"
+            "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
+              "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj"
             },
-            "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
-              "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj"
+            "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
+              "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj"
             }
           }
         }

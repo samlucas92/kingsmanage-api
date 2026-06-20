@@ -4,5 +4,6 @@ public enum NotificationType
 {
 	NewPost,
 	NewEvent,
-	EventUpdated
+	EventUpdated,
+	NewDirectMessage
 }

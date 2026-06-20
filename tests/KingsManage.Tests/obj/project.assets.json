@@ -4274,11 +4274,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
+      "projectUniqueName": "/Users/samlucas/Documents/Sideline/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
       "projectName": "KingsManage.Tests",
-      "projectPath": "/Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
+      "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/tests/KingsManage.Tests/KingsManage.Tests.csproj",
       "packagesPath": "/Users/samlucas/.nuget/packages/",
-      "outputPath": "/Users/samlucas/Documents/kingsmanage-api/tests/KingsManage.Tests/obj/",
+      "outputPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/tests/KingsManage.Tests/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/Users/samlucas/.nuget/NuGet/NuGet.Config"
@@ -4294,14 +4294,14 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
-              "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj"
+            "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj": {
+              "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Mongo/KingsManage.Mongo.csproj"
             },
-            "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj": {
-              "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj"
+            "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj": {
+              "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage.Web/KingsManage.Web.csproj"
             },
-            "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
-              "projectPath": "/Users/samlucas/Documents/kingsmanage-api/src/KingsManage/KingsManage.csproj"
+            "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj": {
+              "projectPath": "/Users/samlucas/Documents/Sideline/kingsmanage-api/src/KingsManage/KingsManage.csproj"
             }
           }
         }
