@@ -50,6 +50,8 @@ public class PlayerStatsViewModel
 
 	public int RedCards { get; set; }
 
+	public List<PlayerTeamStatsViewModel> TeamStats { get; set; } = [];
+
 	public static PlayerStatsViewModel FromStats(
 		Player player,
 		IReadOnlyList<PlayerSeasonStats> selectedSeasonStats,
@@ -98,7 +100,27 @@ public class PlayerStatsViewModel
 			Motm = playerSelectedSeasonStats.Sum(stats => stats.Motm),
 			Minutes = playerSelectedSeasonStats.Sum(stats => stats.Minutes),
 			YellowCards = playerSelectedSeasonStats.Sum(stats => stats.YellowCards),
-			RedCards = playerSelectedSeasonStats.Sum(stats => stats.RedCards)
+			RedCards = playerSelectedSeasonStats.Sum(stats => stats.RedCards),
+			TeamStats = playerSelectedSeasonStats
+				.GroupBy(stats => stats.TeamId ?? DefaultClubTeams.FromLegacy(stats.Team))
+				.Select(group => new PlayerTeamStatsViewModel
+				{
+					TeamId = group.Key,
+					Appearances = group.Sum(stats => stats.Appearances),
+					Goals = group.Sum(stats => stats.Goals),
+					Assists = group.Sum(stats => stats.Assists),
+					Minutes = group.Sum(stats => stats.Minutes)
+				})
+				.ToList()
 		};
 	}
+}
+
+public class PlayerTeamStatsViewModel
+{
+	public Guid TeamId { get; set; }
+	public int Appearances { get; set; }
+	public int Goals { get; set; }
+	public int Assists { get; set; }
+	public int Minutes { get; set; }
 }

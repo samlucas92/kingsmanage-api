@@ -5,6 +5,7 @@ public class Match
 	public Guid Id { get; set; }
 	public Guid? SeasonId { get; set; }
 	public Guid? ClubEventId { get; set; }
+	public Guid? TeamId { get; set; }
 	public ClubTeam Team { get; set; }
 	public string Opponent { get; set; } = string.Empty;
 	public string Competition { get; set; } = string.Empty;

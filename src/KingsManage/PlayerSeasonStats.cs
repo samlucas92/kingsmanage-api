@@ -8,6 +8,8 @@ public class PlayerSeasonStats
 
 	public Guid SeasonId { get; set; }
 
+	public Guid? TeamId { get; set; }
+
 	public ClubTeam Team { get; set; }
 
 	public int Appearances { get; set; }

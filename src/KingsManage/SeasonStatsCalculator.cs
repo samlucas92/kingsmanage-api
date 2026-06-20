@@ -25,7 +25,12 @@ public static class SeasonStatsCalculator
 
 		foreach (var selectedPlayer in selectedPlayers.Where(player => player.PlayerId != Guid.Empty))
 		{
-			var key = new PlayerSeasonStatsKey(selectedPlayer.PlayerId, seasonId, match.Team);
+			var key = new PlayerSeasonStatsKey(
+				selectedPlayer.PlayerId,
+				seasonId,
+				match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team),
+				match.Team
+			);
 			var stats = GetOrCreateStats(groupedStats, key);
 			var matchPlayerStats = playerStats.FirstOrDefault(
 				playerStat => playerStat.PlayerId == selectedPlayer.PlayerId
@@ -90,6 +95,7 @@ public static class SeasonStatsCalculator
 		{
 			PlayerId = key.PlayerId,
 			SeasonId = key.SeasonId,
+			TeamId = key.TeamId,
 			Team = key.Team
 		};
 		groupedStats[key] = stats;
@@ -101,6 +107,7 @@ public static class SeasonStatsCalculator
 	private readonly record struct PlayerSeasonStatsKey(
 		Guid PlayerId,
 		Guid SeasonId,
+		Guid TeamId,
 		ClubTeam Team
 	);
 }

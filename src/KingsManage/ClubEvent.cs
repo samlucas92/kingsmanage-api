@@ -5,6 +5,7 @@ public class ClubEvent
 	public Guid Id { get; set; }
 	public ClubEventType Type { get; set; }
 	public ClubEventTeamScope TeamScope { get; set; } = ClubEventTeamScope.Both;
+	public List<Guid> TeamIds { get; set; } = [];
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public DateTime StartDateTime { get; set; }

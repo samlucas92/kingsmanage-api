@@ -5,12 +5,14 @@ namespace KingsManage.Mongo.Services;
 
 public class StatsService : IStatsService
 {
+	private readonly IMongoClient _client;
 	private readonly IMongoCollection<Match> _matches;
 	private readonly IMongoCollection<PlayerSeasonStats> _playerSeasonStats;
 	private readonly IMongoCollection<PlayerHistoricalStats> _playerHistoricalStats;
 
 	public StatsService(MongoContext context)
 	{
+		_client = context.Database.Client;
 		_matches = context.Database.GetCollection<Match>("matches");
 		_playerSeasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
 		_playerHistoricalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
@@ -110,18 +112,31 @@ public class StatsService : IStatsService
 
 		var seasonStats = SeasonStatsCalculator.Calculate(seasonId, completedMatches);
 
-		await _playerSeasonStats.DeleteManyAsync(
-			stats => stats.SeasonId == seasonId,
-			cancellationToken
+		using var session = await _client.StartSessionAsync(
+			cancellationToken: cancellationToken
 		);
 
-		if (seasonStats.Count == 0)
-		{
-			return;
-		}
+		await session.WithTransactionAsync(
+			async (transactionSession, transactionCancellationToken) =>
+			{
+				await _playerSeasonStats.DeleteManyAsync(
+					transactionSession,
+					stats => stats.SeasonId == seasonId,
+					new DeleteOptions(),
+					transactionCancellationToken
+				);
 
-		await _playerSeasonStats.InsertManyAsync(
-			seasonStats,
+				if (seasonStats.Count > 0)
+				{
+					await _playerSeasonStats.InsertManyAsync(
+						transactionSession,
+						seasonStats,
+						cancellationToken: transactionCancellationToken
+					);
+				}
+
+				return true;
+			},
 			cancellationToken: cancellationToken
 		);
 	}
