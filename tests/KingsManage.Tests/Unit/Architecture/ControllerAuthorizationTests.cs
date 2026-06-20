@@ -28,9 +28,21 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
-	public void FinanceController_ShouldBeAdminOnly()
+	public void FinanceController_ShouldRequireAuthorization()
 	{
-		AssertControllerHasRoles(typeof(FinanceController), UserRole.Admin);
+		var authorizeAttributes = GetAuthorizeAttributes(typeof(FinanceController));
+
+		Assert.That(authorizeAttributes, Is.Not.Empty, "FinanceController should require authorization.");
+	}
+
+	[Test]
+	public void FinanceController_WriteAndAdminReadActions_ShouldBeAdminOnly()
+	{
+		AssertMethodHasRoles(typeof(FinanceController), "GetSeasonFinance", UserRole.Admin);
+		AssertMethodHasRoles(typeof(FinanceController), "GetPlayerFinance", UserRole.Admin);
+		AssertMethodHasRoles(typeof(FinanceController), "AddTransaction", UserRole.Admin);
+		AssertMethodHasRoles(typeof(FinanceController), "SetPlayerAmountOwed", UserRole.Admin);
+		AssertMethodHasRoles(typeof(FinanceController), "DeleteTransaction", UserRole.Admin);
 	}
 
 	[Test]

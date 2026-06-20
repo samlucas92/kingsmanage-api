@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,Coach")]
+[Authorize]
 [Route("api/seasons")]
 public class SeasonsController : ControllerBase
 {

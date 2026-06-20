@@ -1,12 +1,62 @@
+using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Controllers;
 using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
 
 public class FinanceControllerTests
 {
+	[Test]
+	public async Task GetMyFinance_ShouldUseLinkedPlayerClaim()
+	{
+		var playerService = new FakePlayerService();
+		var financeService = new FakeFinanceService();
+		var playerId = Guid.NewGuid();
+		var otherPlayerId = Guid.NewGuid();
+		var seasonId = Guid.NewGuid();
+		playerService.Players.Add(new Player { Id = playerId, Name = "Linked Player", IsActive = true });
+		playerService.Players.Add(new Player { Id = otherPlayerId, Name = "Other Player", IsActive = true });
+		await financeService.SetPlayerAmountOwedAsync(playerId, seasonId, 50m);
+		await financeService.SetPlayerAmountOwedAsync(otherPlayerId, seasonId, 100m);
+
+		var controller = new FinanceController(financeService, playerService)
+		{
+			ControllerContext = new ControllerContext
+			{
+				HttpContext = new DefaultHttpContext
+				{
+					User = new ClaimsPrincipal(new ClaimsIdentity(
+						[new Claim("playerId", playerId.ToString())],
+						"TestAuthentication"
+					))
+				}
+			}
+		};
+
+		var result = await controller.GetMyFinance(seasonId.ToString(), CancellationToken.None);
+		var summary = (result.Result as OkObjectResult)?.Value as PlayerFinanceViewModel;
+
+		Assert.That(summary, Is.Not.Null);
+		Assert.That(summary!.PlayerId, Is.EqualTo(playerId));
+		Assert.That(summary.AmountOwed, Is.EqualTo(50m));
+	}
+
+	[Test]
+	public async Task GetMyFinance_WithoutLinkedPlayerClaim_ShouldReturnBadRequest()
+	{
+		var controller = new FinanceController(new FakeFinanceService(), new FakePlayerService())
+		{
+			ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+		};
+
+		var result = await controller.GetMyFinance(Guid.NewGuid().ToString(), CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
 	[Test]
 	public async Task GetSeasonFinance_ShouldReturnFinanceSummaryForEveryPlayer()
 	{

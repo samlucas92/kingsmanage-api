@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize]
 [Route("api/finance")]
 public class FinanceController : ControllerBase
 {
@@ -23,6 +24,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpGet]
+	[Authorize(Roles = "Admin")]
 	public async Task<ActionResult<IReadOnlyList<PlayerFinanceViewModel>>> GetSeasonFinance(
 		[FromQuery] string? seasonId,
 		CancellationToken cancellationToken
@@ -52,6 +54,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpGet("player/{playerId}")]
+	[Authorize(Roles = "Admin")]
 	public async Task<ActionResult<PlayerFinanceViewModel>> GetPlayerFinance(
 		string playerId,
 		[FromQuery] string? seasonId,
@@ -88,7 +91,42 @@ public class FinanceController : ControllerBase
 		));
 	}
 
+	[HttpGet("mine")]
+	public async Task<ActionResult<PlayerFinanceViewModel>> GetMyFinance(
+		[FromQuery] string? seasonId,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseOptionalGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var playerIdClaim = User.FindFirstValue("playerId");
+
+		if (!Guid.TryParse(playerIdClaim, out var playerId))
+		{
+			return BadRequest("This account is not linked to a player.");
+		}
+
+		var player = await _playerService.GetByIdAsync(playerId, cancellationToken);
+
+		if (player is null)
+		{
+			return NotFound("The linked player was not found.");
+		}
+
+		var transactions = await _financeService.GetPlayerTransactionsAsync(
+			playerId,
+			parsedSeasonId,
+			cancellationToken
+		);
+
+		return Ok(PlayerFinanceViewModel.FromPlayer(player, parsedSeasonId, transactions));
+	}
+
 	[HttpPost("transactions")]
+	[Authorize(Roles = "Admin")]
 	public async Task<ActionResult<FinanceTransactionViewModel>> AddTransaction(
 		FinanceTransactionRequest request,
 		CancellationToken cancellationToken
@@ -149,6 +187,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpPut("players/{playerId}/amount-owed")]
+	[Authorize(Roles = "Admin")]
 	public async Task<ActionResult<FinanceTransactionViewModel>> SetPlayerAmountOwed(
 		string playerId,
 		[FromQuery] string? seasonId,
@@ -189,6 +228,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpDelete("transactions/{id}")]
+	[Authorize(Roles = "Admin")]
 	public async Task<IActionResult> DeleteTransaction(
 		string id,
 		CancellationToken cancellationToken
