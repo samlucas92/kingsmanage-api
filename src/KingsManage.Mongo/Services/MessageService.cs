@@ -26,7 +26,7 @@ public class MessageService : IMessageService
 			new CreateIndexOptions<MessageThread>
 			{
 				Unique = true,
-				PartialFilterExpression = Builders<MessageThread>.Filter.Ne(thread => thread.DirectPairKey, string.Empty)
+				PartialFilterExpression = Builders<MessageThread>.Filter.Gt(thread => thread.DirectPairKey, string.Empty)
 			}
 		));
 
