@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class MessageThread
+public class MessageThread : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public MessageThreadType Type { get; set; } = MessageThreadType.Direct;
 	public string Title { get; set; } = string.Empty;

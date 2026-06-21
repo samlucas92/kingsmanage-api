@@ -1,14 +1,20 @@
 namespace KingsManage;
 
-public class Season : ITenantOwned
+public sealed class SportsClub
 {
+	public Guid Id { get; set; } = Guid.NewGuid();
+
 	public Guid OrganizationId { get; set; }
-	public Guid ClubId { get; set; }
-	public Guid Id { get; set; }
+
 	public string Name { get; set; } = string.Empty;
-	public DateTime StartDate { get; set; }
-	public DateTime EndDate { get; set; }
-	public bool IsActive { get; set; }
+
+	public string Slug { get; set; } = string.Empty;
+
+	public string SportKey { get; set; } = string.Empty;
+
+	public bool IsActive { get; set; } = true;
+
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

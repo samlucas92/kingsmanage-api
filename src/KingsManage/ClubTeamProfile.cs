@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class ClubTeamProfile
+public class ClubTeamProfile : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; } = Guid.NewGuid();
 	public string DisplayName { get; set; } = string.Empty;
 	public string ShortName { get; set; } = string.Empty;

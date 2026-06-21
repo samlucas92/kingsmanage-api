@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class ClubEvent
+public class ClubEvent : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public ClubEventType Type { get; set; }
 	public ClubEventTeamScope TeamScope { get; set; } = ClubEventTeamScope.Both;

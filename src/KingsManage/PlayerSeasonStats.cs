@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class PlayerSeasonStats
+public class PlayerSeasonStats : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; } = Guid.NewGuid();
 
 	public Guid PlayerId { get; set; }

@@ -40,12 +40,16 @@ public class JwtTokenServiceTests
 	public void CreateLoginResponse_ShouldIncludeRoleAndPlayerClaims()
 	{
 		var playerId = Guid.NewGuid();
+		var organizationId = Guid.NewGuid();
+		var clubId = Guid.NewGuid();
 		var user = new AppUser
 		{
 			Id = Guid.NewGuid(),
 			Email = "player@test.local",
 			Role = UserRole.Player,
 			PlayerId = playerId,
+			DefaultOrganizationId = organizationId,
+			DefaultClubId = clubId,
 			IsActive = true,
 			CreatedAt = DateTime.UtcNow,
 			UpdatedAt = DateTime.UtcNow
@@ -59,6 +63,8 @@ public class JwtTokenServiceTests
 		Assert.That(token.Claims.Any(claim => claim.Type == ClaimTypes.NameIdentifier && claim.Value == user.Id.ToString()), Is.True);
 		Assert.That(token.Claims.Any(claim => claim.Type == ClaimTypes.Email && claim.Value == user.Email), Is.True);
 		Assert.That(token.Claims.Any(claim => claim.Type == "playerId" && claim.Value == playerId.ToString()), Is.True);
+		Assert.That(token.Claims.Any(claim => claim.Type == HttpTenantContext.OrganizationClaim && claim.Value == organizationId.ToString()), Is.True);
+		Assert.That(token.Claims.Any(claim => claim.Type == HttpTenantContext.ClubClaim && claim.Value == clubId.ToString()), Is.True);
 	}
 
 	private static JwtTokenService CreateService()

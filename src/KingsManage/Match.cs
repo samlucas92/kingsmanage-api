@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class Match
+public class Match : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public Guid? SeasonId { get; set; }
 	public Guid? ClubEventId { get; set; }

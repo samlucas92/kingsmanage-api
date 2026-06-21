@@ -24,6 +24,16 @@ public sealed class JwtTokenService : IJwtTokenService
 
 	public LoginResponse CreateLoginResponse(AppUser user)
 	{
+		var organizationId = user.DefaultOrganizationId ??
+			user.Memberships.Select(membership => membership.OrganizationId).FirstOrDefault();
+		var clubId = user.DefaultClubId ??
+			user.Memberships.Select(membership => membership.ClubId).FirstOrDefault(id => id.HasValue);
+
+		// Existing users are assigned to Kingsbridge by the tenancy migration. The
+		// fallback keeps tokens available during a rolling deployment.
+		organizationId = organizationId == Guid.Empty ? DefaultTenant.OrganizationId : organizationId;
+		clubId = !clubId.HasValue || clubId.Value == Guid.Empty ? DefaultTenant.ClubId : clubId;
+
 		var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes);
 		var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
 		var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
@@ -33,7 +43,9 @@ public sealed class JwtTokenService : IJwtTokenService
 			new(JwtRegisteredClaimNames.Email, user.Email),
 			new(ClaimTypes.NameIdentifier, user.Id.ToString()),
 			new(ClaimTypes.Email, user.Email),
-			new(ClaimTypes.Role, user.Role.ToString())
+			new(ClaimTypes.Role, user.Role.ToString()),
+			new(HttpTenantContext.OrganizationClaim, organizationId.ToString()),
+			new(HttpTenantContext.ClubClaim, clubId.Value.ToString())
 		};
 
 		if (user.PlayerId.HasValue)

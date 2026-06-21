@@ -54,6 +54,7 @@ public class UserService : IUserService
 
 		user.Id = user.Id == Guid.Empty ? Guid.NewGuid() : user.Id;
 		user.Email = NormaliseEmail(user.Email);
+		EnsureDefaultMembership(user);
 		user.PasswordHash = HashPassword(password);
 		user.CreatedAt = DateTime.UtcNow;
 		user.UpdatedAt = DateTime.UtcNow;
@@ -73,6 +74,7 @@ public class UserService : IUserService
 		}
 
 		user.Email = NormaliseEmail(user.Email);
+		EnsureDefaultMembership(user);
 		user.PasswordHash = existingUser.PasswordHash;
 		user.CreatedAt = existingUser.CreatedAt;
 		user.LastLoginAt = existingUser.LastLoginAt;
@@ -126,6 +128,12 @@ public class UserService : IUserService
 		var update = Builders<AppUser>.Update
 			.Set(existingUser => existingUser.LastLoginAt, DateTime.UtcNow)
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
+
+		EnsureDefaultMembership(user);
+		update = update
+			.Set(existingUser => existingUser.DefaultOrganizationId, user.DefaultOrganizationId)
+			.Set(existingUser => existingUser.DefaultClubId, user.DefaultClubId)
+			.Set(existingUser => existingUser.Memberships, user.Memberships);
 
 		return await _users.FindOneAndUpdateAsync(
 			existingUser => existingUser.Id == user.Id,
@@ -211,6 +219,7 @@ public class UserService : IUserService
 		{
 			Email = email,
 			Role = UserRole.Admin,
+			IsPlatformAdmin = true,
 			IsActive = true
 		};
 
@@ -220,6 +229,32 @@ public class UserService : IUserService
 	private static string NormaliseEmail(string email)
 	{
 		return email.Trim().ToLowerInvariant();
+	}
+
+	private static void EnsureDefaultMembership(AppUser user)
+	{
+		user.DefaultOrganizationId ??= DefaultTenant.OrganizationId;
+		user.DefaultClubId ??= DefaultTenant.ClubId;
+		user.Memberships ??= [];
+
+		if (user.Memberships.Any(membership =>
+			membership.OrganizationId == DefaultTenant.OrganizationId &&
+			membership.ClubId == DefaultTenant.ClubId))
+		{
+			return;
+		}
+
+		user.Memberships.Add(new UserMembership
+		{
+			OrganizationId = DefaultTenant.OrganizationId,
+			ClubId = DefaultTenant.ClubId,
+			Role = user.Role switch
+			{
+				UserRole.Admin => TenantRole.OrganizationAdmin,
+				UserRole.Coach => TenantRole.Coach,
+				_ => TenantRole.Player
+			}
+		});
 	}
 
 	private static string HashPassword(string password)

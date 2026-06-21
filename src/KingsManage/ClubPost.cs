@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class ClubPost
+public class ClubPost : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public ClubPostType Type { get; set; } = ClubPostType.General;
 	public string Title { get; set; } = string.Empty;

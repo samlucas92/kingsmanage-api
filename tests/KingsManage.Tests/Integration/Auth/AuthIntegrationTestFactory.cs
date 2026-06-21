@@ -38,7 +38,8 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 				["Jwt:Secret"] = "integration-test-secret-that-is-long-enough-for-hmac-signing",
 				["Jwt:ExpiryMinutes"] = "60",
 				["DefaultAdmin:Email"] = "default-admin@test.local",
-				["DefaultAdmin:Password"] = "DefaultAdmin123!"
+				["DefaultAdmin:Password"] = "DefaultAdmin123!",
+				["Tenancy:RunStartupMigration"] = "false"
 			};
 
 			configurationBuilder.AddInMemoryCollection(testConfiguration);

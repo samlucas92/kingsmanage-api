@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class Player
+public class Player : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public string Name { get; set; } = string.Empty;
 	public int Number { get; set; }

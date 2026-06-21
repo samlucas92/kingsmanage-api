@@ -1,7 +1,9 @@
 namespace KingsManage;
 
-public class ClubFile
+public class ClubFile : ITenantOwned
 {
+	public Guid OrganizationId { get; set; }
+	public Guid ClubId { get; set; }
 	public Guid Id { get; set; }
 	public string OriginalFileName { get; set; } = string.Empty;
 	public string StoredFileName { get; set; } = string.Empty;

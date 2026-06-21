@@ -10,6 +10,14 @@ public class AppUser
 
 	public UserRole Role { get; set; }
 
+	public bool IsPlatformAdmin { get; set; }
+
+	public Guid? DefaultOrganizationId { get; set; }
+
+	public Guid? DefaultClubId { get; set; }
+
+	public List<UserMembership> Memberships { get; set; } = [];
+
 	public Guid? PlayerId { get; set; }
 
 	public bool IsActive { get; set; } = true;

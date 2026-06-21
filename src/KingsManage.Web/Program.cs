@@ -72,6 +72,10 @@ builder.Services.Configure<JwtSettings>(options =>
 });
 
 builder.Services.AddSingleton<MongoContext>();
+builder.Services.AddSingleton<TenantDataMigrator>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<TenantMongoScope>();
 builder.Services.AddScoped<IPlayerService, MongoPlayerService>();
 builder.Services.AddScoped<ISeasonService, MongoSeasonService>();
 builder.Services.AddScoped<IMatchService, MongoMatchService>();
@@ -153,6 +157,11 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (builder.Configuration.GetValue("Tenancy:RunStartupMigration", true))
+{
+	await app.Services.GetRequiredService<TenantDataMigrator>().RunAsync();
+}
 
 await EnsureDefaultAdminUserAsync(app);
 
