@@ -118,10 +118,12 @@ builder.Services.AddAuthorization(options =>
 {
 	options.AddPolicy("OrganizationAdmin", policy => policy.RequireAssertion(context =>
 		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		context.User.IsInRole(UserRole.Admin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString())));
 
 	options.AddPolicy("ClubAdmin", policy => policy.RequireAssertion(context =>
 		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		context.User.IsInRole(UserRole.Admin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.ClubAdmin.ToString())));
 });
