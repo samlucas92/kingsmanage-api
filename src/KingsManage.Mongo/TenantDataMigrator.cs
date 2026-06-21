@@ -115,6 +115,22 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureTenantIndexesAsync(CancellationToken cancellationToken)
 	{
+		var organizations = _database.GetCollection<Organization>("organizations");
+		await organizations.Indexes.CreateOneAsync(
+			new CreateIndexModel<Organization>(
+				Builders<Organization>.IndexKeys.Ascending(organization => organization.Slug),
+				new CreateIndexOptions { Name = "Slug_1", Unique = true }),
+			cancellationToken: cancellationToken);
+
+		var clubs = _database.GetCollection<SportsClub>("clubs");
+		await clubs.Indexes.CreateOneAsync(
+			new CreateIndexModel<SportsClub>(
+				Builders<SportsClub>.IndexKeys
+					.Ascending(club => club.OrganizationId)
+					.Ascending(club => club.Slug),
+				new CreateIndexOptions { Name = "OrganizationSlug_1", Unique = true }),
+			cancellationToken: cancellationToken);
+
 		await EnsureTenantIndexAsync<Player>("players", cancellationToken);
 		await EnsureTenantIndexAsync<Season>("seasons", cancellationToken);
 		await EnsureTenantIndexAsync<Match>("matches", cancellationToken);

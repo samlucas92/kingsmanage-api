@@ -7,6 +7,8 @@ public sealed class HttpTenantContext : ITenantContext
 {
 	public const string OrganizationClaim = "organizationId";
 	public const string ClubClaim = "clubId";
+	public const string TenantRoleClaim = "tenantRole";
+	public const string PlatformAdminClaim = "platformAdmin";
 
 	private readonly IHttpContextAccessor _httpContextAccessor;
 

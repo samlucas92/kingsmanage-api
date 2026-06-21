@@ -19,6 +19,8 @@ using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
 using MongoStatsService = KingsManage.Mongo.Services.StatsService;
 using MongoUserService = KingsManage.Mongo.Services.UserService;
+using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
+using MongoSportsClubService = KingsManage.Mongo.Services.SportsClubService;
 using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -90,6 +92,8 @@ builder.Services.AddScoped<IClubNotificationService, MongoClubNotificationServic
 builder.Services.AddScoped<IClubFileService, MongoClubFileService>();
 builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
+builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 
@@ -110,7 +114,17 @@ builder.Services
 		};
 	});
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+	options.AddPolicy("OrganizationAdmin", policy => policy.RequireAssertion(context =>
+		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString())));
+
+	options.AddPolicy("ClubAdmin", policy => policy.RequireAssertion(context =>
+		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString()) ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.ClubAdmin.ToString())));
+});
 
 builder.Services
 	.AddControllers()

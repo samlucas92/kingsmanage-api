@@ -47,6 +47,30 @@ public sealed class JwtTokenService : IJwtTokenService
 			new(HttpTenantContext.OrganizationClaim, organizationId.ToString()),
 			new(HttpTenantContext.ClubClaim, clubId.Value.ToString())
 		};
+		TenantRole? tenantRole = user.Memberships
+			.Where(membership => membership.OrganizationId == organizationId)
+			.Where(membership => membership.ClubId == null || membership.ClubId == clubId)
+			.OrderBy(membership => membership.Role)
+			.Select(membership => (TenantRole?)membership.Role)
+			.FirstOrDefault();
+
+		if (user.Memberships.Count == 0)
+		{
+			tenantRole = user.Role switch
+			{
+				UserRole.Admin => TenantRole.OrganizationAdmin,
+				UserRole.Coach => TenantRole.Coach,
+				_ => TenantRole.Player
+			};
+		}
+
+		if (!tenantRole.HasValue)
+		{
+			throw new InvalidOperationException("The user does not have a membership for their default organization and club.");
+		}
+
+		claims.Add(new Claim(HttpTenantContext.TenantRoleClaim, tenantRole.Value.ToString()));
+		claims.Add(new Claim(HttpTenantContext.PlatformAdminClaim, user.IsPlatformAdmin.ToString().ToLowerInvariant()));
 
 		if (user.PlayerId.HasValue)
 		{
