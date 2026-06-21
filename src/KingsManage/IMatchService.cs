@@ -27,6 +27,9 @@ public interface IMatchService
 		LineupFormation formation,
 		CancellationToken cancellationToken = default
 	);
+
+	Task<Match?> SetLineupFormationKeyAsync(Guid id, string formationKey, CancellationToken cancellationToken = default) =>
+		Task.FromResult<Match?>(null);
 	Task<Match?> ToggleLineupLockedAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<Match?> UpdateNotesAsync(
 		Guid id,

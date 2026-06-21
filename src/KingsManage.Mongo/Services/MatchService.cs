@@ -178,6 +178,14 @@ public class MatchService : IMatchService
 		return await FindOneAndUpdateAsync(id, update, cancellationToken);
 	}
 
+	public async Task<Match?> SetLineupFormationKeyAsync(Guid id, string formationKey, CancellationToken cancellationToken = default)
+	{
+		var update = Builders<Match>.Update
+			.Set(match => match.FormationKey, formationKey.Trim().ToLowerInvariant())
+			.Set(match => match.UpdatedAt, DateTime.UtcNow);
+		return await FindOneAndUpdateAsync(id, update, cancellationToken);
+	}
+
 	public async Task<Match?> ToggleLineupLockedAsync(
 		Guid id,
 		CancellationToken cancellationToken = default

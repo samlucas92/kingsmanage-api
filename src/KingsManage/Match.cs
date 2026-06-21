@@ -19,6 +19,7 @@ public class Match : ITenantOwned
 	public bool IsCompleted { get; set; }
 	public bool IsLineupLocked { get; set; }
 	public LineupFormation SelectedFormation { get; set; } = LineupFormation.FourThreeThree;
+	public string FormationKey { get; set; } = string.Empty;
 	public MatchNotes? Notes { get; set; }
 	public List<PostponementAudit> Postponements { get; set; } = [];
 	public List<SelectedPlayer> SelectedPlayers { get; set; } = [];

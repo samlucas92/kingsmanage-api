@@ -326,6 +326,21 @@ public class MatchesController : ControllerBase
 		return Ok(updatedMatch);
 	}
 
+	[HttpPut("{id}/formation-key")]
+	public async Task<ActionResult<Match>> SetFormationKey(string id, SetFormationKeyRequest request, CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+		if (string.IsNullOrWhiteSpace(request.FormationKey))
+		{
+			return BadRequest("Formation key is required.");
+		}
+		var updatedMatch = await _matchService.SetLineupFormationKeyAsync(matchId, request.FormationKey, cancellationToken);
+		return updatedMatch is null ? NotFound() : Ok(updatedMatch);
+	}
+
 	[HttpPatch("{id}/lineup/toggle-lock")]
 	public async Task<ActionResult<Match>> ToggleLineupLocked(
 		string id,

@@ -33,6 +33,7 @@ public class MatchViewModel
 	public bool IsLineupLocked { get; set; }
 
 	public LineupFormation SelectedFormation { get; set; }
+	public string FormationKey { get; set; } = string.Empty;
 
 	public static MatchViewModel FromMatch(Match match)
 	{
@@ -52,7 +53,8 @@ public class MatchViewModel
 			Result = match.Result,
 			IsCompleted = match.IsCompleted,
 			IsLineupLocked = match.IsLineupLocked,
-			SelectedFormation = match.SelectedFormation
+			SelectedFormation = match.SelectedFormation,
+			FormationKey = match.FormationKey
 		};
 	}
 }
