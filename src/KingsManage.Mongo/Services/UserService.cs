@@ -149,6 +149,41 @@ public class UserService : IUserService
 		);
 	}
 
+	public async Task<AppUser?> SetDefaultClubAsync(
+		Guid id,
+		Guid clubId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var user = await GetByIdAsync(id, cancellationToken);
+
+		if (user is null || !user.IsActive)
+		{
+			return null;
+		}
+
+		var canAccessClub = user.IsPlatformAdmin || user.Memberships.Any(membership =>
+			membership.OrganizationId == _tenantContext.OrganizationId &&
+			(membership.ClubId == clubId ||
+				(membership.ClubId == null && membership.Role == TenantRole.OrganizationAdmin)));
+
+		if (!canAccessClub)
+		{
+			return null;
+		}
+
+		var update = Builders<AppUser>.Update
+			.Set(existingUser => existingUser.DefaultOrganizationId, _tenantContext.OrganizationId)
+			.Set(existingUser => existingUser.DefaultClubId, clubId)
+			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
+
+		return await _users.FindOneAndUpdateAsync(
+			existingUser => existingUser.Id == id,
+			update,
+			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
+			cancellationToken);
+	}
+
 	public async Task<bool> ChangePasswordAsync(
 		Guid id,
 		string currentPassword,

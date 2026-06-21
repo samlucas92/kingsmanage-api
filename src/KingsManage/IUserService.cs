@@ -28,6 +28,12 @@ public interface IUserService
 		CancellationToken cancellationToken = default
 	);
 
+	Task<AppUser?> SetDefaultClubAsync(
+		Guid id,
+		Guid clubId,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult<AppUser?>(null);
+
 	Task<bool> ChangePasswordAsync(
 		Guid id,
 		string currentPassword,
