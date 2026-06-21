@@ -7,6 +7,7 @@ namespace KingsManage.Mongo.Services;
 public class ClubFileService : IClubFileService
 {
 	private readonly IMongoCollection<ClubFile> _files;
+	private readonly TenantMongoScope _tenant;
 
 	static ClubFileService()
 	{
@@ -22,9 +23,10 @@ public class ClubFileService : IClubFileService
 		}
 	}
 
-	public ClubFileService(MongoContext context)
+	public ClubFileService(MongoContext context, TenantMongoScope tenant)
 	{
 		_files = context.Database.GetCollection<ClubFile>("files");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubFile>> GetByLinkedEntityAsync(
@@ -34,10 +36,10 @@ public class ClubFileService : IClubFileService
 	)
 	{
 		var files = await _files
-			.Find(file =>
+			.Find(_tenant.Filter<ClubFile>(file =>
 				file.LinkedEntityType == linkedEntityType &&
 				file.LinkedEntityId == linkedEntityId &&
-				file.Status != ClubFileStatus.Deleted)
+				file.Status != ClubFileStatus.Deleted))
 			.SortByDescending(file => file.CreatedAt)
 			.ToListAsync(cancellationToken);
 
@@ -50,7 +52,7 @@ public class ClubFileService : IClubFileService
 	)
 	{
 		var file = await _files
-			.Find(currentFile => currentFile.Id == id)
+			.Find(_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return file is null ? null : NormaliseFromStorage(file);
@@ -63,6 +65,7 @@ public class ClubFileService : IClubFileService
 	{
 		file.Id = file.Id == Guid.Empty ? Guid.NewGuid() : file.Id;
 		PrepareForSave(file, true);
+		_tenant.Assign(file);
 
 		await _files.InsertOneAsync(file, cancellationToken: cancellationToken);
 
@@ -86,7 +89,7 @@ public class ClubFileService : IClubFileService
 		file.UpdatedAt = DateTime.UtcNow;
 
 		var result = await _files.ReplaceOneAsync(
-			currentFile => currentFile.Id == id,
+			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
 			file,
 			cancellationToken: cancellationToken
 		);
@@ -113,7 +116,7 @@ public class ClubFileService : IClubFileService
 		file.UpdatedAt = DateTime.UtcNow;
 
 		var result = await _files.ReplaceOneAsync(
-			currentFile => currentFile.Id == id,
+			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
 			file,
 			cancellationToken: cancellationToken
 		);

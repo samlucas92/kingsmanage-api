@@ -6,10 +6,12 @@ namespace KingsManage.Mongo.Services;
 public class SeasonService : ISeasonService
 {
 	private readonly IMongoCollection<Season> _seasons;
+	private readonly TenantMongoScope _tenant;
 
-	public SeasonService(MongoContext context)
+	public SeasonService(MongoContext context, TenantMongoScope tenant)
 	{
 		_seasons = context.Database.GetCollection<Season>("seasons");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<Season>> GetAllAsync(
@@ -17,7 +19,7 @@ public class SeasonService : ISeasonService
 	)
 	{
 		return await _seasons
-			.Find(_ => true)
+			.Find(_tenant.Filter<Season>())
 			.SortByDescending(season => season.StartDate)
 			.ToListAsync(cancellationToken);
 	}
@@ -28,7 +30,7 @@ public class SeasonService : ISeasonService
 	)
 	{
 		return await _seasons
-			.Find(season => season.Id == id)
+			.Find(_tenant.Filter<Season>(season => season.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -37,7 +39,7 @@ public class SeasonService : ISeasonService
 	)
 	{
 		return await _seasons
-			.Find(season => season.IsActive)
+			.Find(_tenant.Filter<Season>(season => season.IsActive))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -53,6 +55,7 @@ public class SeasonService : ISeasonService
 		season.Name = season.Name.Trim();
 		season.CreatedAt = DateTime.UtcNow;
 		season.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(season);
 
 		if (season.IsActive)
 		{
@@ -71,6 +74,7 @@ public class SeasonService : ISeasonService
 	{
 		season.Name = season.Name.Trim();
 		season.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(season);
 
 		if (season.IsActive)
 		{
@@ -78,7 +82,7 @@ public class SeasonService : ISeasonService
 		}
 
 		var result = await _seasons.ReplaceOneAsync(
-			existingSeason => existingSeason.Id == season.Id,
+			_tenant.Filter<Season>(existingSeason => existingSeason.Id == season.Id),
 			season,
 			cancellationToken: cancellationToken
 		);
@@ -110,7 +114,7 @@ public class SeasonService : ISeasonService
 			.Set(currentSeason => currentSeason.UpdatedAt, DateTime.UtcNow);
 
 		return await _seasons.FindOneAndUpdateAsync(
-			currentSeason => currentSeason.Id == id,
+			_tenant.Filter<Season>(currentSeason => currentSeason.Id == id),
 			update,
 			new FindOneAndUpdateOptions<Season>
 			{
@@ -127,7 +131,7 @@ public class SeasonService : ISeasonService
 			.Set(season => season.UpdatedAt, DateTime.UtcNow);
 
 		await _seasons.UpdateManyAsync(
-			_ => true,
+			_tenant.Filter<Season>(),
 			update,
 			cancellationToken: cancellationToken
 		);
@@ -143,7 +147,7 @@ public class SeasonService : ISeasonService
 			.Set(season => season.UpdatedAt, DateTime.UtcNow);
 
 		await _seasons.UpdateManyAsync(
-			season => season.Id != activeSeasonId,
+			_tenant.Filter<Season>(season => season.Id != activeSeasonId),
 			update,
 			cancellationToken: cancellationToken
 		);

@@ -9,13 +9,15 @@ public class StatsService : IStatsService
 	private readonly IMongoCollection<Match> _matches;
 	private readonly IMongoCollection<PlayerSeasonStats> _playerSeasonStats;
 	private readonly IMongoCollection<PlayerHistoricalStats> _playerHistoricalStats;
+	private readonly TenantMongoScope _tenant;
 
-	public StatsService(MongoContext context)
+	public StatsService(MongoContext context, TenantMongoScope tenant)
 	{
 		_client = context.Database.Client;
 		_matches = context.Database.GetCollection<Match>("matches");
 		_playerSeasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
 		_playerHistoricalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
+		_tenant = tenant;
 	}
 
 	public async Task<List<PlayerSeasonStats>> GetSeasonStatsAsync(
@@ -24,7 +26,7 @@ public class StatsService : IStatsService
 	)
 	{
 		return await _playerSeasonStats
-			.Find(stats => stats.SeasonId == seasonId)
+			.Find(_tenant.Filter<PlayerSeasonStats>(stats => stats.SeasonId == seasonId))
 			.ToListAsync(cancellationToken);
 	}
 
@@ -33,7 +35,7 @@ public class StatsService : IStatsService
 	)
 	{
 		return await _playerSeasonStats
-			.Find(_ => true)
+			.Find(_tenant.Filter<PlayerSeasonStats>())
 			.ToListAsync(cancellationToken);
 	}
 
@@ -43,7 +45,7 @@ public class StatsService : IStatsService
 	)
 	{
 		return await _playerSeasonStats
-			.Find(stats => stats.PlayerId == playerId)
+			.Find(_tenant.Filter<PlayerSeasonStats>(stats => stats.PlayerId == playerId))
 			.ToListAsync(cancellationToken);
 	}
 
@@ -52,7 +54,7 @@ public class StatsService : IStatsService
 	)
 	{
 		return await _playerHistoricalStats
-			.Find(_ => true)
+			.Find(_tenant.Filter<PlayerHistoricalStats>())
 			.ToListAsync(cancellationToken);
 	}
 
@@ -62,7 +64,7 @@ public class StatsService : IStatsService
 	)
 	{
 		return await _playerHistoricalStats
-			.Find(stats => stats.PlayerId == playerId)
+			.Find(_tenant.Filter<PlayerHistoricalStats>(stats => stats.PlayerId == playerId))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -79,6 +81,7 @@ public class StatsService : IStatsService
 		stats.Appearances = NormaliseStat(stats.Appearances);
 		stats.Goals = NormaliseStat(stats.Goals);
 		stats.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(stats);
 
 		if (existingStats is not null)
 		{
@@ -92,7 +95,7 @@ public class StatsService : IStatsService
 		}
 
 		await _playerHistoricalStats.ReplaceOneAsync(
-			existingStats => existingStats.PlayerId == stats.PlayerId,
+			_tenant.Filter<PlayerHistoricalStats>(existingStats => existingStats.PlayerId == stats.PlayerId),
 			stats,
 			new ReplaceOptions { IsUpsert = true },
 			cancellationToken
@@ -107,10 +110,11 @@ public class StatsService : IStatsService
 	)
 	{
 		var completedMatches = await _matches
-			.Find(match => match.SeasonId == seasonId && match.IsCompleted)
+			.Find(_tenant.Filter<Match>(match => match.SeasonId == seasonId && match.IsCompleted))
 			.ToListAsync(cancellationToken);
 
 		var seasonStats = SeasonStatsCalculator.Calculate(seasonId, completedMatches);
+		seasonStats.ForEach(stats => _tenant.Assign(stats));
 
 		using var session = await _client.StartSessionAsync(
 			cancellationToken: cancellationToken
@@ -121,7 +125,7 @@ public class StatsService : IStatsService
 			{
 				await _playerSeasonStats.DeleteManyAsync(
 					transactionSession,
-					stats => stats.SeasonId == seasonId,
+					_tenant.Filter<PlayerSeasonStats>(stats => stats.SeasonId == seasonId),
 					new DeleteOptions(),
 					transactionCancellationToken
 				);

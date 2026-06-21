@@ -11,16 +11,18 @@ public class UserService : IUserService
 	private const int PasswordIterations = 210_000;
 
 	private readonly IMongoCollection<AppUser> _users;
+	private readonly ITenantContext _tenantContext;
 
-	public UserService(MongoContext context)
+	public UserService(MongoContext context, ITenantContext tenantContext)
 	{
 		_users = context.Database.GetCollection<AppUser>("users");
+		_tenantContext = tenantContext;
 	}
 
 	public async Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
 	{
 		return await _users
-			.Find(_ => true)
+			.Find(GetTenantFilter())
 			.SortBy(user => user.Email)
 			.ToListAsync(cancellationToken);
 	}
@@ -28,7 +30,7 @@ public class UserService : IUserService
 	public async Task<AppUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
 	{
 		return await _users
-			.Find(user => user.Id == id)
+			.Find(GetTenantFilter() & Builders<AppUser>.Filter.Eq(user => user.Id, id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -54,7 +56,7 @@ public class UserService : IUserService
 
 		user.Id = user.Id == Guid.Empty ? Guid.NewGuid() : user.Id;
 		user.Email = NormaliseEmail(user.Email);
-		EnsureDefaultMembership(user);
+		EnsureMembership(user);
 		user.PasswordHash = HashPassword(password);
 		user.CreatedAt = DateTime.UtcNow;
 		user.UpdatedAt = DateTime.UtcNow;
@@ -74,14 +76,18 @@ public class UserService : IUserService
 		}
 
 		user.Email = NormaliseEmail(user.Email);
-		EnsureDefaultMembership(user);
+		EnsureMembership(user);
 		user.PasswordHash = existingUser.PasswordHash;
+		user.IsPlatformAdmin = existingUser.IsPlatformAdmin;
+		user.DefaultOrganizationId = existingUser.DefaultOrganizationId;
+		user.DefaultClubId = existingUser.DefaultClubId;
+		user.Memberships = existingUser.Memberships;
 		user.CreatedAt = existingUser.CreatedAt;
 		user.LastLoginAt = existingUser.LastLoginAt;
 		user.UpdatedAt = DateTime.UtcNow;
 
 		var result = await _users.ReplaceOneAsync(
-			existing => existing.Id == user.Id,
+			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existing => existing.Id, user.Id),
 			user,
 			cancellationToken: cancellationToken
 		);
@@ -105,7 +111,7 @@ public class UserService : IUserService
 			.Set(user => user.UpdatedAt, DateTime.UtcNow);
 
 		return await _users.FindOneAndUpdateAsync(
-			user => user.Id == id,
+			GetTenantFilter() & Builders<AppUser>.Filter.Eq(user => user.Id, id),
 			update,
 			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
 			cancellationToken
@@ -129,7 +135,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.LastLoginAt, DateTime.UtcNow)
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
-		EnsureDefaultMembership(user);
+		EnsureMembership(user);
 		update = update
 			.Set(existingUser => existingUser.DefaultOrganizationId, user.DefaultOrganizationId)
 			.Set(existingUser => existingUser.DefaultClubId, user.DefaultClubId)
@@ -167,7 +173,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
 		var result = await _users.UpdateOneAsync(
-			existingUser => existingUser.Id == id,
+			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existingUser => existingUser.Id, id),
 			update,
 			cancellationToken: cancellationToken
 		);
@@ -191,7 +197,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
 		var result = await _users.UpdateOneAsync(
-			existingUser => existingUser.Id == id,
+			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existingUser => existingUser.Id, id),
 			update,
 			cancellationToken: cancellationToken
 		);
@@ -231,23 +237,47 @@ public class UserService : IUserService
 		return email.Trim().ToLowerInvariant();
 	}
 
-	private static void EnsureDefaultMembership(AppUser user)
+	private FilterDefinition<AppUser> GetTenantFilter()
 	{
-		user.DefaultOrganizationId ??= DefaultTenant.OrganizationId;
-		user.DefaultClubId ??= DefaultTenant.ClubId;
+		if (!_tenantContext.IsAvailable)
+		{
+			throw new InvalidOperationException("A tenant context is required for user management.");
+		}
+
+		return Builders<AppUser>.Filter.ElemMatch(
+			user => user.Memberships,
+			membership =>
+				membership.OrganizationId == _tenantContext.OrganizationId &&
+				(membership.ClubId == null || membership.ClubId == _tenantContext.ClubId));
+	}
+
+	private void EnsureMembership(AppUser user)
+	{
 		user.Memberships ??= [];
 
-		if (user.Memberships.Any(membership =>
-			membership.OrganizationId == DefaultTenant.OrganizationId &&
-			membership.ClubId == DefaultTenant.ClubId))
+		if (user.Memberships.Count > 0)
 		{
+			user.DefaultOrganizationId ??= user.Memberships[0].OrganizationId;
+			user.DefaultClubId ??= user.Memberships
+				.Select(membership => membership.ClubId)
+				.FirstOrDefault(clubId => clubId.HasValue) ?? DefaultTenant.ClubId;
 			return;
 		}
 
+		var organizationId = _tenantContext.IsAvailable
+			? _tenantContext.OrganizationId
+			: DefaultTenant.OrganizationId;
+		var clubId = _tenantContext.IsAvailable
+			? _tenantContext.ClubId
+			: DefaultTenant.ClubId;
+
+		user.DefaultOrganizationId = organizationId;
+		user.DefaultClubId = clubId;
+
 		user.Memberships.Add(new UserMembership
 		{
-			OrganizationId = DefaultTenant.OrganizationId,
-			ClubId = DefaultTenant.ClubId,
+			OrganizationId = organizationId,
+			ClubId = user.Role == UserRole.Admin ? null : clubId,
 			Role = user.Role switch
 			{
 				UserRole.Admin => TenantRole.OrganizationAdmin,

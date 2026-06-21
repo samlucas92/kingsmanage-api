@@ -7,6 +7,7 @@ namespace KingsManage.Mongo.Services;
 public class ClubEventService : IClubEventService
 {
 	private readonly IMongoCollection<ClubEvent> _events;
+	private readonly TenantMongoScope _tenant;
 
 	static ClubEventService()
 	{
@@ -22,9 +23,10 @@ public class ClubEventService : IClubEventService
 		}
 	}
 
-	public ClubEventService(MongoContext context)
+	public ClubEventService(MongoContext context, TenantMongoScope tenant)
 	{
 		_events = context.Database.GetCollection<ClubEvent>("events");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubEvent>> GetAllAsync(
@@ -32,7 +34,7 @@ public class ClubEventService : IClubEventService
 	)
 	{
 		var events = await _events
-			.Find(_ => true)
+			.Find(_tenant.Filter<ClubEvent>())
 			.SortBy(clubEvent => clubEvent.StartDateTime)
 			.ToListAsync(cancellationToken);
 
@@ -45,7 +47,7 @@ public class ClubEventService : IClubEventService
 	)
 	{
 		var clubEvent = await _events
-			.Find(clubEvent => clubEvent.Id == id)
+			.Find(_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return clubEvent is null ? null : NormaliseFromStorage(clubEvent);
@@ -58,6 +60,7 @@ public class ClubEventService : IClubEventService
 	{
 		clubEvent.Id = clubEvent.Id == Guid.Empty ? Guid.NewGuid() : clubEvent.Id;
 		PrepareForSave(clubEvent, true);
+		_tenant.Assign(clubEvent);
 
 		await _events.InsertOneAsync(clubEvent, cancellationToken: cancellationToken);
 
@@ -70,9 +73,10 @@ public class ClubEventService : IClubEventService
 	)
 	{
 		PrepareForSave(clubEvent, false);
+		_tenant.Assign(clubEvent);
 
 		var result = await _events.ReplaceOneAsync(
-			existingEvent => existingEvent.Id == clubEvent.Id,
+			_tenant.Filter<ClubEvent>(existingEvent => existingEvent.Id == clubEvent.Id),
 			clubEvent,
 			cancellationToken: cancellationToken
 		);
@@ -91,7 +95,7 @@ public class ClubEventService : IClubEventService
 	)
 	{
 		var result = await _events.DeleteOneAsync(
-			clubEvent => clubEvent.Id == id,
+			_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id),
 			cancellationToken
 		);
 

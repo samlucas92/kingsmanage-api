@@ -15,6 +15,12 @@ public sealed class HttpTenantContext : ITenantContext
 		_httpContextAccessor = httpContextAccessor;
 	}
 
+	public bool IsAvailable =>
+		Guid.TryParse(_httpContextAccessor.HttpContext?.User.FindFirstValue(OrganizationClaim), out var organizationId) &&
+		organizationId != Guid.Empty &&
+		Guid.TryParse(_httpContextAccessor.HttpContext?.User.FindFirstValue(ClubClaim), out var clubId) &&
+		clubId != Guid.Empty;
+
 	public Guid OrganizationId => ReadRequiredClaim(OrganizationClaim);
 
 	public Guid ClubId => ReadRequiredClaim(ClubClaim);

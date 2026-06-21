@@ -6,10 +6,12 @@ namespace KingsManage.Mongo.Services;
 public class PlayerService : IPlayerService
 {
 	private readonly IMongoCollection<Player> _players;
+	private readonly TenantMongoScope _tenant;
 
-	public PlayerService(MongoContext context)
+	public PlayerService(MongoContext context, TenantMongoScope tenant)
 	{
 		_players = context.Database.GetCollection<Player>("players");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<Player>> GetAllAsync(
@@ -17,7 +19,7 @@ public class PlayerService : IPlayerService
 	)
 	{
 		return await _players
-			.Find(_ => true)
+			.Find(_tenant.Filter<Player>())
 			.SortBy(player => player.Name)
 			.ToListAsync(cancellationToken);
 	}
@@ -28,7 +30,7 @@ public class PlayerService : IPlayerService
 	)
 	{
 		return await _players
-			.Find(player => player.Id == id)
+			.Find(_tenant.Filter<Player>(player => player.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -44,6 +46,7 @@ public class PlayerService : IPlayerService
 		player.Name = player.Name.Trim();
 		player.CreatedAt = DateTime.UtcNow;
 		player.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(player);
 
 		await _players.InsertOneAsync(player, cancellationToken: cancellationToken);
 
@@ -57,9 +60,10 @@ public class PlayerService : IPlayerService
 	{
 		player.Name = player.Name.Trim();
 		player.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(player);
 
 		var result = await _players.ReplaceOneAsync(
-			existingPlayer => existingPlayer.Id == player.Id,
+			_tenant.Filter<Player>(existingPlayer => existingPlayer.Id == player.Id),
 			player,
 			cancellationToken: cancellationToken
 		);
@@ -83,7 +87,7 @@ public class PlayerService : IPlayerService
 			.Set(player => player.UpdatedAt, DateTime.UtcNow);
 
 		return await _players.FindOneAndUpdateAsync(
-			player => player.Id == id,
+			_tenant.Filter<Player>(player => player.Id == id),
 			update,
 			new FindOneAndUpdateOptions<Player>
 			{

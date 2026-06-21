@@ -6,10 +6,12 @@ namespace KingsManage.Mongo.Services;
 public class MatchService : IMatchService
 {
 	private readonly IMongoCollection<Match> _matches;
+	private readonly TenantMongoScope _tenant;
 
-	public MatchService(MongoContext context)
+	public MatchService(MongoContext context, TenantMongoScope tenant)
 	{
 		_matches = context.Database.GetCollection<Match>("matches");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<Match>> GetAllAsync(
@@ -17,7 +19,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(_ => true)
+			.Find(_tenant.Filter<Match>())
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -28,7 +30,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(match => match.SeasonId == seasonId)
+			.Find(_tenant.Filter<Match>(match => match.SeasonId == seasonId))
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -39,7 +41,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(match => match.Id == id)
+			.Find(_tenant.Filter<Match>(match => match.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -64,6 +66,7 @@ public class MatchService : IMatchService
 		match.PlayerStats ??= [];
 		match.CreatedAt = DateTime.UtcNow;
 		match.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(match);
 
 		await _matches.InsertOneAsync(match, cancellationToken: cancellationToken);
 
@@ -79,9 +82,10 @@ public class MatchService : IMatchService
 		match.Competition = (match.Competition ?? string.Empty).Trim();
 		match.Location = (match.Location ?? string.Empty).Trim();
 		match.UpdatedAt = DateTime.UtcNow;
+		_tenant.Assign(match);
 
 		var result = await _matches.ReplaceOneAsync(
-			existingMatch => existingMatch.Id == match.Id,
+			_tenant.Filter<Match>(existingMatch => existingMatch.Id == match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -100,7 +104,7 @@ public class MatchService : IMatchService
 	)
 	{
 		var result = await _matches.DeleteOneAsync(
-			match => match.Id == id,
+			_tenant.Filter<Match>(match => match.Id == id),
 			cancellationToken
 		);
 
@@ -280,8 +284,9 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken
 	)
 	{
+		_tenant.Assign(match);
 		var result = await _matches.ReplaceOneAsync(
-			existingMatch => existingMatch.Id == match.Id,
+			_tenant.Filter<Match>(existingMatch => existingMatch.Id == match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -301,7 +306,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches.FindOneAndUpdateAsync(
-			match => match.Id == id,
+			_tenant.Filter<Match>(match => match.Id == id),
 			update,
 			new FindOneAndUpdateOptions<Match>
 			{

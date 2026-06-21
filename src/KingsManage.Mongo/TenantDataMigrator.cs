@@ -21,7 +21,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<Match>("matches", cancellationToken);
 		await BackfillAsync<ClubEvent>("events", cancellationToken);
 		await BackfillAsync<ClubPost>("posts", cancellationToken);
-		await BackfillAsync<ClubTeamProfile>("clubTeams", cancellationToken);
+		await BackfillAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
 		await BackfillAsync<ClubNotification>("notifications", cancellationToken);
@@ -31,6 +31,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
 
 		await BackfillUsersAsync(cancellationToken);
+		await EnsureTenantIndexesAsync(cancellationToken);
 	}
 
 	private async Task EnsureDefaultOrganizationAndClubAsync(CancellationToken cancellationToken)
@@ -98,7 +99,7 @@ public sealed class TenantDataMigrator
 			user.Memberships.Add(new UserMembership
 			{
 				OrganizationId = DefaultTenant.OrganizationId,
-				ClubId = DefaultTenant.ClubId,
+				ClubId = user.Role == UserRole.Admin ? null : DefaultTenant.ClubId,
 				Role = user.Role switch
 				{
 					UserRole.Admin => TenantRole.OrganizationAdmin,
@@ -110,5 +111,35 @@ public sealed class TenantDataMigrator
 			await users.ReplaceOneAsync(existing => existing.Id == user.Id, user,
 				cancellationToken: cancellationToken);
 		}
+	}
+
+	private async Task EnsureTenantIndexesAsync(CancellationToken cancellationToken)
+	{
+		await EnsureTenantIndexAsync<Player>("players", cancellationToken);
+		await EnsureTenantIndexAsync<Season>("seasons", cancellationToken);
+		await EnsureTenantIndexAsync<Match>("matches", cancellationToken);
+		await EnsureTenantIndexAsync<ClubEvent>("events", cancellationToken);
+		await EnsureTenantIndexAsync<ClubPost>("posts", cancellationToken);
+		await EnsureTenantIndexAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
+		await EnsureTenantIndexAsync<FinanceTransaction>("financeTransactions", cancellationToken);
+		await EnsureTenantIndexAsync<ClubFile>("files", cancellationToken);
+		await EnsureTenantIndexAsync<ClubNotification>("notifications", cancellationToken);
+		await EnsureTenantIndexAsync<MessageThread>("messageThreads", cancellationToken);
+		await EnsureTenantIndexAsync<Message>("messages", cancellationToken);
+		await EnsureTenantIndexAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
+		await EnsureTenantIndexAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
+	}
+
+	private async Task EnsureTenantIndexAsync<T>(string collectionName, CancellationToken cancellationToken)
+		where T : ITenantOwned
+	{
+		var collection = _database.GetCollection<T>(collectionName);
+		var keys = Builders<T>.IndexKeys
+			.Ascending(item => item.OrganizationId)
+			.Ascending(item => item.ClubId);
+
+		await collection.Indexes.CreateOneAsync(
+			new CreateIndexModel<T>(keys, new CreateIndexOptions { Name = "TenantScope_1" }),
+			cancellationToken: cancellationToken);
 	}
 }

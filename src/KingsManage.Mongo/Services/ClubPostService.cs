@@ -7,6 +7,7 @@ namespace KingsManage.Mongo.Services;
 public class ClubPostService : IClubPostService
 {
 	private readonly IMongoCollection<ClubPost> _posts;
+	private readonly TenantMongoScope _tenant;
 
 	static ClubPostService()
 	{
@@ -22,9 +23,10 @@ public class ClubPostService : IClubPostService
 		}
 	}
 
-	public ClubPostService(MongoContext context)
+	public ClubPostService(MongoContext context, TenantMongoScope tenant)
 	{
 		_posts = context.Database.GetCollection<ClubPost>("posts");
+		_tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubPost>> GetAllAsync(
@@ -32,7 +34,7 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		var posts = await _posts
-			.Find(_ => true)
+			.Find(_tenant.Filter<ClubPost>())
 			.SortByDescending(post => post.IsPinned)
 			.ThenByDescending(post => post.CreatedAt)
 			.ToListAsync(cancellationToken);
@@ -46,7 +48,7 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		var post = await _posts
-			.Find(post => post.Id == id)
+			.Find(_tenant.Filter<ClubPost>(post => post.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return post is null ? null : NormaliseFromStorage(post);
@@ -59,6 +61,7 @@ public class ClubPostService : IClubPostService
 	{
 		post.Id = post.Id == Guid.Empty ? Guid.NewGuid() : post.Id;
 		PrepareForSave(post, true);
+		_tenant.Assign(post);
 
 		await _posts.InsertOneAsync(post, cancellationToken: cancellationToken);
 
@@ -71,9 +74,10 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		PrepareForSave(post, false);
+		_tenant.Assign(post);
 
 		var result = await _posts.ReplaceOneAsync(
-			existingPost => existingPost.Id == post.Id,
+			_tenant.Filter<ClubPost>(existingPost => existingPost.Id == post.Id),
 			post,
 			cancellationToken: cancellationToken
 		);
@@ -92,7 +96,7 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		var result = await _posts.DeleteOneAsync(
-			post => post.Id == id,
+			_tenant.Filter<ClubPost>(post => post.Id == id),
 			cancellationToken
 		);
 
