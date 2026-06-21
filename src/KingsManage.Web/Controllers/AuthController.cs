@@ -72,7 +72,9 @@ public class AuthController : ControllerBase
 			return Unauthorized();
 		}
 
-		return Ok(UserViewModel.FromUser(user));
+		var tenantRoleClaim = User.FindFirstValue(HttpTenantContext.TenantRoleClaim);
+		var tenantRole = Enum.TryParse<TenantRole>(tenantRoleClaim, out var parsedRole) ? parsedRole : (TenantRole?)null;
+		return Ok(UserViewModel.FromUser(user, tenantRole));
 	}
 
 	[HttpPost("change-password")]

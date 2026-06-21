@@ -18,6 +18,7 @@ using MongoMessageService = KingsManage.Mongo.Services.MessageService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
 using MongoStatsService = KingsManage.Mongo.Services.StatsService;
+using MongoUserMembershipService = KingsManage.Mongo.Services.UserMembershipService;
 using MongoUserService = KingsManage.Mongo.Services.UserService;
 using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
 using MongoSportsClubService = KingsManage.Mongo.Services.SportsClubService;
@@ -94,6 +95,7 @@ builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
 builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
+builder.Services.AddScoped<IUserMembershipService, MongoUserMembershipService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 

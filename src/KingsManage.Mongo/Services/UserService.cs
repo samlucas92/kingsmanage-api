@@ -75,6 +75,11 @@ public class UserService : IUserService
 			return null;
 		}
 
+		if (existingUser.IsActive && !user.IsActive)
+		{
+			await EnsureOrganizationAdminCanBeDeactivatedAsync(existingUser, cancellationToken);
+		}
+
 		user.Email = NormaliseEmail(user.Email);
 		EnsureMembership(user);
 		user.PasswordHash = existingUser.PasswordHash;
@@ -106,6 +111,12 @@ public class UserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (!isActive)
+		{
+			var user = await GetByIdAsync(id, cancellationToken);
+			if (user is not null) await EnsureOrganizationAdminCanBeDeactivatedAsync(user, cancellationToken);
+		}
+
 		var update = Builders<AppUser>.Update
 			.Set(user => user.IsActive, isActive)
 			.Set(user => user.UpdatedAt, DateTime.UtcNow);
@@ -116,6 +127,20 @@ public class UserService : IUserService
 			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
 			cancellationToken
 		);
+	}
+
+	private async Task EnsureOrganizationAdminCanBeDeactivatedAsync(AppUser user, CancellationToken cancellationToken)
+	{
+		var isOrganizationAdmin = user.Memberships.Any(membership =>
+			membership.OrganizationId == _tenantContext.OrganizationId &&
+			membership.Role == TenantRole.OrganizationAdmin);
+		if (!isOrganizationAdmin) return;
+
+		var activeAdminCount = await _users.CountDocumentsAsync(existing =>
+			existing.IsActive && existing.Memberships.Any(membership =>
+				membership.OrganizationId == _tenantContext.OrganizationId &&
+				membership.Role == TenantRole.OrganizationAdmin), cancellationToken: cancellationToken);
+		if (activeAdminCount <= 1) throw new InvalidOperationException("The final Organization Admin cannot be deactivated.");
 	}
 
 	public async Task<AppUser?> ValidateCredentialsAsync(

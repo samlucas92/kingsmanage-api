@@ -37,16 +37,6 @@ public sealed class JwtTokenService : IJwtTokenService
 		var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes);
 		var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
 		var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-		var claims = new List<Claim>
-		{
-			new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-			new(JwtRegisteredClaimNames.Email, user.Email),
-			new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-			new(ClaimTypes.Email, user.Email),
-			new(ClaimTypes.Role, user.Role.ToString()),
-			new(HttpTenantContext.OrganizationClaim, organizationId.ToString()),
-			new(HttpTenantContext.ClubClaim, clubId.Value.ToString())
-		};
 		TenantRole? tenantRole = user.Memberships
 			.Where(membership => membership.OrganizationId == organizationId)
 			.Where(membership => membership.ClubId == null || membership.ClubId == clubId)
@@ -69,6 +59,21 @@ public sealed class JwtTokenService : IJwtTokenService
 			throw new InvalidOperationException("The user does not have a membership for their default organization and club.");
 		}
 
+		var effectiveRole = tenantRole.Value switch
+		{
+			TenantRole.OrganizationAdmin or TenantRole.ClubAdmin => UserRole.Admin,
+			TenantRole.TeamManager or TenantRole.Coach => UserRole.Coach,
+			_ => UserRole.Player
+		};
+		var claims = new List<Claim>
+		{
+			new(JwtRegisteredClaimNames.Sub, user.Id.ToString()), new(JwtRegisteredClaimNames.Email, user.Email),
+			new(ClaimTypes.NameIdentifier, user.Id.ToString()), new(ClaimTypes.Email, user.Email),
+			new(ClaimTypes.Role, effectiveRole.ToString()),
+			new(HttpTenantContext.OrganizationClaim, organizationId.ToString()),
+			new(HttpTenantContext.ClubClaim, clubId.Value.ToString())
+		};
+
 		claims.Add(new Claim(HttpTenantContext.TenantRoleClaim, tenantRole.Value.ToString()));
 		claims.Add(new Claim(HttpTenantContext.PlatformAdminClaim, user.IsPlatformAdmin.ToString().ToLowerInvariant()));
 
@@ -89,7 +94,7 @@ public sealed class JwtTokenService : IJwtTokenService
 		{
 			Token = new JwtSecurityTokenHandler().WriteToken(token),
 			ExpiresAt = expiresAt,
-			User = UserViewModel.FromUser(user)
+			User = UserViewModel.FromUser(user, tenantRole)
 		};
 	}
 }

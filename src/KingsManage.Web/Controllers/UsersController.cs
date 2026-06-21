@@ -7,7 +7,7 @@ namespace KingsManage.Web.Controllers;
 
 [ApiController]
 [Route("api/users")]
-[Authorize(Roles = nameof(UserRole.Admin))]
+[Authorize(Policy = "OrganizationAdmin")]
 public class UsersController : ControllerBase
 {
 	private readonly IUserService _userService;
@@ -22,7 +22,7 @@ public class UsersController : ControllerBase
 	{
 		var users = await _userService.GetAllAsync(cancellationToken);
 
-		return Ok(users.Select(UserViewModel.FromUser).ToList());
+		return Ok(users.Select(user => UserViewModel.FromUser(user)).ToList());
 	}
 
 	[HttpGet("{id}")]
@@ -118,7 +118,15 @@ public class UsersController : ControllerBase
 		existingUser.PlayerId = request.PlayerId;
 		existingUser.IsActive = request.IsActive;
 
-		var updatedUser = await _userService.UpdateAsync(existingUser, cancellationToken);
+		AppUser? updatedUser;
+		try
+		{
+			updatedUser = await _userService.UpdateAsync(existingUser, cancellationToken);
+		}
+		catch (InvalidOperationException exception)
+		{
+			return Conflict(exception.Message);
+		}
 
 		if (updatedUser is null)
 		{
@@ -140,7 +148,15 @@ public class UsersController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedUser = await _userService.SetActiveAsync(userId, isActive, cancellationToken);
+		AppUser? updatedUser;
+		try
+		{
+			updatedUser = await _userService.SetActiveAsync(userId, isActive, cancellationToken);
+		}
+		catch (InvalidOperationException exception)
+		{
+			return Conflict(exception.Message);
+		}
 
 		if (updatedUser is null)
 		{

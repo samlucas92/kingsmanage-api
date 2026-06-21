@@ -11,6 +11,9 @@ public sealed class UserViewModel
 	public UserRole Role { get; set; }
 
 	public Guid? PlayerId { get; set; }
+	public Guid? DefaultClubId { get; set; }
+	public TenantRole? TenantRole { get; set; }
+	public List<UserMembership> Memberships { get; set; } = [];
 
 	public bool IsActive { get; set; }
 
@@ -20,18 +23,28 @@ public sealed class UserViewModel
 
 	public DateTime? LastLoginAt { get; set; }
 
-	public static UserViewModel FromUser(AppUser user)
+	public static UserViewModel FromUser(AppUser user, TenantRole? tenantRole = null)
 	{
 		return new UserViewModel
 		{
 			Id = user.Id,
 			Email = user.Email,
-			Role = user.Role,
+			Role = tenantRole.HasValue ? MapRole(tenantRole.Value) : user.Role,
 			PlayerId = user.PlayerId,
+			DefaultClubId = user.DefaultClubId,
+			TenantRole = tenantRole,
+			Memberships = user.Memberships,
 			IsActive = user.IsActive,
 			CreatedAt = user.CreatedAt,
 			UpdatedAt = user.UpdatedAt,
 			LastLoginAt = user.LastLoginAt
 		};
 	}
+
+	private static UserRole MapRole(KingsManage.TenantRole role) => role switch
+	{
+		KingsManage.TenantRole.OrganizationAdmin or KingsManage.TenantRole.ClubAdmin => UserRole.Admin,
+		KingsManage.TenantRole.TeamManager or KingsManage.TenantRole.Coach => UserRole.Coach,
+		_ => UserRole.Player
+	};
 }

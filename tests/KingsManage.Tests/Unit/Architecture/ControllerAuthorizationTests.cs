@@ -22,9 +22,10 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
-	public void UsersController_ShouldBeAdminOnly()
+	public void UsersController_ShouldBeOrganizationAdminOnly()
 	{
-		AssertControllerHasRoles(typeof(UsersController), UserRole.Admin);
+		var authorizeAttributes = GetAuthorizeAttributes(typeof(UsersController));
+		Assert.That(authorizeAttributes.Select(attribute => attribute.Policy), Does.Contain("OrganizationAdmin"));
 	}
 
 	[Test]
