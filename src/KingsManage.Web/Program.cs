@@ -1,7 +1,9 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using KingsManage;
 using KingsManage.Mongo;
 using KingsManage.Web.Models;
+using KingsManage.Web.Realtime;
 using KingsManage.Web.Security;
 using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -96,6 +98,7 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
 builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, MongoUserMembershipService>();
+builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 
@@ -113,6 +116,21 @@ builder.Services
 			ValidAudience = jwtSettings.Audience,
 			IssuerSigningKey = signingKey,
 			ClockSkew = TimeSpan.FromMinutes(2)
+		};
+		options.Events = new JwtBearerEvents
+		{
+			OnMessageReceived = context =>
+			{
+				var accessToken = context.Request.Query["access_token"];
+				var path = context.HttpContext.Request.Path;
+
+				if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments("/hubs/club"))
+				{
+					context.Token = accessToken;
+				}
+
+				return Task.CompletedTask;
+			}
 		};
 	});
 
@@ -135,6 +153,13 @@ builder.Services
 	.AddNewtonsoftJson(options =>
 	{
 		options.SerializerSettings.Converters.Add(new StringEnumConverter());
+	});
+
+builder.Services
+	.AddSignalR()
+	.AddJsonProtocol(options =>
+	{
+		options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 	});
 
 builder.Services.AddEndpointsApiExplorer();
@@ -170,7 +195,8 @@ builder.Services.AddCors(options =>
 		policy
 			.WithOrigins(allowedCorsOrigins)
 			.AllowAnyHeader()
-			.AllowAnyMethod();
+			.AllowAnyMethod()
+			.AllowCredentials();
 	});
 });
 
@@ -192,6 +218,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<ClubHub>("/hubs/club");
 
 app.Run();
 

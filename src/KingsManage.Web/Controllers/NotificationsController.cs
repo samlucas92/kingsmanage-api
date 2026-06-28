@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Realtime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,10 +13,15 @@ namespace KingsManage.Web.Controllers;
 public class NotificationsController : ControllerBase
 {
 	private readonly IClubNotificationService _notificationService;
+	private readonly IRealtimeNotifier _realtimeNotifier;
 
-	public NotificationsController(IClubNotificationService notificationService)
+	public NotificationsController(
+		IClubNotificationService notificationService,
+		IRealtimeNotifier? realtimeNotifier = null
+	)
 	{
 		_notificationService = notificationService;
+		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet("mine")]
@@ -93,6 +99,13 @@ public class NotificationsController : ControllerBase
 			return NotFound();
 		}
 
+		await _realtimeNotifier.NotificationsChangedAsync(
+			notification.OrganizationId,
+			notification.ClubId,
+			userIdResult.UserId,
+			cancellationToken
+		);
+
 		return Ok(NotificationViewModel.FromNotification(notification, userIdResult.UserId));
 	}
 
@@ -112,6 +125,26 @@ public class NotificationsController : ControllerBase
 			userIdResult.UserId,
 			cancellationToken
 		);
+
+		if (updatedCount > 0)
+		{
+			var notifications = await _notificationService.GetForUserAsync(
+				userIdResult.UserId,
+				false,
+				cancellationToken
+			);
+			var notification = notifications.FirstOrDefault();
+
+			if (notification is not null)
+			{
+				await _realtimeNotifier.NotificationsChangedAsync(
+					notification.OrganizationId,
+					notification.ClubId,
+					userIdResult.UserId,
+					cancellationToken
+				);
+			}
+		}
 
 		return Ok(new MarkAllNotificationsReadResponse { UpdatedCount = updatedCount });
 	}

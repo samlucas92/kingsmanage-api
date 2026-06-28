@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Realtime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,16 +15,19 @@ public class PostsController : ControllerBase
 	private readonly IClubPostService _postService;
 	private readonly IClubNotificationService _notificationService;
 	private readonly IUserService _userService;
+	private readonly IRealtimeNotifier _realtimeNotifier;
 
 	public PostsController(
 		IClubPostService postService,
 		IClubNotificationService notificationService,
-		IUserService userService
+		IUserService userService,
+		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
 		_postService = postService;
 		_notificationService = notificationService;
 		_userService = userService;
+		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet]
@@ -177,7 +181,7 @@ public class PostsController : ControllerBase
 			return;
 		}
 
-		await _notificationService.CreateAsync(
+		var notification = await _notificationService.CreateAsync(
 			new ClubNotification
 			{
 				Type = NotificationType.NewPost,
@@ -194,6 +198,8 @@ public class PostsController : ControllerBase
 			},
 			cancellationToken
 		);
+
+		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private async Task<List<AppUser>> GetActiveUsersExceptAsync(

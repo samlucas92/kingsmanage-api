@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Realtime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,16 +16,19 @@ public class MessagesController : ControllerBase
 	private readonly IMessageService _messageService;
 	private readonly IUserService _userService;
 	private readonly IClubNotificationService _notificationService;
+	private readonly IRealtimeNotifier _realtimeNotifier;
 
 	public MessagesController(
 		IMessageService messageService,
 		IUserService userService,
-		IClubNotificationService notificationService
+		IClubNotificationService notificationService,
+		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
 		_messageService = messageService;
 		_userService = userService;
 		_notificationService = notificationService;
+		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet("users")]
@@ -176,6 +180,7 @@ public class MessagesController : ControllerBase
 		}, cancellationToken);
 
 		await CreateMessageNotificationAsync(thread, message, currentUser, cancellationToken);
+		await _realtimeNotifier.MessageCreatedAsync(thread, message, cancellationToken);
 		return CreatedAtAction(nameof(GetThread), new { threadId = parsedThreadId }, message);
 	}
 
@@ -194,7 +199,13 @@ public class MessagesController : ControllerBase
 		}
 
 		var thread = await _messageService.MarkReadAsync(parsedThreadId, currentUserId.Value, cancellationToken);
-		return thread is null ? NotFound() : Ok(thread);
+		if (thread is null)
+		{
+			return NotFound();
+		}
+
+		await _realtimeNotifier.ThreadChangedAsync(thread, cancellationToken);
+		return Ok(thread);
 	}
 
 	[HttpDelete("{messageId}")]
@@ -212,7 +223,23 @@ public class MessagesController : ControllerBase
 		}
 
 		var message = await _messageService.DeleteOwnMessageAsync(parsedMessageId, currentUserId.Value, cancellationToken);
-		return message is null ? NotFound() : NoContent();
+		if (message is null)
+		{
+			return NotFound();
+		}
+
+		var thread = await _messageService.GetThreadForUserAsync(
+			message.ThreadId,
+			currentUserId.Value,
+			cancellationToken
+		);
+
+		if (thread is not null)
+		{
+			await _realtimeNotifier.MessageDeletedAsync(thread, message, cancellationToken);
+		}
+
+		return NoContent();
 	}
 
 	private async Task CreateMessageNotificationAsync(
@@ -234,7 +261,7 @@ public class MessagesController : ControllerBase
 			return;
 		}
 
-		await _notificationService.CreateAsync(new ClubNotification
+		var notification = await _notificationService.CreateAsync(new ClubNotification
 		{
 			Type = NotificationType.NewDirectMessage,
 			SourceType = NotificationSourceType.Message,
@@ -246,6 +273,8 @@ public class MessagesController : ControllerBase
 			CreatedByUserEmail = sender.Email,
 			Recipients = recipients
 		}, cancellationToken);
+
+		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private Guid? GetCurrentUserId()

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Realtime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,6 +18,7 @@ public class EventsController : ControllerBase
 	private readonly ISeasonService _seasonService;
 	private readonly IStatsService _statsService;
 	private readonly IUserService _userService;
+	private readonly IRealtimeNotifier _realtimeNotifier;
 
 	public EventsController(
 		IClubEventService eventService,
@@ -24,7 +26,8 @@ public class EventsController : ControllerBase
 		IClubNotificationService notificationService,
 		ISeasonService seasonService,
 		IStatsService statsService,
-		IUserService userService
+		IUserService userService,
+		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
 		_eventService = eventService;
@@ -33,6 +36,7 @@ public class EventsController : ControllerBase
 		_seasonService = seasonService;
 		_statsService = statsService;
 		_userService = userService;
+		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet]
@@ -442,7 +446,7 @@ public class EventsController : ControllerBase
 			return;
 		}
 
-		await _notificationService.CreateAsync(
+		var notification = await _notificationService.CreateAsync(
 			new ClubNotification
 			{
 				Type = notificationType,
@@ -459,6 +463,8 @@ public class EventsController : ControllerBase
 			},
 			cancellationToken
 		);
+
+		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private async Task<List<AppUser>> GetVisibleActiveUsersExceptAsync(
