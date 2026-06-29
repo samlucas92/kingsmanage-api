@@ -620,7 +620,7 @@ public class MatchesController : ControllerBase
 
 		if (string.IsNullOrWhiteSpace(match.Location))
 		{
-			return "Venue name or address is required.";
+			return "Location is required.";
 		}
 
 		return null;
