@@ -2,6 +2,7 @@ using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
 using KingsManage.Web.Realtime;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -222,7 +223,7 @@ public class PostsController : ControllerBase
 			return "Post title is required.";
 		}
 
-		if (string.IsNullOrWhiteSpace(model.Body))
+		if (string.IsNullOrWhiteSpace(RichTextBody.ToPlainText(model.Body)))
 		{
 			return "Post body is required.";
 		}
@@ -237,7 +238,7 @@ public class PostsController : ControllerBase
 			return "Post title is required.";
 		}
 
-		if (string.IsNullOrWhiteSpace(model.Body))
+		if (string.IsNullOrWhiteSpace(RichTextBody.ToPlainText(model.Body)))
 		{
 			return "Post body is required.";
 		}

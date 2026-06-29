@@ -2,6 +2,7 @@ using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
 using KingsManage.Web.Realtime;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -143,12 +144,13 @@ public class MessagesController : ControllerBase
 			return BadRequest("Message thread id is invalid.");
 		}
 
-		if (string.IsNullOrWhiteSpace(model.Body))
+		var plainTextBody = RichTextBody.ToPlainText(model.Body);
+		if (string.IsNullOrWhiteSpace(plainTextBody))
 		{
 			return BadRequest("Message body is required.");
 		}
 
-		if (model.Body.Trim().Length > MaximumMessageLength)
+		if (plainTextBody.Length > MaximumMessageLength || model.Body.Length > 30_000)
 		{
 			return BadRequest($"Message body cannot exceed {MaximumMessageLength} characters.");
 		}
@@ -267,7 +269,9 @@ public class MessagesController : ControllerBase
 			SourceType = NotificationSourceType.Message,
 			SourceId = message.Id,
 			Title = $"New message from {sender.Email}",
-			Message = message.Body.Length > 120 ? $"{message.Body[..117]}..." : message.Body,
+			Message = RichTextBody.ToPlainText(message.Body) is var preview && preview.Length > 120
+				? $"{preview[..117]}..."
+				: preview,
 			ActionPath = $"/dashboard?tab=messages&threadId={thread.Id}",
 			CreatedByUserId = sender.Id,
 			CreatedByUserEmail = sender.Email,
