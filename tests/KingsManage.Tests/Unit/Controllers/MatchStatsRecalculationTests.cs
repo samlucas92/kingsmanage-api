@@ -181,6 +181,8 @@ public class MatchStatsRecalculationTests
 			SeasonId = seasonId,
 			Team = ClubTeam.First,
 			Opponent = "Test Opponent",
+			Competition = "League",
+			Location = "The Rec",
 			Date = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc),
 			Venue = MatchVenue.Home,
 			State = MatchState.Upcoming,

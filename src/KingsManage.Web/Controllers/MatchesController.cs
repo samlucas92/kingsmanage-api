@@ -613,6 +613,16 @@ public class MatchesController : ControllerBase
 			return "Match date is required.";
 		}
 
+		if (string.IsNullOrWhiteSpace(match.Competition))
+		{
+			return "Competition is required.";
+		}
+
+		if (string.IsNullOrWhiteSpace(match.Location))
+		{
+			return "Venue name or address is required.";
+		}
+
 		return null;
 	}
 

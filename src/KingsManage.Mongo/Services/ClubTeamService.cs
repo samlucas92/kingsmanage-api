@@ -137,6 +137,11 @@ public class ClubTeamService : IClubTeamService
 	{
 		profile.DisplayName = profile.DisplayName.Trim();
 		profile.ShortName = profile.ShortName.Trim();
+		profile.Competitions = (profile.Competitions ?? [])
+			.Select(competition => competition.Trim())
+			.Where(competition => !string.IsNullOrWhiteSpace(competition))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
 	}
 
 	private static IReadOnlyList<ClubTeamProfile> GetDefaults()

@@ -59,6 +59,7 @@ public class ClubTeamsControllerTests
 		var service = new FakeClubTeamService();
 		var controller = new ClubTeamsController(service);
 		var profile = CreateProfile("Under 18s");
+		profile.Competitions = ["Youth League", "Youth Cup"];
 
 		var result = await controller.Create(
 			profile,
@@ -69,6 +70,7 @@ public class ClubTeamsControllerTests
 		var createdProfile = createdResult?.Value as ClubTeamProfile;
 		Assert.That(createdResult, Is.Not.Null);
 		Assert.That(createdProfile?.DisplayName, Is.EqualTo("Under 18s"));
+		Assert.That(createdProfile?.Competitions, Is.EqualTo(new[] { "Youth League", "Youth Cup" }));
 		Assert.That(service.CreateCalls, Is.EqualTo(1));
 	}
 

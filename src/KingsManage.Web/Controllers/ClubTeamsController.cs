@@ -122,6 +122,12 @@ public class ClubTeamsController : ControllerBase
 			return "Sort order must be between 0 and 100.";
 		}
 
+		if ((profile.Competitions ?? []).Any(competition =>
+			string.IsNullOrWhiteSpace(competition) || competition.Trim().Length > 100))
+		{
+			return "Competition names are required and must be 100 characters or fewer.";
+		}
+
 		return null;
 	}
 }

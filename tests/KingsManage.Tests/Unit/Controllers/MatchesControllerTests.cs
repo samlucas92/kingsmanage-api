@@ -142,6 +142,8 @@ public class MatchesControllerTests
 				SeasonId = SeasonOneId,
 				Team = ClubTeam.First,
 				Opponent = "Test Opponent",
+				Competition = "League",
+				Location = "The Rec",
 				Date = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc),
 				Venue = MatchVenue.Home,
 				SelectedFormation = LineupFormation.FourThreeThree
@@ -188,6 +190,8 @@ public class MatchesControllerTests
 				SeasonId = SeasonOneId,
 				Team = ClubTeam.Second,
 				Opponent = "Updated Opponent",
+				Competition = "Cup",
+				Location = "Away Ground",
 				Date = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Utc),
 				Venue = MatchVenue.Away,
 				State = MatchState.Upcoming,
