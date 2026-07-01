@@ -88,6 +88,117 @@ public sealed class FilesIntegrationTests
 	}
 
 	[Test]
+	public async Task CreateUploadUrl_WithUploadedMatchingHash_ReusesStoredObject()
+	{
+		var postId = SeedPost();
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+		const string contentHash =
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+		var firstResponse = await client.PostAsJsonAsync(
+			"/api/files/upload-url",
+			new
+			{
+				OriginalFileName = "First.pdf",
+				ContentType = "application/pdf",
+				SizeBytes = 2048,
+				ContentHash = contentHash,
+				LinkedEntityType = "Post",
+				LinkedEntityId = postId,
+				Visibility = "AuthenticatedUsers"
+			}
+		);
+
+		Assert.That(firstResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+		using var firstDocument = JsonDocument.Parse(
+			await firstResponse.Content.ReadAsStringAsync()
+		);
+		var firstFileId = firstDocument.RootElement
+			.GetProperty("file")
+			.GetProperty("id")
+			.GetGuid();
+		Assert.That(firstDocument.RootElement.GetProperty("uploadRequired").GetBoolean(), Is.True);
+
+		var markedResponse = await client.PostAsync(
+			$"/api/files/{firstFileId}/mark-uploaded",
+			null
+		);
+		Assert.That(markedResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+		var secondResponse = await client.PostAsJsonAsync(
+			"/api/files/upload-url",
+			new
+			{
+				OriginalFileName = "Second-copy.pdf",
+				ContentType = "application/pdf",
+				SizeBytes = 2048,
+				ContentHash = contentHash,
+				LinkedEntityType = "Post",
+				LinkedEntityId = postId,
+				Visibility = "AuthenticatedUsers"
+			}
+		);
+
+		Assert.That(secondResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+		using var secondDocument = JsonDocument.Parse(
+			await secondResponse.Content.ReadAsStringAsync()
+		);
+		Assert.That(secondDocument.RootElement.GetProperty("uploadRequired").GetBoolean(), Is.False);
+		Assert.That(secondDocument.RootElement.GetProperty("reusedStoredObject").GetBoolean(), Is.True);
+		Assert.That(secondDocument.RootElement.GetProperty("uploadUrl").GetString(), Is.Empty);
+		Assert.That(
+			secondDocument.RootElement.GetProperty("file").GetProperty("status").GetString(),
+			Is.EqualTo("Uploaded")
+		);
+		Assert.That(_factory.StoredFileObjectService.Objects, Has.Count.EqualTo(1));
+		Assert.That(_factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(2));
+		Assert.That(_factory.ClubFileService.Files, Has.Count.EqualTo(2));
+		Assert.That(
+			_factory.ClubFileService.Files.Select(file => file.StorageKey).Distinct().Count(),
+			Is.EqualTo(1)
+		);
+
+		var secondFileId = secondDocument.RootElement
+			.GetProperty("file")
+			.GetProperty("id")
+			.GetGuid();
+		var deleteResponse = await client.DeleteAsync($"/api/files/{secondFileId}");
+
+		Assert.That(deleteResponse.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+		Assert.That(_factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(1));
+	}
+
+	[Test]
+	public async Task CreateUploadUrl_WithMalformedHash_ReturnsBadRequest()
+	{
+		var postId = SeedPost();
+		var client = await _factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/files/upload-url",
+			new
+			{
+				OriginalFileName = "Invalid.pdf",
+				ContentType = "application/pdf",
+				SizeBytes = 2048,
+				ContentHash = "not-a-sha256",
+				LinkedEntityType = "Post",
+				LinkedEntityId = postId,
+				Visibility = "AuthenticatedUsers"
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+		Assert.That(await response.Content.ReadAsStringAsync(), Does.Contain("SHA-256"));
+	}
+
+	[Test]
 	public async Task CreateUploadUrl_WithInvalidContentType_ReturnsBadRequest()
 	{
 		var postId = SeedPost();

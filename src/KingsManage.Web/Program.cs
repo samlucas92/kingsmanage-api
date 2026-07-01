@@ -21,6 +21,7 @@ using MongoMessageService = KingsManage.Mongo.Services.MessageService;
 using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
 using MongoStatsService = KingsManage.Mongo.Services.StatsService;
+using MongoStoredFileObjectService = KingsManage.Mongo.Services.StoredFileObjectService;
 using MongoUserMembershipService = KingsManage.Mongo.Services.UserMembershipService;
 using MongoUserService = KingsManage.Mongo.Services.UserService;
 using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
@@ -95,6 +96,7 @@ builder.Services.AddScoped<IClubPostTemplateService, MongoClubPostTemplateServic
 builder.Services.AddScoped<IClubTeamService, MongoClubTeamService>();
 builder.Services.AddScoped<IClubNotificationService, MongoClubNotificationService>();
 builder.Services.AddScoped<IClubFileService, MongoClubFileService>();
+builder.Services.AddScoped<IStoredFileObjectService, MongoStoredFileObjectService>();
 builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();

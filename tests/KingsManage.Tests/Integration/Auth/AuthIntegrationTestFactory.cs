@@ -23,6 +23,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestClubNotificationService ClubNotificationService { get; } = new();
 	public TestMessageService MessageService { get; } = new();
 	public TestClubFileService ClubFileService { get; } = new();
+	public TestStoredFileObjectService StoredFileObjectService { get; } = new();
 	public TestFileStorageService FileStorageService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -57,6 +58,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IClubNotificationService>();
 			services.RemoveAll<IMessageService>();
 			services.RemoveAll<IClubFileService>();
+			services.RemoveAll<IStoredFileObjectService>();
 			services.RemoveAll<IFileStorageService>();
 
 			services.AddSingleton<IUserService>(UserService);
@@ -69,6 +71,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IClubNotificationService>(ClubNotificationService);
 			services.AddSingleton<IMessageService>(MessageService);
 			services.AddSingleton<IClubFileService>(ClubFileService);
+			services.AddSingleton<IStoredFileObjectService>(StoredFileObjectService);
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 		});
 	}

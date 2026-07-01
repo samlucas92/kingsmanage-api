@@ -8,6 +8,8 @@ public class ClubFile : ITenantOwned
 	public string OriginalFileName { get; set; } = string.Empty;
 	public string StoredFileName { get; set; } = string.Empty;
 	public string StorageKey { get; set; } = string.Empty;
+	public Guid? StoredObjectId { get; set; }
+	public string ContentHash { get; set; } = string.Empty;
 	public string ContentType { get; set; } = string.Empty;
 	public long SizeBytes { get; set; }
 	public ClubFileVisibility Visibility { get; set; } = ClubFileVisibility.AuthenticatedUsers;

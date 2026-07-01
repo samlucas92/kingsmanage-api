@@ -129,6 +129,7 @@ public class ClubFileService : IClubFileService
 		file.OriginalFileName ??= string.Empty;
 		file.StoredFileName ??= string.Empty;
 		file.StorageKey ??= string.Empty;
+		file.ContentHash ??= string.Empty;
 		file.ContentType ??= string.Empty;
 		file.UploadedByUserEmail ??= string.Empty;
 
@@ -150,6 +151,7 @@ public class ClubFileService : IClubFileService
 		file.OriginalFileName = file.OriginalFileName.Trim();
 		file.StoredFileName = file.StoredFileName.Trim();
 		file.StorageKey = file.StorageKey.Trim();
+		file.ContentHash = file.ContentHash.Trim().ToLowerInvariant();
 		file.ContentType = file.ContentType.Trim();
 		file.UploadedByUserEmail = file.UploadedByUserEmail.Trim();
 

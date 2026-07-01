@@ -1,6 +1,86 @@
 using KingsManage;
 namespace KingsManage.Tests.Integration.Auth;
 
+public sealed class TestStoredFileObjectService : IStoredFileObjectService
+{
+	public List<StoredFileObject> Objects { get; } = new();
+
+	public Task<StoredFileObjectResolution> ResolveAsync(
+		StoredFileObject candidate,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var existing = Objects.FirstOrDefault(item =>
+			item.OrganizationId == candidate.OrganizationId &&
+			item.ContentHash == candidate.ContentHash &&
+			item.Status != StoredFileObjectStatus.Deleted);
+
+		if (existing is not null)
+		{
+			if (
+				existing.SizeBytes != candidate.SizeBytes ||
+				!string.Equals(existing.ContentType, candidate.ContentType, StringComparison.OrdinalIgnoreCase)
+			)
+			{
+				throw new InvalidOperationException(
+					"The supplied file hash does not match the existing file metadata."
+				);
+			}
+
+			return Task.FromResult(new StoredFileObjectResolution(existing, false));
+		}
+
+		Objects.Add(candidate);
+		return Task.FromResult(new StoredFileObjectResolution(candidate, true));
+	}
+
+	public Task<StoredFileObject?> MarkUploadedAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var item = Objects.FirstOrDefault(current => current.Id == id);
+		if (item is not null)
+		{
+			item.Status = StoredFileObjectStatus.Uploaded;
+			item.UploadedAt = DateTime.UtcNow;
+			item.UpdatedAt = DateTime.UtcNow;
+		}
+
+		return Task.FromResult(item);
+	}
+
+	public Task IncrementReferenceCountAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var item = Objects.FirstOrDefault(current => current.Id == id);
+		if (item is not null)
+		{
+			item.ReferenceCount++;
+			item.OrphanedAt = null;
+		}
+
+		return Task.CompletedTask;
+	}
+
+	public Task DecrementReferenceCountAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var item = Objects.FirstOrDefault(current => current.Id == id);
+		if (item is not null)
+		{
+			item.ReferenceCount = Math.Max(0, item.ReferenceCount - 1);
+			item.OrphanedAt = item.ReferenceCount == 0 ? DateTime.UtcNow : null;
+		}
+
+		return Task.CompletedTask;
+	}
+}
+
 public sealed class TestClubFileService : IClubFileService
 {
 	public List<ClubFile> Files { get; } = new();

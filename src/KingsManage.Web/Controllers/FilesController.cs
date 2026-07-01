@@ -32,21 +32,27 @@ public class FilesController : ControllerBase
 	};
 
 	private readonly IClubFileService _fileService;
+	private readonly IStoredFileObjectService _storedObjectService;
 	private readonly IFileStorageService _storageService;
+	private readonly ITenantContext _tenantContext;
 	private readonly IClubPostService _postService;
 	private readonly IClubEventService _eventService;
 	private readonly IPlayerService _playerService;
 
 	public FilesController(
 		IClubFileService fileService,
+		IStoredFileObjectService storedObjectService,
 		IFileStorageService storageService,
+		ITenantContext tenantContext,
 		IClubPostService postService,
 		IClubEventService eventService,
 		IPlayerService playerService
 	)
 	{
 		_fileService = fileService;
+		_storedObjectService = storedObjectService;
 		_storageService = storageService;
+		_tenantContext = tenantContext;
 		_postService = postService;
 		_eventService = eventService;
 		_playerService = playerService;
@@ -117,7 +123,54 @@ public class FilesController : ControllerBase
 
 		var fileId = Guid.NewGuid();
 		var safeFileName = BuildSafeFileName(model.OriginalFileName);
-		var storageKey = BuildStorageKey(model.LinkedEntityType, model.LinkedEntityId, fileId, safeFileName);
+		var contentHash = model.ContentHash.Trim().ToLowerInvariant();
+		StoredFileObject? storedObject = null;
+		var uploadRequired = true;
+		var reusedStoredObject = false;
+		string storageKey;
+
+		if (!string.IsNullOrWhiteSpace(contentHash))
+		{
+			var candidate = new StoredFileObject
+			{
+				Id = Guid.NewGuid(),
+				OrganizationId = _tenantContext.OrganizationId,
+				ContentHash = contentHash,
+				StorageKey = BuildContentAddressedStorageKey(
+					_tenantContext.OrganizationId,
+					contentHash
+				),
+				ContentType = model.ContentType.Trim(),
+				SizeBytes = model.SizeBytes
+			};
+
+			StoredFileObjectResolution resolution;
+			try
+			{
+				resolution = await _storedObjectService.ResolveAsync(
+					candidate,
+					cancellationToken
+				);
+			}
+			catch (InvalidOperationException exception)
+			{
+				return BadRequest(exception.Message);
+			}
+
+			storedObject = resolution.StoredObject;
+			storageKey = storedObject.StorageKey;
+			uploadRequired = storedObject.Status != StoredFileObjectStatus.Uploaded;
+			reusedStoredObject = !resolution.WasCreated;
+		}
+		else
+		{
+			storageKey = BuildStorageKey(
+				model.LinkedEntityType,
+				model.LinkedEntityId,
+				fileId,
+				safeFileName
+			);
+		}
 
 		var file = await _fileService.CreateAsync(
 			new ClubFile
@@ -126,31 +179,50 @@ public class FilesController : ControllerBase
 				OriginalFileName = Path.GetFileName(model.OriginalFileName).Trim(),
 				StoredFileName = safeFileName,
 				StorageKey = storageKey,
+				StoredObjectId = storedObject?.Id,
+				ContentHash = contentHash,
 				ContentType = model.ContentType.Trim(),
 				SizeBytes = model.SizeBytes,
 				Visibility = model.Visibility,
 				LinkedEntityType = model.LinkedEntityType,
 				LinkedEntityId = model.LinkedEntityId,
-				Status = ClubFileStatus.PendingUpload,
+				Status = uploadRequired
+					? ClubFileStatus.PendingUpload
+					: ClubFileStatus.Uploaded,
 				UploadedByUserId = userIdResult.UserId,
 				UploadedByUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
 				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow
+				UpdatedAt = DateTime.UtcNow,
+				UploadedAt = uploadRequired ? null : DateTime.UtcNow
 			},
 			cancellationToken
 		);
 
-		var signedUrl = await _storageService.CreateUploadUrlAsync(
-			file.StorageKey,
-			UploadUrlExpiry,
-			cancellationToken
-		);
+		if (storedObject is not null)
+		{
+			await _storedObjectService.IncrementReferenceCountAsync(
+				storedObject.Id,
+				cancellationToken
+			);
+		}
+
+		FileStorageSignedUrl? signedUrl = null;
+		if (uploadRequired)
+		{
+			signedUrl = await _storageService.CreateUploadUrlAsync(
+				file.StorageKey,
+				UploadUrlExpiry,
+				cancellationToken
+			);
+		}
 
 		return Ok(new FileUploadUrlResponse
 		{
 			File = file,
-			UploadUrl = signedUrl.Url,
-			ExpiresAtUtc = signedUrl.ExpiresAtUtc
+			UploadUrl = signedUrl?.Url ?? string.Empty,
+			ExpiresAtUtc = signedUrl?.ExpiresAtUtc ?? DateTime.UtcNow,
+			UploadRequired = uploadRequired,
+			ReusedStoredObject = reusedStoredObject
 		});
 	}
 
@@ -166,11 +238,20 @@ public class FilesController : ControllerBase
 			return errorResult!;
 		}
 
+		var pendingFile = await _fileService.GetByIdAsync(fileId, cancellationToken);
 		var file = await _fileService.MarkUploadedAsync(fileId, cancellationToken);
 
 		if (file is null)
 		{
 			return NotFound();
+		}
+
+		if (pendingFile?.StoredObjectId is Guid storedObjectId)
+		{
+			await _storedObjectService.MarkUploadedAsync(
+				storedObjectId,
+				cancellationToken
+			);
 		}
 
 		return Ok(file);
@@ -232,6 +313,7 @@ public class FilesController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
+		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
 		var deleted = await _fileService.SoftDeleteAsync(
 			fileId,
 			userIdResult.UserId,
@@ -241,6 +323,14 @@ public class FilesController : ControllerBase
 		if (!deleted)
 		{
 			return NotFound();
+		}
+
+		if (file?.StoredObjectId is Guid storedObjectId)
+		{
+			await _storedObjectService.DecrementReferenceCountAsync(
+				storedObjectId,
+				cancellationToken
+			);
 		}
 
 		return NoContent();
@@ -288,6 +378,14 @@ public class FilesController : ControllerBase
 		if (model.SizeBytes > MaxFileSizeBytes)
 		{
 			return "File size must be 10MB or less.";
+		}
+
+		if (
+			!string.IsNullOrWhiteSpace(model.ContentHash) &&
+			!IsSha256Hash(model.ContentHash)
+		)
+		{
+			return "Content hash must be a 64-character SHA-256 value.";
 		}
 
 		if (model.LinkedEntityId == Guid.Empty)
@@ -382,6 +480,24 @@ public class FilesController : ControllerBase
 	)
 	{
 		return $"{linkedEntityType.ToString().ToLowerInvariant()}/{linkedEntityId}/{fileId}/{safeFileName}";
+	}
+
+	private static string BuildContentAddressedStorageKey(
+		Guid organizationId,
+		string contentHash
+	)
+	{
+		return $"organizations/{organizationId}/objects/{contentHash[..2]}/{contentHash}";
+	}
+
+	private static bool IsSha256Hash(string value)
+	{
+		var hash = value.Trim();
+		return hash.Length == 64 && hash.All(character =>
+			character is >= '0' and <= '9' ||
+			character is >= 'a' and <= 'f' ||
+			character is >= 'A' and <= 'F'
+		);
 	}
 
 	private static string BuildSafeFileName(string originalFileName)

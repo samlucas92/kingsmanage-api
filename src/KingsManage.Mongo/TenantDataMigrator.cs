@@ -32,6 +32,27 @@ public sealed class TenantDataMigrator
 
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
+		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureStoredFileObjectIndexesAsync(CancellationToken cancellationToken)
+	{
+		var objects = _database.GetCollection<StoredFileObject>("storedFileObjects");
+		var keys = Builders<StoredFileObject>.IndexKeys
+			.Ascending(item => item.OrganizationId)
+			.Ascending(item => item.ContentHash);
+
+		await objects.Indexes.CreateOneAsync(
+			new CreateIndexModel<StoredFileObject>(
+				keys,
+				new CreateIndexOptions
+				{
+					Name = "OrganizationContentHash_1",
+					Unique = true
+				}
+			),
+			cancellationToken: cancellationToken
+		);
 	}
 
 	private async Task EnsureDefaultOrganizationAndClubAsync(CancellationToken cancellationToken)
