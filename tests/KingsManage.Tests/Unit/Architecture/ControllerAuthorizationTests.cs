@@ -47,9 +47,14 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
-	public void PlayersController_ShouldAllowAdminAndCoachOnly()
+	public void PlayersController_ShouldAllowAuthenticatedReadsAndManagerWrites()
 	{
-		AssertControllerHasRoles(typeof(PlayersController), UserRole.Admin, UserRole.Coach);
+		var authorizeAttributes = GetAuthorizeAttributes(typeof(PlayersController));
+		Assert.That(authorizeAttributes, Is.Not.Empty);
+		Assert.That(GetRoles(authorizeAttributes), Is.Empty);
+		AssertMethodHasRoles(typeof(PlayersController), "Create", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasRoles(typeof(PlayersController), "Update", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasRoles(typeof(PlayersController), "SetActive", UserRole.Admin, UserRole.Coach);
 	}
 
 	[Test]

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KingsManage.Mongo")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1a33610fcbf12a1c82203b30024dd3eb4e05a4ff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+63cb7e8c93ada3a980d817f3bf0b258ffe921f32")]
 [assembly: System.Reflection.AssemblyProductAttribute("KingsManage.Mongo")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KingsManage.Mongo")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
