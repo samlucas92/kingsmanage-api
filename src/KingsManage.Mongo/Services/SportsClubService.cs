@@ -43,6 +43,7 @@ public sealed class SportsClubService : ISportsClubService
 		existing.Name = club.Name;
 		existing.Slug = club.Slug;
 		existing.SportKey = club.SportKey;
+		existing.LogoFileId = club.LogoFileId;
 		Normalise(existing);
 		existing.UpdatedAt = DateTime.UtcNow;
 
@@ -51,6 +52,25 @@ public sealed class SportsClubService : ISportsClubService
 			existing,
 			cancellationToken: cancellationToken);
 		return result.MatchedCount == 0 ? null : existing;
+	}
+
+	public async Task<SportsClub?> SetLogoFileAsync(
+		Guid id,
+		Guid? logoFileId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return await _clubs.FindOneAndUpdateAsync(
+			club => club.Id == id && club.OrganizationId == _tenant.OrganizationId,
+			Builders<SportsClub>.Update
+				.Set(club => club.LogoFileId, logoFileId)
+				.Set(club => club.UpdatedAt, DateTime.UtcNow),
+			new FindOneAndUpdateOptions<SportsClub>
+			{
+				ReturnDocument = ReturnDocument.After
+			},
+			cancellationToken
+		);
 	}
 
 	public async Task<SportsClub?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)

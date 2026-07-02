@@ -5,5 +5,8 @@ public enum ClubFileLinkedEntityType
 	Post,
 	Event,
 	Player,
-	ClubDocument
+	ClubDocument,
+	ClubLogo,
+	PostTemplate,
+	RichTextDraft
 }

@@ -31,4 +31,13 @@ public class RichTextBodyTests
 
 		Assert.That(RichTextBody.ToPlainText(value), Is.Empty);
 	}
+
+	[Test]
+	public void ToPlainText_UsesEmbeddedImageAlternativeText()
+	{
+		const string value =
+			"yepset-richtext:v1:[{\"type\":\"image\",\"fileId\":\"00000000-0000-0000-0000-000000000001\",\"alt\":\"Team celebration\",\"children\":[{\"text\":\"\"}]}]";
+
+		Assert.That(RichTextBody.ToPlainText(value), Is.EqualTo("Team celebration"));
+	}
 }

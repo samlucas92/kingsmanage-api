@@ -12,12 +12,21 @@ public sealed class R2FileStorageService : IFileStorageService
 	private const string Region = "auto";
 	private const string Service = "s3";
 	private const string PayloadHash = "UNSIGNED-PAYLOAD";
+	private static readonly TimeSpan ValidationUrlExpiry = TimeSpan.FromMinutes(5);
 
 	private readonly R2StorageSettings _settings;
+	private readonly IHttpClientFactory _httpClientFactory;
+	private readonly IFileContentScanner _contentScanner;
 
-	public R2FileStorageService(R2StorageSettings settings)
+	public R2FileStorageService(
+		R2StorageSettings settings,
+		IHttpClientFactory httpClientFactory,
+		IFileContentScanner contentScanner
+	)
 	{
 		_settings = settings;
+		_httpClientFactory = httpClientFactory;
+		_contentScanner = contentScanner;
 	}
 
 	public Task<FileStorageSignedUrl> CreateUploadUrlAsync(
@@ -36,6 +45,137 @@ public sealed class R2FileStorageService : IFileStorageService
 	)
 	{
 		return Task.FromResult(CreateSignedUrl("GET", storageKey, expiresIn));
+	}
+
+	public async Task<FileStorageValidationResult> ValidateObjectAsync(
+		string storageKey,
+		string expectedContentHash,
+		string expectedContentType,
+		long expectedSizeBytes,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var signedUrl = CreateSignedUrl("GET", storageKey, ValidationUrlExpiry);
+		using var request = new HttpRequestMessage(HttpMethod.Get, signedUrl.Url);
+		using var response = await _httpClientFactory
+			.CreateClient()
+			.SendAsync(
+				request,
+				HttpCompletionOption.ResponseHeadersRead,
+				cancellationToken
+			);
+
+		if (!response.IsSuccessStatusCode)
+		{
+			return InvalidValidationResult(
+				$"Stored object could not be read (HTTP {(int)response.StatusCode})."
+			);
+		}
+
+		var actualContentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+		if (
+			!string.Equals(
+				actualContentType,
+				expectedContentType.Trim(),
+				StringComparison.OrdinalIgnoreCase
+			)
+		)
+		{
+			return InvalidValidationResult("Stored object content type does not match the upload.");
+		}
+
+		if (
+			response.Content.Headers.ContentLength is long contentLength &&
+			contentLength != expectedSizeBytes
+		)
+		{
+			return InvalidValidationResult("Stored object size does not match the upload.");
+		}
+
+		await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+		using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+		using var content = new MemoryStream(
+			(int)Math.Min(expectedSizeBytes, int.MaxValue)
+		);
+		var buffer = new byte[81920];
+		long sizeBytes = 0;
+
+		while (true)
+		{
+			var bytesRead = await stream.ReadAsync(buffer, cancellationToken);
+			if (bytesRead == 0)
+			{
+				break;
+			}
+
+			sizeBytes += bytesRead;
+			if (sizeBytes > expectedSizeBytes)
+			{
+				return InvalidValidationResult("Stored object size does not match the upload.");
+			}
+
+			hasher.AppendData(buffer, 0, bytesRead);
+			await content.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+		}
+
+		if (sizeBytes != expectedSizeBytes)
+		{
+			return InvalidValidationResult("Stored object size does not match the upload.");
+		}
+
+		var contentHash = ToHex(hasher.GetHashAndReset());
+		var scanResult = await _contentScanner.ScanAsync(
+			content.ToArray(),
+			actualContentType,
+			cancellationToken
+		);
+		if (!scanResult.IsSafe)
+		{
+			return new FileStorageValidationResult
+			{
+				IsValid = true,
+				ContentHash = contentHash,
+				ContentType = actualContentType,
+				SizeBytes = sizeBytes,
+				IsSafe = false,
+				ThreatName = scanResult.ThreatName
+			};
+		}
+
+		if (
+			!string.IsNullOrWhiteSpace(expectedContentHash) &&
+			!string.Equals(
+				contentHash,
+				expectedContentHash.Trim(),
+				StringComparison.OrdinalIgnoreCase
+			)
+		)
+		{
+			return InvalidValidationResult("Stored object checksum does not match the upload.");
+		}
+
+		return new FileStorageValidationResult
+		{
+			IsValid = true,
+			ContentHash = contentHash,
+			ContentType = actualContentType,
+			SizeBytes = sizeBytes,
+			IsSafe = true
+		};
+	}
+
+	public async Task<bool> DeleteObjectAsync(
+		string storageKey,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var signedUrl = CreateSignedUrl("DELETE", storageKey, ValidationUrlExpiry);
+		using var request = new HttpRequestMessage(HttpMethod.Delete, signedUrl.Url);
+		using var response = await _httpClientFactory
+			.CreateClient()
+			.SendAsync(request, cancellationToken);
+
+		return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound;
 	}
 
 	private FileStorageSignedUrl CreateSignedUrl(
@@ -183,5 +323,14 @@ public sealed class R2FileStorageService : IFileStorageService
 		}
 
 		return builder.ToString();
+	}
+
+	private static FileStorageValidationResult InvalidValidationResult(string errorMessage)
+	{
+		return new FileStorageValidationResult
+		{
+			IsValid = false,
+			ErrorMessage = errorMessage
+		};
 	}
 }

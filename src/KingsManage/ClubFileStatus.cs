@@ -4,5 +4,6 @@ public enum ClubFileStatus
 {
 	PendingUpload,
 	Uploaded,
+	Quarantined,
 	Deleted
 }

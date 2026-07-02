@@ -45,6 +45,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		candidate.OrganizationId = _tenant.OrganizationId;
 		candidate.ContentHash = contentHash;
 		candidate.StorageKey = candidate.StorageKey.Trim();
+		candidate.StorageProvider = candidate.StorageProvider.Trim();
 		candidate.ContentType = candidate.ContentType.Trim();
 		candidate.CreatedAt = DateTime.UtcNow;
 		candidate.UpdatedAt = candidate.CreatedAt;
@@ -89,12 +90,52 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		);
 	}
 
-	public Task IncrementReferenceCountAsync(
+	public async Task<StoredFileObject?> MarkQuarantinedAsync(
+		Guid id,
+		string reason,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var now = DateTime.UtcNow;
+		return await _objects.FindOneAndUpdateAsync(
+			OrganizationFilter() & Builders<StoredFileObject>.Filter.Eq(item => item.Id, id),
+			Builders<StoredFileObject>.Update
+				.Set(item => item.Status, StoredFileObjectStatus.Quarantined)
+				.Set(item => item.QuarantinedAt, now)
+				.Set(item => item.QuarantineReason, reason.Trim())
+				.Set(item => item.UpdatedAt, now),
+			new FindOneAndUpdateOptions<StoredFileObject>
+			{
+				ReturnDocument = ReturnDocument.After
+			},
+			cancellationToken
+		);
+	}
+
+	public async Task<bool> IncrementReferenceCountAsync(
 		Guid id,
 		CancellationToken cancellationToken = default
 	)
 	{
-		return UpdateReferenceCountAsync(id, 1, cancellationToken);
+		var result = await _objects.UpdateOneAsync(
+			OrganizationFilter()
+				& Builders<StoredFileObject>.Filter.Eq(item => item.Id, id)
+				& Builders<StoredFileObject>.Filter.In(
+					item => item.Status,
+					[
+						StoredFileObjectStatus.PendingUpload,
+						StoredFileObjectStatus.Uploaded,
+						StoredFileObjectStatus.Quarantined
+					]
+				),
+			Builders<StoredFileObject>.Update
+				.Inc(item => item.ReferenceCount, 1)
+				.Set(item => item.OrphanedAt, null)
+				.Set(item => item.UpdatedAt, DateTime.UtcNow),
+			cancellationToken: cancellationToken
+		);
+
+		return result.ModifiedCount == 1;
 	}
 
 	public async Task DecrementReferenceCountAsync(
@@ -139,22 +180,6 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		);
 	}
 
-	private async Task UpdateReferenceCountAsync(
-		Guid id,
-		int amount,
-		CancellationToken cancellationToken
-	)
-	{
-		await _objects.UpdateOneAsync(
-			OrganizationFilter() & Builders<StoredFileObject>.Filter.Eq(item => item.Id, id),
-			Builders<StoredFileObject>.Update
-				.Inc(item => item.ReferenceCount, amount)
-				.Set(item => item.OrphanedAt, null)
-				.Set(item => item.UpdatedAt, DateTime.UtcNow),
-			cancellationToken: cancellationToken
-		);
-	}
-
 	private async Task<StoredFileObject?> FindByHashAsync(
 		string contentHash,
 		CancellationToken cancellationToken
@@ -163,7 +188,14 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		return await _objects
 			.Find(OrganizationFilter() &
 				Builders<StoredFileObject>.Filter.Eq(item => item.ContentHash, contentHash) &
-				Builders<StoredFileObject>.Filter.Ne(item => item.Status, StoredFileObjectStatus.Deleted))
+				Builders<StoredFileObject>.Filter.In(
+					item => item.Status,
+					[
+						StoredFileObjectStatus.PendingUpload,
+						StoredFileObjectStatus.Uploaded,
+						StoredFileObjectStatus.Quarantined
+					]
+				))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 

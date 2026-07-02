@@ -33,6 +33,44 @@ public sealed class TenantDataMigrator
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
+		await EnsureFileLifecycleIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureFileLifecycleIndexesAsync(CancellationToken cancellationToken)
+	{
+		var objects = _database.GetCollection<StoredFileObject>("storedFileObjects");
+		var files = _database.GetCollection<ClubFile>("files");
+		var audit = _database.GetCollection<FileLifecycleAudit>("fileLifecycleAudit");
+
+		await objects.Indexes.CreateOneAsync(
+			new CreateIndexModel<StoredFileObject>(
+				Builders<StoredFileObject>.IndexKeys
+					.Ascending(item => item.Status)
+					.Ascending(item => item.ReferenceCount)
+					.Ascending(item => item.OrphanedAt),
+				new CreateIndexOptions { Name = "LifecycleCleanup_1" }
+			),
+			cancellationToken: cancellationToken
+		);
+		await files.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubFile>(
+				Builders<ClubFile>.IndexKeys
+					.Ascending(item => item.Status)
+					.Ascending(item => item.CreatedAt)
+					.Ascending(item => item.QuarantinedAt),
+				new CreateIndexOptions { Name = "UploadExpiry_1" }
+			),
+			cancellationToken: cancellationToken
+		);
+		await audit.Indexes.CreateOneAsync(
+			new CreateIndexModel<FileLifecycleAudit>(
+				Builders<FileLifecycleAudit>.IndexKeys
+					.Ascending(item => item.OrganizationId)
+					.Descending(item => item.CreatedAt),
+				new CreateIndexOptions { Name = "OrganizationCreatedAt_1" }
+			),
+			cancellationToken: cancellationToken
+		);
 	}
 
 	private async Task EnsureStoredFileObjectIndexesAsync(CancellationToken cancellationToken)

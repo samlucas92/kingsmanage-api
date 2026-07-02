@@ -12,7 +12,13 @@ public interface IStoredFileObjectService
 		CancellationToken cancellationToken = default
 	);
 
-	Task IncrementReferenceCountAsync(
+	Task<StoredFileObject?> MarkQuarantinedAsync(
+		Guid id,
+		string reason,
+		CancellationToken cancellationToken = default
+	);
+
+	Task<bool> IncrementReferenceCountAsync(
 		Guid id,
 		CancellationToken cancellationToken = default
 	);

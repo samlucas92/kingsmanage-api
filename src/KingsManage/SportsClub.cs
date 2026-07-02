@@ -12,6 +12,8 @@ public sealed class SportsClub
 
 	public string SportKey { get; set; } = string.Empty;
 
+	public Guid? LogoFileId { get; set; }
+
 	public bool IsActive { get; set; } = true;
 
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

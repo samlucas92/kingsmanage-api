@@ -19,6 +19,16 @@ public class ClubPostTemplateService : IClubPostTemplateService
 			.SortBy(template => template.Name)
 			.ToListAsync(cancellationToken);
 
+	public async Task<ClubPostTemplate?> GetByIdAsync(
+		Guid id,
+		CancellationToken cancellationToken = default
+	) =>
+		await _templates.Find(
+				_tenant.Filter<ClubPostTemplate>() &
+				Builders<ClubPostTemplate>.Filter.Eq(template => template.Id, id)
+			)
+			.FirstOrDefaultAsync(cancellationToken);
+
 	public async Task<ClubPostTemplate> CreateAsync(ClubPostTemplate template, CancellationToken cancellationToken = default)
 	{
 		template.Id = template.Id == Guid.Empty ? Guid.NewGuid() : template.Id;

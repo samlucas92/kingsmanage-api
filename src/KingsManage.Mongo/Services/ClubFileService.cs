@@ -97,6 +97,33 @@ public class ClubFileService : IClubFileService
 		return result.MatchedCount == 0 ? null : file;
 	}
 
+	public async Task<ClubFile?> MarkQuarantinedAsync(
+		Guid id,
+		string reason,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var file = await GetByIdAsync(id, cancellationToken);
+
+		if (file is null || file.Status == ClubFileStatus.Deleted)
+		{
+			return null;
+		}
+
+		file.Status = ClubFileStatus.Quarantined;
+		file.QuarantinedAt = DateTime.UtcNow;
+		file.QuarantineReason = reason.Trim();
+		file.UpdatedAt = DateTime.UtcNow;
+
+		var result = await _files.ReplaceOneAsync(
+			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
+			file,
+			cancellationToken: cancellationToken
+		);
+
+		return result.MatchedCount == 0 ? null : file;
+	}
+
 	public async Task<bool> SoftDeleteAsync(
 		Guid id,
 		Guid deletedByUserId,

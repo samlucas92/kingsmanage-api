@@ -9,4 +9,5 @@ public sealed class FileUploadUrlResponse
 	public DateTime ExpiresAtUtc { get; set; }
 	public bool UploadRequired { get; set; } = true;
 	public bool ReusedStoredObject { get; set; }
+	public string StorageWarning { get; set; } = string.Empty;
 }

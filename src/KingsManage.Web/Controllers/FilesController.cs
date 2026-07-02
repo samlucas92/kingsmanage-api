@@ -12,6 +12,8 @@ namespace KingsManage.Web.Controllers;
 public class FilesController : ControllerBase
 {
 	private const long MaxFileSizeBytes = 10 * 1024 * 1024;
+	private const long MaxManagedImageSizeBytes = 5 * 1024 * 1024;
+	private const long MaxClubLogoSizeBytes = 2 * 1024 * 1024;
 	private static readonly TimeSpan UploadUrlExpiry = TimeSpan.FromMinutes(15);
 	private static readonly TimeSpan DownloadUrlExpiry = TimeSpan.FromMinutes(10);
 	private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -34,28 +36,37 @@ public class FilesController : ControllerBase
 	private readonly IClubFileService _fileService;
 	private readonly IStoredFileObjectService _storedObjectService;
 	private readonly IFileStorageService _storageService;
+	private readonly IFileLifecycleService _lifecycleService;
 	private readonly ITenantContext _tenantContext;
 	private readonly IClubPostService _postService;
 	private readonly IClubEventService _eventService;
 	private readonly IPlayerService _playerService;
+	private readonly ISportsClubService _clubService;
+	private readonly IClubPostTemplateService _templateService;
 
 	public FilesController(
 		IClubFileService fileService,
 		IStoredFileObjectService storedObjectService,
 		IFileStorageService storageService,
+		IFileLifecycleService lifecycleService,
 		ITenantContext tenantContext,
 		IClubPostService postService,
 		IClubEventService eventService,
-		IPlayerService playerService
+		IPlayerService playerService,
+		ISportsClubService clubService,
+		IClubPostTemplateService templateService
 	)
 	{
 		_fileService = fileService;
 		_storedObjectService = storedObjectService;
 		_storageService = storageService;
+		_lifecycleService = lifecycleService;
 		_tenantContext = tenantContext;
 		_postService = postService;
 		_eventService = eventService;
 		_playerService = playerService;
+		_clubService = clubService;
+		_templateService = templateService;
 	}
 
 	[HttpGet]
@@ -121,6 +132,31 @@ public class FilesController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
+		var capacity = await _lifecycleService.CheckUploadCapacityAsync(
+			_tenantContext.OrganizationId,
+			model.ContentHash,
+			model.SizeBytes,
+			cancellationToken
+		);
+		if (!capacity.IsAllowed)
+		{
+			await _lifecycleService.RecordAuditAsync(
+				new FileLifecycleAudit
+				{
+					OrganizationId = _tenantContext.OrganizationId,
+					ClubId = _tenantContext.ClubId,
+					UserId = userIdResult.UserId,
+					EventType = FileLifecycleEventType.UploadRejected,
+					Detail = "Organization file-storage quota exceeded."
+				},
+				cancellationToken
+			);
+			return StatusCode(
+				StatusCodes.Status413PayloadTooLarge,
+				"Organization file-storage quota exceeded. Delete unused files or increase the storage allowance."
+			);
+		}
+
 		var fileId = Guid.NewGuid();
 		var safeFileName = BuildSafeFileName(model.OriginalFileName);
 		var contentHash = model.ContentHash.Trim().ToLowerInvariant();
@@ -140,6 +176,7 @@ public class FilesController : ControllerBase
 					_tenantContext.OrganizationId,
 					contentHash
 				),
+				StorageProvider = "CloudflareR2",
 				ContentType = model.ContentType.Trim(),
 				SizeBytes = model.SizeBytes
 			};
@@ -172,6 +209,17 @@ public class FilesController : ControllerBase
 			);
 		}
 
+		if (
+			storedObject is not null &&
+			!await _storedObjectService.IncrementReferenceCountAsync(
+				storedObject.Id,
+				cancellationToken
+			)
+		)
+		{
+			return Conflict("The stored object is currently being removed. Please retry the upload.");
+		}
+
 		var file = await _fileService.CreateAsync(
 			new ClubFile
 			{
@@ -197,14 +245,18 @@ public class FilesController : ControllerBase
 			},
 			cancellationToken
 		);
-
-		if (storedObject is not null)
-		{
-			await _storedObjectService.IncrementReferenceCountAsync(
-				storedObject.Id,
-				cancellationToken
-			);
-		}
+		await RecordAuditAsync(
+			uploadRequired
+				? FileLifecycleEventType.UploadRequested
+				: FileLifecycleEventType.UploadReused,
+			file,
+			storedObject,
+			userIdResult.UserId,
+			uploadRequired
+				? "New upload session created."
+				: "Existing validated object reused.",
+			cancellationToken
+		);
 
 		FileStorageSignedUrl? signedUrl = null;
 		if (uploadRequired)
@@ -222,7 +274,10 @@ public class FilesController : ControllerBase
 			UploadUrl = signedUrl?.Url ?? string.Empty,
 			ExpiresAtUtc = signedUrl?.ExpiresAtUtc ?? DateTime.UtcNow,
 			UploadRequired = uploadRequired,
-			ReusedStoredObject = reusedStoredObject
+			ReusedStoredObject = reusedStoredObject,
+			StorageWarning = capacity.Usage.IsNearLimit
+				? $"Organization storage is {capacity.Usage.UsedPercent:0.##}% full."
+				: string.Empty
 		});
 	}
 
@@ -239,14 +294,73 @@ public class FilesController : ControllerBase
 		}
 
 		var pendingFile = await _fileService.GetByIdAsync(fileId, cancellationToken);
-		var file = await _fileService.MarkUploadedAsync(fileId, cancellationToken);
 
-		if (file is null)
+		if (pendingFile is null || pendingFile.Status == ClubFileStatus.Deleted)
 		{
 			return NotFound();
 		}
 
-		if (pendingFile?.StoredObjectId is Guid storedObjectId)
+		if (pendingFile.Status == ClubFileStatus.Uploaded)
+		{
+			return Ok(pendingFile);
+		}
+
+		var validation = await _storageService.ValidateObjectAsync(
+			pendingFile.StorageKey,
+			pendingFile.ContentHash,
+			pendingFile.ContentType,
+			pendingFile.SizeBytes,
+			cancellationToken
+		);
+
+		if (!validation.IsValid)
+		{
+			await RecordAuditAsync(
+				FileLifecycleEventType.UploadRejected,
+				pendingFile,
+				null,
+				GetCurrentUserId().UserId,
+				validation.ErrorMessage,
+				cancellationToken
+			);
+			return BadRequest(
+				string.IsNullOrWhiteSpace(validation.ErrorMessage)
+					? "Uploaded file failed validation."
+					: validation.ErrorMessage
+			);
+		}
+
+		if (!validation.IsSafe)
+		{
+			var reason = string.IsNullOrWhiteSpace(validation.ThreatName)
+				? "File content failed security scanning."
+				: validation.ThreatName;
+			if (pendingFile.StoredObjectId is Guid quarantinedObjectId)
+			{
+				await _storedObjectService.MarkQuarantinedAsync(
+					quarantinedObjectId,
+					reason,
+					cancellationToken
+				);
+			}
+
+			var quarantinedFile = await _fileService.MarkQuarantinedAsync(
+				pendingFile.Id,
+				reason,
+				cancellationToken
+			);
+			await RecordAuditAsync(
+				FileLifecycleEventType.FileQuarantined,
+				quarantinedFile ?? pendingFile,
+				null,
+				GetCurrentUserId().UserId,
+				reason,
+				cancellationToken
+			);
+			return UnprocessableEntity("The uploaded file was quarantined by security scanning.");
+		}
+
+		if (pendingFile.StoredObjectId is Guid storedObjectId)
 		{
 			await _storedObjectService.MarkUploadedAsync(
 				storedObjectId,
@@ -254,7 +368,123 @@ public class FilesController : ControllerBase
 			);
 		}
 
+		var file = await _fileService.MarkUploadedAsync(fileId, cancellationToken);
+
+		if (file is null)
+		{
+			return NotFound();
+		}
+
+		await RecordAuditAsync(
+			FileLifecycleEventType.UploadValidated,
+			file,
+			null,
+			GetCurrentUserId().UserId,
+			"Upload checksum, size, content type and security scan validated.",
+			cancellationToken
+		);
+
 		return Ok(file);
+	}
+
+	[Authorize(Policy = "OrganizationAdmin")]
+	[HttpGet("storage-usage")]
+	public async Task<ActionResult<FileStorageUsage>> GetStorageUsage(
+		CancellationToken cancellationToken
+	)
+	{
+		return Ok(
+			await _lifecycleService.GetUsageAsync(
+				_tenantContext.OrganizationId,
+				cancellationToken
+			)
+		);
+	}
+
+	[Authorize(Policy = "OrganizationAdmin")]
+	[HttpGet("audit")]
+	public async Task<ActionResult<IReadOnlyList<FileLifecycleAudit>>> GetAudit(
+		[FromQuery] int limit = 100,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Ok(
+			await _lifecycleService.GetAuditAsync(
+				_tenantContext.OrganizationId,
+				limit,
+				cancellationToken
+			)
+		);
+	}
+
+	[Authorize(Policy = "OrganizationAdmin")]
+	[HttpPost("{id}/assign-club-logo")]
+	public async Task<ActionResult<SportsClub>> AssignClubLogo(
+		string id,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "File", out var fileId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		if (
+			file is null ||
+			file.Status != ClubFileStatus.Uploaded ||
+			file.LinkedEntityType != ClubFileLinkedEntityType.ClubLogo ||
+			!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+		)
+		{
+			return BadRequest("A valid uploaded club logo is required.");
+		}
+
+		var club = await _clubService.GetByIdAsync(file.LinkedEntityId, cancellationToken);
+		if (club is null)
+		{
+			return NotFound();
+		}
+
+		var previousFileId = club.LogoFileId;
+		var updated = await _clubService.SetLogoFileAsync(
+			club.Id,
+			file.Id,
+			cancellationToken
+		);
+		if (updated is null)
+		{
+			return NotFound();
+		}
+
+		if (previousFileId is Guid previousId && previousId != file.Id)
+		{
+			await DeleteManagedReferenceAsync(previousId, cancellationToken);
+		}
+
+		return Ok(updated);
+	}
+
+	[Authorize(Policy = "OrganizationAdmin")]
+	[HttpDelete("club-logo/{clubId:guid}")]
+	public async Task<ActionResult<SportsClub>> RemoveClubLogo(
+		Guid clubId,
+		CancellationToken cancellationToken
+	)
+	{
+		var club = await _clubService.GetByIdAsync(clubId, cancellationToken);
+		if (club is null)
+		{
+			return NotFound();
+		}
+
+		var updated = await _clubService.SetLogoFileAsync(clubId, null, cancellationToken);
+		if (club.LogoFileId is Guid fileId)
+		{
+			await DeleteManagedReferenceAsync(fileId, cancellationToken);
+		}
+
+		return Ok(updated);
 	}
 
 	[HttpGet("{id}/download-url")]
@@ -333,7 +563,45 @@ public class FilesController : ControllerBase
 			);
 		}
 
+		if (file is not null)
+		{
+			await RecordAuditAsync(
+				FileLifecycleEventType.ReferenceDeleted,
+				file,
+				null,
+				userIdResult.UserId,
+				"File reference deleted.",
+				cancellationToken
+			);
+		}
+
 		return NoContent();
+	}
+
+	private Task RecordAuditAsync(
+		FileLifecycleEventType eventType,
+		ClubFile file,
+		StoredFileObject? storedObject,
+		Guid? userId,
+		string detail,
+		CancellationToken cancellationToken
+	)
+	{
+		return _lifecycleService.RecordAuditAsync(
+			new FileLifecycleAudit
+			{
+				OrganizationId = file.OrganizationId == Guid.Empty
+					? _tenantContext.OrganizationId
+					: file.OrganizationId,
+				ClubId = file.ClubId == Guid.Empty ? _tenantContext.ClubId : file.ClubId,
+				FileId = file.Id,
+				StoredObjectId = storedObject?.Id ?? file.StoredObjectId,
+				UserId = userId,
+				EventType = eventType,
+				Detail = detail
+			},
+			cancellationToken
+		);
 	}
 
 	private async Task<string?> ValidateCreateUploadUrlModelAsync(
@@ -381,6 +649,28 @@ public class FilesController : ControllerBase
 		}
 
 		if (
+			model.LinkedEntityType is ClubFileLinkedEntityType.ClubLogo
+				or ClubFileLinkedEntityType.PostTemplate
+				or ClubFileLinkedEntityType.RichTextDraft
+		)
+		{
+			if (!model.ContentType.Trim().StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+			{
+				return "Managed editor and branding assets must be images.";
+			}
+
+			var imageLimit = model.LinkedEntityType == ClubFileLinkedEntityType.ClubLogo
+				? MaxClubLogoSizeBytes
+				: MaxManagedImageSizeBytes;
+			if (model.SizeBytes > imageLimit)
+			{
+				return model.LinkedEntityType == ClubFileLinkedEntityType.ClubLogo
+					? "Club logos must be 2MB or less."
+					: "Embedded images must be 5MB or less.";
+			}
+		}
+
+		if (
 			!string.IsNullOrWhiteSpace(model.ContentHash) &&
 			!IsSha256Hash(model.ContentHash)
 		)
@@ -422,6 +712,11 @@ public class FilesController : ControllerBase
 			ClubFileLinkedEntityType.Player =>
 				await _playerService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.ClubDocument => true,
+			ClubFileLinkedEntityType.ClubLogo =>
+				await _clubService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+			ClubFileLinkedEntityType.PostTemplate =>
+				await _templateService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+			ClubFileLinkedEntityType.RichTextDraft => true,
 			_ => false
 		};
 	}
@@ -443,8 +738,42 @@ public class FilesController : ControllerBase
 			ClubFileLinkedEntityType.Event => await CanCurrentUserAccessEventFileAsync(file.LinkedEntityId, cancellationToken),
 			ClubFileLinkedEntityType.Player => IsAdminOrCoach(),
 			ClubFileLinkedEntityType.ClubDocument => IsAdminOrCoach(),
+			ClubFileLinkedEntityType.ClubLogo => true,
+			ClubFileLinkedEntityType.PostTemplate => IsAdminOrCoach(),
+			ClubFileLinkedEntityType.RichTextDraft => IsAdminOrCoach(),
 			_ => false
 		};
+	}
+
+	private async Task DeleteManagedReferenceAsync(
+		Guid fileId,
+		CancellationToken cancellationToken
+	)
+	{
+		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		if (file is null)
+		{
+			return;
+		}
+
+		var user = GetCurrentUserId();
+		if (!user.Success)
+		{
+			return;
+		}
+
+		if (!await _fileService.SoftDeleteAsync(fileId, user.UserId, cancellationToken))
+		{
+			return;
+		}
+
+		if (file.StoredObjectId is Guid storedObjectId)
+		{
+			await _storedObjectService.DecrementReferenceCountAsync(
+				storedObjectId,
+				cancellationToken
+			);
+		}
 	}
 
 	private async Task<bool> CanCurrentUserAccessEventFileAsync(

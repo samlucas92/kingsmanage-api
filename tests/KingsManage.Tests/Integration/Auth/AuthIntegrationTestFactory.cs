@@ -25,6 +25,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestClubFileService ClubFileService { get; } = new();
 	public TestStoredFileObjectService StoredFileObjectService { get; } = new();
 	public TestFileStorageService FileStorageService { get; } = new();
+	public TestFileLifecycleService FileLifecycleService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -40,7 +41,8 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 				["Jwt:ExpiryMinutes"] = "60",
 				["DefaultAdmin:Email"] = "default-admin@test.local",
 				["DefaultAdmin:Password"] = "DefaultAdmin123!",
-				["Tenancy:RunStartupMigration"] = "false"
+				["Tenancy:RunStartupMigration"] = "false",
+				["FileLifecycle:Enabled"] = "false"
 			};
 
 			configurationBuilder.AddInMemoryCollection(testConfiguration);
@@ -60,6 +62,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IClubFileService>();
 			services.RemoveAll<IStoredFileObjectService>();
 			services.RemoveAll<IFileStorageService>();
+			services.RemoveAll<IFileLifecycleService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
@@ -73,6 +76,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IClubFileService>(ClubFileService);
 			services.AddSingleton<IStoredFileObjectService>(StoredFileObjectService);
 			services.AddSingleton<IFileStorageService>(FileStorageService);
+			services.AddSingleton<IFileLifecycleService>(FileLifecycleService);
 		});
 	}
 

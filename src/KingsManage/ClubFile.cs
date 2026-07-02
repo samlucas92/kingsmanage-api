@@ -21,6 +21,8 @@ public class ClubFile : ITenantOwned
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 	public DateTime? UploadedAt { get; set; }
+	public DateTime? QuarantinedAt { get; set; }
+	public string QuarantineReason { get; set; } = string.Empty;
 	public DateTime? DeletedAt { get; set; }
 	public Guid? DeletedByUserId { get; set; }
 }

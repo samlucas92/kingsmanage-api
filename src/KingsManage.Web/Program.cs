@@ -22,6 +22,7 @@ using MongoPlayerService = KingsManage.Mongo.Services.PlayerService;
 using MongoSeasonService = KingsManage.Mongo.Services.SeasonService;
 using MongoStatsService = KingsManage.Mongo.Services.StatsService;
 using MongoStoredFileObjectService = KingsManage.Mongo.Services.StoredFileObjectService;
+using MongoFileLifecycleService = KingsManage.Mongo.Services.FileLifecycleService;
 using MongoUserMembershipService = KingsManage.Mongo.Services.UserMembershipService;
 using MongoUserService = KingsManage.Mongo.Services.UserService;
 using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
@@ -53,6 +54,9 @@ var jwtSettings = builder.Configuration
 var r2StorageSettings = builder.Configuration
 	.GetSection("R2")
 	.Get<R2StorageSettings>() ?? new R2StorageSettings();
+var fileLifecycleSettings = builder.Configuration
+	.GetSection("FileLifecycle")
+	.Get<FileLifecycleSettings>() ?? new FileLifecycleSettings();
 
 r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
 r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
@@ -69,6 +73,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 
 builder.Services.AddSingleton(mongoDbSettings);
 builder.Services.AddSingleton(r2StorageSettings);
+builder.Services.AddSingleton(fileLifecycleSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -80,6 +85,7 @@ builder.Services.Configure<JwtSettings>(options =>
 
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<TenantDataMigrator>();
+builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
 builder.Services.AddScoped<TenantMongoScope>();
@@ -97,12 +103,20 @@ builder.Services.AddScoped<IClubTeamService, MongoClubTeamService>();
 builder.Services.AddScoped<IClubNotificationService, MongoClubNotificationService>();
 builder.Services.AddScoped<IClubFileService, MongoClubFileService>();
 builder.Services.AddScoped<IStoredFileObjectService, MongoStoredFileObjectService>();
+builder.Services.AddScoped<IFileLifecycleService, MongoFileLifecycleService>();
 builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
+builder.Services.AddScoped<RichTextAssetService>();
+builder.Services.AddSingleton<IFileContentScanner, BasicFileContentScanner>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
 builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, MongoUserMembershipService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+
+if (fileLifecycleSettings.Enabled)
+{
+	builder.Services.AddHostedService<FileLifecycleBackgroundService>();
+}
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 

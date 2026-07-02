@@ -23,6 +23,12 @@ public interface IClubFileService
 		CancellationToken cancellationToken = default
 	);
 
+	Task<ClubFile?> MarkQuarantinedAsync(
+		Guid id,
+		string reason,
+		CancellationToken cancellationToken = default
+	);
+
 	Task<bool> SoftDeleteAsync(
 		Guid id,
 		Guid deletedByUserId,

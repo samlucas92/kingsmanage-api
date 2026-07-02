@@ -36,6 +36,20 @@ public static class RichTextBody
 	{
 		if (element.ValueKind == JsonValueKind.Object)
 		{
+			if (
+				element.TryGetProperty("type", out var type) &&
+				type.GetString() == "image"
+			)
+			{
+				builder.Append(
+					element.TryGetProperty("alt", out var alt) &&
+					!string.IsNullOrWhiteSpace(alt.GetString())
+						? alt.GetString()
+						: "Image"
+				);
+				return;
+			}
+
 			if (element.TryGetProperty("text", out var text))
 			{
 				builder.Append(text.GetString());

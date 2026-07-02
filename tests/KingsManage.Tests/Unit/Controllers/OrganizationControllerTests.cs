@@ -46,6 +46,7 @@ public sealed class OrganizationControllerTests
 		public Task<SportsClub?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 		public Task<SportsClub> CreateAsync(SportsClub club, CancellationToken cancellationToken = default) { CreatedClub = club; club.Id = Guid.NewGuid(); return Task.FromResult(club); }
 		public Task<SportsClub?> UpdateAsync(Guid id, SportsClub club, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(club);
+		public Task<SportsClub?> SetLogoFileAsync(Guid id, Guid? logoFileId, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 		public Task<SportsClub?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 	}
 }

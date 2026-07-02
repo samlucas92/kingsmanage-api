@@ -17,18 +17,21 @@ public class PostsController : ControllerBase
 	private readonly IClubNotificationService _notificationService;
 	private readonly IUserService _userService;
 	private readonly IRealtimeNotifier _realtimeNotifier;
+	private readonly RichTextAssetService _richTextAssets;
 
 	public PostsController(
 		IClubPostService postService,
 		IClubNotificationService notificationService,
 		IUserService userService,
-		IRealtimeNotifier? realtimeNotifier = null
+		IRealtimeNotifier? realtimeNotifier = null,
+		RichTextAssetService? richTextAssets = null
 	)
 	{
 		_postService = postService;
 		_notificationService = notificationService;
 		_userService = userService;
 		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
+		_richTextAssets = richTextAssets ?? throw new ArgumentNullException(nameof(richTextAssets));
 	}
 
 	[HttpGet]
@@ -83,11 +86,30 @@ public class PostsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var createdPost = await _postService.CreateAsync(
-			model.ToClubPost(
+		var post = model.ToClubPost(
 				userIdResult.UserId,
 				User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
-			),
+			);
+		post.Id = Guid.NewGuid();
+		try
+		{
+			post.Body = await _richTextAssets.SynchronizeAsync(
+				post.Body,
+				null,
+				ClubFileLinkedEntityType.Post,
+				post.Id,
+				userIdResult.UserId,
+				post.CreatedByUserEmail,
+				cancellationToken
+			);
+		}
+		catch (InvalidOperationException exception)
+		{
+			return BadRequest(exception.Message);
+		}
+
+		var createdPost = await _postService.CreateAsync(
+			post,
 			cancellationToken
 		);
 
@@ -131,8 +153,27 @@ public class PostsController : ControllerBase
 			return NotFound();
 		}
 
+		var previousBody = existingPost.Body;
+		var updated = model.ToClubPost(existingPost);
+		try
+		{
+			updated.Body = await _richTextAssets.SynchronizeAsync(
+				updated.Body,
+				previousBody,
+				ClubFileLinkedEntityType.Post,
+				existingPost.Id,
+				existingPost.CreatedByUserId,
+				existingPost.CreatedByUserEmail,
+				cancellationToken
+			);
+		}
+		catch (InvalidOperationException exception)
+		{
+			return BadRequest(exception.Message);
+		}
+
 		var updatedPost = await _postService.UpdateAsync(
-			model.ToClubPost(existingPost),
+			updated,
 			cancellationToken
 		);
 
@@ -156,12 +197,32 @@ public class PostsController : ControllerBase
 			return errorResult!;
 		}
 
+		var existingPost = await _postService.GetByIdAsync(postId, cancellationToken);
+		if (existingPost is null)
+		{
+			return NotFound();
+		}
+
+		var userIdResult = GetCurrentUserId();
+		if (!userIdResult.Success)
+		{
+			return BadRequest(userIdResult.ErrorMessage);
+		}
+
 		var deleted = await _postService.DeleteAsync(postId, cancellationToken);
 
 		if (!deleted)
 		{
 			return NotFound();
 		}
+
+		await _richTextAssets.DeleteAllAsync(
+			existingPost.Body,
+			ClubFileLinkedEntityType.Post,
+			postId,
+			userIdResult.UserId,
+			cancellationToken
+		);
 
 		return NoContent();
 	}
