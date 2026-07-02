@@ -32,6 +32,8 @@ public static class SportCatalog
 			["4-4-2", "4-3-3", "3-5-2", "4-2-3-1"]),
 		Create("rugby-union", "Rugby Union", "rugby-pitch", 15,
 			["PR|Prop|Forwards", "HK|Hooker|Forwards", "LK|Lock|Forwards", "FL|Flanker|Forwards", "N8|Number Eight|Forwards", "SH|Scrum Half|Backs", "FH|Fly Half|Backs", "CE|Centre|Backs", "WG|Wing|Backs", "FB|Full Back|Backs"], ["standard-xv"]),
+		Create("rugby-league", "Rugby League", "rugby-pitch", 13,
+			["FB|Fullback|Backs", "WG|Winger|Backs", "CE|Centre|Backs", "FE|Five-Eighth|Halves", "HB|Halfback|Halves", "PR|Prop|Forwards", "HK|Hooker|Forwards", "SR|Second Row|Forwards", "LK|Lock|Forwards"], ["standard-xiii"]),
 		Create("cricket", "Cricket", "cricket-field", 11,
 			["WK|Wicket Keeper|Field", "SL|Slip|Field", "PT|Point|Field", "CV|Cover|Field", "MO|Mid Off|Field", "MN|Mid On|Field", "FL|Fine Leg|Field", "DEEP|Deep Fielder|Field", "BAT|Batter|Batting", "AR|All-rounder|All-rounder", "BOWL|Bowler|Bowling"], ["fielding-standard"]),
 		Create("hockey", "Hockey", "hockey-pitch", 11,

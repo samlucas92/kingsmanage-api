@@ -12,8 +12,9 @@ public sealed class SportsControllerTests
 		var result = new SportsController().GetAll();
 		var sports = (result.Result as OkObjectResult)?.Value as IReadOnlyList<KingsManage.SportDefinition>;
 
-		Assert.That(sports?.Select(sport => sport.Key), Is.SupersetOf(new[] { "football", "rugby-union", "cricket", "hockey", "netball" }));
+		Assert.That(sports?.Select(sport => sport.Key), Is.SupersetOf(new[] { "football", "rugby-union", "rugby-league", "cricket", "hockey", "netball" }));
 		Assert.That(sports?.Single(sport => sport.Key == "netball").PlayersPerSide, Is.EqualTo(7));
+		Assert.That(sports?.Single(sport => sport.Key == "rugby-league").PlayersPerSide, Is.EqualTo(13));
 	}
 
 	[Test]

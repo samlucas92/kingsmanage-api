@@ -43,6 +43,7 @@ public sealed class SportsClubService : ISportsClubService
 		existing.Name = club.Name;
 		existing.Slug = club.Slug;
 		existing.SportKey = club.SportKey;
+		existing.CustomFormations = club.CustomFormations;
 		existing.LogoFileId = club.LogoFileId;
 		Normalise(existing);
 		existing.UpdatedAt = DateTime.UtcNow;
@@ -91,5 +92,17 @@ public sealed class SportsClubService : ISportsClubService
 		club.Name = club.Name.Trim();
 		club.Slug = club.Slug.Trim().ToLowerInvariant();
 		club.SportKey = club.SportKey.Trim().ToLowerInvariant();
+		club.CustomFormations ??= [];
+		foreach (var formation in club.CustomFormations)
+		{
+			formation.Key = formation.Key.Trim().ToLowerInvariant();
+			formation.Name = formation.Name.Trim();
+			formation.Slots ??= [];
+			foreach (var slot in formation.Slots)
+			{
+				slot.Key = slot.Key.Trim().ToLowerInvariant();
+				slot.Label = slot.Label.Trim().ToUpperInvariant();
+			}
+		}
 	}
 }

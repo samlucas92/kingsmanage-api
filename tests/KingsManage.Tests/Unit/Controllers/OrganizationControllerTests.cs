@@ -33,6 +33,62 @@ public sealed class OrganizationControllerTests
 		Assert.That(clubs.CreatedClub?.Name, Is.EqualTo("Kingsbridge Rugby"));
 	}
 
+	[Test]
+	public async Task UpdateClub_AcceptsACompleteCustomFormation()
+	{
+		var club = new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			CustomFormations =
+			[
+				new ClubFormation
+				{
+					Key = "custom-shape",
+					Name = "Custom shape",
+					Slots = Enumerable.Range(0, 11).Select(index => new ClubFormationSlot
+					{
+						Key = $"slot-{index}",
+						Label = index == 0 ? "GK" : "CM",
+						X = 10 + index * 7,
+						Y = 50
+					}).ToList()
+				}
+			]
+		};
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var result = await controller.UpdateClub(Guid.NewGuid(), club, CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+	}
+
+	[Test]
+	public async Task UpdateClub_RejectsAnIncompleteCustomFormation()
+	{
+		var club = new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "rugby-league",
+			CustomFormations =
+			[
+				new ClubFormation
+				{
+					Key = "short-team",
+					Name = "Short team",
+					Slots = [new ClubFormationSlot { Key = "fullback", Label = "FB", X = 50, Y = 10 }]
+				}
+			]
+		};
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var result = await controller.UpdateClub(Guid.NewGuid(), club, CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
 	private sealed class StubOrganizationService : IOrganizationService
 	{
 		public Task<Organization?> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(new());

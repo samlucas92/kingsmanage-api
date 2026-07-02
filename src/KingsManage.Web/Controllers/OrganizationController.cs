@@ -59,9 +59,45 @@ public sealed class OrganizationController : ControllerBase
 	public async Task<ActionResult<SportsClub>> SetClubActive(Guid id, [FromBody] SetActiveRequest request, CancellationToken cancellationToken) =>
 		await _clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated ? Ok(updated) : NotFound();
 
-	private static string? ValidateClub(SportsClub club) =>
-		ValidateNameAndSlug(club.Name, club.Slug) ??
-		(string.IsNullOrWhiteSpace(club.SportKey) ? "Sport is required." : null);
+	private static string? ValidateClub(SportsClub club)
+	{
+		var basicError = ValidateNameAndSlug(club.Name, club.Slug) ??
+			(string.IsNullOrWhiteSpace(club.SportKey) ? "Sport is required." : null);
+		if (basicError is not null) return basicError;
+
+		var sport = SportCatalog.Find(club.SportKey);
+		if (sport is null) return "Sport is not supported.";
+
+		club.CustomFormations ??= [];
+		var builtInKeys = sport.Formations.Select(formation => formation.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+		var customKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var formation in club.CustomFormations)
+		{
+			if (string.IsNullOrWhiteSpace(formation.Name) || formation.Name.Trim().Length > 60)
+				return "Each custom formation needs a name of 60 characters or fewer.";
+			if (string.IsNullOrWhiteSpace(formation.Key) ||
+				!System.Text.RegularExpressions.Regex.IsMatch(formation.Key.Trim(), "^[a-z0-9]+(?:-[a-z0-9]+)*$"))
+				return "Each custom formation needs a valid key.";
+			if (builtInKeys.Contains(formation.Key) || !customKeys.Add(formation.Key))
+				return "Custom formation keys must be unique and cannot replace a built-in formation.";
+			if (formation.Slots is null || formation.Slots.Count != sport.PlayersPerSide)
+				return $"Each {sport.Name} formation must contain {sport.PlayersPerSide} positions.";
+
+			var slotKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var slot in formation.Slots)
+			{
+				if (string.IsNullOrWhiteSpace(slot.Key) || !slotKeys.Add(slot.Key))
+					return "Every formation position needs a unique key.";
+				if (string.IsNullOrWhiteSpace(slot.Label) || slot.Label.Trim().Length > 20)
+					return "Every formation position needs a label of 20 characters or fewer.";
+				if (slot.X is < 0 or > 100 || slot.Y is < 0 or > 100)
+					return "Formation positions must remain on the playing surface.";
+			}
+		}
+
+		return null;
+	}
 
 	private static string? ValidateNameAndSlug(string name, string slug)
 	{

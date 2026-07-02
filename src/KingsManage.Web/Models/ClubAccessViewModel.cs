@@ -8,5 +8,7 @@ public sealed class ClubAccessViewModel
 
 	public string SportKey { get; set; } = string.Empty;
 
+	public IReadOnlyList<ClubFormation> CustomFormations { get; set; } = [];
+
 	public bool IsCurrent { get; set; }
 }

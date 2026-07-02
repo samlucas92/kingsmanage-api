@@ -54,6 +54,7 @@ public sealed class ClubAccessController : ControllerBase
 				Id = club.Id,
 				Name = club.Name,
 				SportKey = club.SportKey,
+				CustomFormations = club.CustomFormations,
 				IsCurrent = club.Id == _tenant.ClubId
 			})
 			.ToList());
