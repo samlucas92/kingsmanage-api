@@ -8,6 +8,7 @@ public class ClubEventService : IClubEventService
 {
 	private readonly IMongoCollection<ClubEvent> _events;
 	private readonly TenantMongoScope _tenant;
+	private readonly ITeamAccessContext _teamAccess;
 
 	static ClubEventService()
 	{
@@ -23,10 +24,14 @@ public class ClubEventService : IClubEventService
 		}
 	}
 
-	public ClubEventService(MongoContext context, TenantMongoScope tenant)
+	public ClubEventService(
+		MongoContext context,
+		TenantMongoScope tenant,
+		ITeamAccessContext teamAccess)
 	{
 		_events = context.Database.GetCollection<ClubEvent>("events");
 		_tenant = tenant;
+		_teamAccess = teamAccess;
 	}
 
 	public async Task<IReadOnlyList<ClubEvent>> GetAllAsync(
@@ -38,7 +43,10 @@ public class ClubEventService : IClubEventService
 			.SortBy(clubEvent => clubEvent.StartDateTime)
 			.ToListAsync(cancellationToken);
 
-		return events.Select(NormaliseFromStorage).ToList();
+		return events
+			.Select(NormaliseFromStorage)
+			.Where(CanAccessEvent)
+			.ToList();
 	}
 
 	public async Task<ClubEvent?> GetByIdAsync(
@@ -50,7 +58,9 @@ public class ClubEventService : IClubEventService
 			.Find(_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
-		return clubEvent is null ? null : NormaliseFromStorage(clubEvent);
+		if (clubEvent is null) return null;
+		var normalised = NormaliseFromStorage(clubEvent);
+		return CanAccessEvent(normalised) ? normalised : null;
 	}
 
 	public async Task<ClubEvent> CreateAsync(
@@ -58,6 +68,11 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (!CanAccessEvent(clubEvent))
+		{
+			throw new UnauthorizedAccessException("The event belongs to a team outside this membership.");
+		}
+
 		clubEvent.Id = clubEvent.Id == Guid.Empty ? Guid.NewGuid() : clubEvent.Id;
 		PrepareForSave(clubEvent, true);
 		_tenant.Assign(clubEvent);
@@ -72,6 +87,8 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (!CanAccessEvent(clubEvent)) return null;
+
 		PrepareForSave(clubEvent, false);
 		_tenant.Assign(clubEvent);
 
@@ -94,6 +111,8 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (await GetByIdAsync(id, cancellationToken) is null) return false;
+
 		var result = await _events.DeleteOneAsync(
 			_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id),
 			cancellationToken
@@ -231,5 +250,19 @@ public class ClubEventService : IClubEventService
 		}
 
 		clubEvent.UpdatedAt = DateTime.UtcNow;
+	}
+
+	private bool CanAccessEvent(ClubEvent clubEvent)
+	{
+		if (clubEvent.TeamIds.Count > 0)
+			return _teamAccess.CanAccessAnyTeam(clubEvent.TeamIds);
+
+		return clubEvent.TeamScope switch
+		{
+			ClubEventTeamScope.First => _teamAccess.CanAccessTeam(DefaultClubTeams.FirstTeamId),
+			ClubEventTeamScope.Second => _teamAccess.CanAccessTeam(DefaultClubTeams.SecondTeamId),
+			_ => _teamAccess.CanAccessAnyTeam(
+				[DefaultClubTeams.FirstTeamId, DefaultClubTeams.SecondTeamId])
+		};
 	}
 }

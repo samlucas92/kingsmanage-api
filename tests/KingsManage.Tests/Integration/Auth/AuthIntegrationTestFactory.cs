@@ -26,6 +26,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestStoredFileObjectService StoredFileObjectService { get; } = new();
 	public TestFileStorageService FileStorageService { get; } = new();
 	public TestFileLifecycleService FileLifecycleService { get; } = new();
+	public TestOrganizationService OrganizationService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -63,6 +64,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IStoredFileObjectService>();
 			services.RemoveAll<IFileStorageService>();
 			services.RemoveAll<IFileLifecycleService>();
+			services.RemoveAll<IOrganizationService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
@@ -77,6 +79,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IStoredFileObjectService>(StoredFileObjectService);
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 			services.AddSingleton<IFileLifecycleService>(FileLifecycleService);
+			services.AddSingleton<IOrganizationService>(OrganizationService);
 		});
 	}
 
@@ -173,6 +176,43 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 		);
 
 		return client;
+	}
+}
+
+public sealed class TestOrganizationService : IOrganizationService
+{
+	public List<Organization> Organizations { get; } =
+	[
+		new Organization
+		{
+			Id = DefaultTenant.OrganizationId,
+			Name = DefaultTenant.OrganizationName,
+			Slug = "kingsbridge-colts",
+			IsActive = true
+		}
+	];
+
+	public Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) =>
+		Task.FromResult<IReadOnlyList<Organization>>(Organizations);
+	public Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+		Task.FromResult(Organizations.FirstOrDefault(item => item.Id == id));
+	public Task<Organization?> GetCurrentAsync(CancellationToken cancellationToken = default) =>
+		GetByIdAsync(DefaultTenant.OrganizationId, cancellationToken);
+	public Task<Organization?> CreateAsync(Organization organization, CancellationToken cancellationToken = default)
+	{
+		organization.Id = Guid.NewGuid();
+		Organizations.Add(organization);
+		return Task.FromResult<Organization?>(organization);
+	}
+	public Task<Organization?> UpdateAsync(Guid id, Organization organization, CancellationToken cancellationToken = default) =>
+		Task.FromResult<Organization?>(organization);
+	public Task<Organization?> UpdateCurrentAsync(Organization organization, CancellationToken cancellationToken = default) =>
+		Task.FromResult<Organization?>(organization);
+	public Task<Organization?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+	{
+		var organization = Organizations.FirstOrDefault(item => item.Id == id);
+		if (organization is not null) organization.IsActive = isActive;
+		return Task.FromResult<Organization?>(organization);
 	}
 }
 

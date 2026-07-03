@@ -85,6 +85,39 @@ public class ArchitectureBoundaryTests
 		Assert.That(violations, Is.Empty, string.Join(Environment.NewLine, violations));
 	}
 
+	[Test]
+	public void TenantOwnedMongoServices_ShouldUseTheTenantScope()
+	{
+		string[] tenantOwnedServices =
+		[
+			"PlayerService.cs",
+			"SeasonService.cs",
+			"MatchService.cs",
+			"StatsService.cs",
+			"FinanceService.cs",
+			"ClubEventService.cs",
+			"ClubPostService.cs",
+			"ClubPostTemplateService.cs",
+			"ClubTeamService.cs",
+			"ClubNotificationService.cs",
+			"ClubFileService.cs",
+			"MessageService.cs"
+		];
+
+		var violations = tenantOwnedServices
+			.Select(fileName => Path.Combine(
+				RepositoryRoot,
+				"src",
+				"KingsManage.Mongo",
+				"Services",
+				fileName))
+			.Where(file => !File.Exists(file) || !FileContains(file, "TenantMongoScope"))
+			.Select(NormalisePath)
+			.ToArray();
+
+		Assert.That(violations, Is.Empty, string.Join(Environment.NewLine, violations));
+	}
+
 	private static void AssertProjectReferences(string projectFilePath, params string[] expectedReferencedProjectFileNames)
 	{
 		var fullPath = Path.Combine(RepositoryRoot, projectFilePath);

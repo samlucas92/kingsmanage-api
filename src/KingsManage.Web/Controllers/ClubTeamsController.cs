@@ -25,7 +25,7 @@ public class ClubTeamsController : ControllerBase
 		return Ok(profiles);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPost]
 	public async Task<ActionResult<ClubTeamProfile>> Create(
 		ClubTeamProfile profile,
@@ -42,7 +42,7 @@ public class ClubTeamsController : ControllerBase
 		return Created("/api/club-teams", createdProfile);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPut("{id}")]
 	public async Task<ActionResult<ClubTeamProfile>> Update(
 		string id,
@@ -71,7 +71,7 @@ public class ClubTeamsController : ControllerBase
 		return Ok(updatedProfile);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,

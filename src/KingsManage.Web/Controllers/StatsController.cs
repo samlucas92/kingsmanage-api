@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,Coach")]
+[Authorize(Policy = "TeamManagement")]
 [Route("api/stats")]
 public class StatsController : ControllerBase
 {

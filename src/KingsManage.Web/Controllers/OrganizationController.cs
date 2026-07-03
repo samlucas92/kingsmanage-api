@@ -1,11 +1,12 @@
 using KingsManage;
+using KingsManage.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Web.Controllers;
 
 [ApiController]
-[Authorize(Policy = "OrganizationAdmin")]
+[Authorize(Policy = "ClubAdmin")]
 [Route("api/organization")]
 public sealed class OrganizationController : ControllerBase
 {
@@ -25,6 +26,7 @@ public sealed class OrganizationController : ControllerBase
 			: NotFound();
 
 	[HttpPut]
+	[Authorize(Policy = "OrganizationAdmin")]
 	public async Task<ActionResult<Organization>> Update(Organization organization, CancellationToken cancellationToken)
 	{
 		var error = ValidateNameAndSlug(organization.Name, organization.Slug);
@@ -35,10 +37,17 @@ public sealed class OrganizationController : ControllerBase
 	}
 
 	[HttpGet("clubs")]
-	public async Task<ActionResult<IReadOnlyList<SportsClub>>> GetClubs(CancellationToken cancellationToken) =>
-		Ok(await _clubs.GetAllAsync(cancellationToken));
+	public async Task<ActionResult<IReadOnlyList<SportsClub>>> GetClubs(CancellationToken cancellationToken)
+	{
+		var clubs = await _clubs.GetAllAsync(cancellationToken);
+		if (HasOrganizationAccess()) return Ok(clubs);
+		return TryGetCurrentClubId(out var clubId)
+			? Ok(clubs.Where(club => club.Id == clubId).ToList())
+			: Forbid();
+	}
 
 	[HttpPost("clubs")]
+	[Authorize(Policy = "OrganizationAdmin")]
 	public async Task<ActionResult<SportsClub>> CreateClub(SportsClub club, CancellationToken cancellationToken)
 	{
 		var error = ValidateClub(club);
@@ -50,12 +59,16 @@ public sealed class OrganizationController : ControllerBase
 	[HttpPut("clubs/{id:guid}")]
 	public async Task<ActionResult<SportsClub>> UpdateClub(Guid id, SportsClub club, CancellationToken cancellationToken)
 	{
+		if (!HasOrganizationAccess() &&
+			(!TryGetCurrentClubId(out var currentClubId) || currentClubId != id))
+			return Forbid();
 		var error = ValidateClub(club);
 		if (error is not null) return BadRequest(error);
 		return await _clubs.UpdateAsync(id, club, cancellationToken) is { } updated ? Ok(updated) : NotFound();
 	}
 
 	[HttpPatch("clubs/{id:guid}/active")]
+	[Authorize(Policy = "OrganizationAdmin")]
 	public async Task<ActionResult<SportsClub>> SetClubActive(Guid id, [FromBody] SetActiveRequest request, CancellationToken cancellationToken) =>
 		await _clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated ? Ok(updated) : NotFound();
 
@@ -98,6 +111,18 @@ public sealed class OrganizationController : ControllerBase
 
 		return null;
 	}
+
+	private bool HasOrganizationAccess() =>
+		HttpContext is null ||
+		HttpContext.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		HttpContext.User.HasClaim(
+			HttpTenantContext.TenantRoleClaim,
+			TenantRole.OrganizationAdmin.ToString());
+
+	private bool TryGetCurrentClubId(out Guid clubId) =>
+		Guid.TryParse(
+			HttpContext?.User.FindFirst(HttpTenantContext.ClubClaim)?.Value,
+			out clubId);
 
 	private static string? ValidateNameAndSlug(string name, string slug)
 	{

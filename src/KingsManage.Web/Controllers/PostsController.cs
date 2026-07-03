@@ -65,7 +65,7 @@ public class PostsController : ControllerBase
 		return Ok(post);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPost]
 	public async Task<ActionResult<ClubPost>> Create(
 		CreateClubPostModel model,
@@ -126,7 +126,7 @@ public class PostsController : ControllerBase
 		);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPut("{id}")]
 	public async Task<ActionResult<ClubPost>> Update(
 		string id,
@@ -185,7 +185,7 @@ public class PostsController : ControllerBase
 		return Ok(updatedPost);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,

@@ -7,11 +7,16 @@ public class MatchService : IMatchService
 {
 	private readonly IMongoCollection<Match> _matches;
 	private readonly TenantMongoScope _tenant;
+	private readonly ITeamAccessContext _teamAccess;
 
-	public MatchService(MongoContext context, TenantMongoScope tenant)
+	public MatchService(
+		MongoContext context,
+		TenantMongoScope tenant,
+		ITeamAccessContext teamAccess)
 	{
 		_matches = context.Database.GetCollection<Match>("matches");
 		_tenant = tenant;
+		_teamAccess = teamAccess;
 	}
 
 	public async Task<IReadOnlyList<Match>> GetAllAsync(
@@ -19,7 +24,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(_tenant.Filter<Match>())
+			.Find(AccessFilter())
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -30,7 +35,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(_tenant.Filter<Match>(match => match.SeasonId == seasonId))
+			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.SeasonId, seasonId))
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -41,7 +46,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches
-			.Find(_tenant.Filter<Match>(match => match.Id == id))
+			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -50,6 +55,11 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (!CanAccessMatch(match))
+		{
+			throw new UnauthorizedAccessException("The match belongs to a team outside this membership.");
+		}
+
 		match.Id = match.Id == Guid.Empty
 			? Guid.NewGuid()
 			: match.Id;
@@ -78,6 +88,8 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
+		if (!CanAccessMatch(match)) return null;
+
 		match.Opponent = (match.Opponent ?? string.Empty).Trim();
 		match.Competition = (match.Competition ?? string.Empty).Trim();
 		match.Location = (match.Location ?? string.Empty).Trim();
@@ -85,7 +97,7 @@ public class MatchService : IMatchService
 		_tenant.Assign(match);
 
 		var result = await _matches.ReplaceOneAsync(
-			_tenant.Filter<Match>(existingMatch => existingMatch.Id == match.Id),
+			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -104,7 +116,7 @@ public class MatchService : IMatchService
 	)
 	{
 		var result = await _matches.DeleteOneAsync(
-			_tenant.Filter<Match>(match => match.Id == id),
+			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			cancellationToken
 		);
 
@@ -294,7 +306,7 @@ public class MatchService : IMatchService
 	{
 		_tenant.Assign(match);
 		var result = await _matches.ReplaceOneAsync(
-			_tenant.Filter<Match>(existingMatch => existingMatch.Id == match.Id),
+			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -314,7 +326,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await _matches.FindOneAndUpdateAsync(
-			_tenant.Filter<Match>(match => match.Id == id),
+			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			update,
 			new FindOneAndUpdateOptions<Match>
 			{
@@ -323,6 +335,34 @@ public class MatchService : IMatchService
 			cancellationToken
 		);
 	}
+
+	private FilterDefinition<Match> AccessFilter()
+	{
+		var filter = _tenant.Filter<Match>();
+		if (_teamAccess.HasClubWideAccess) return filter;
+
+		var teamIds = _teamAccess.TeamIds.ToList();
+		var access = Builders<Match>.Filter.In(
+			match => match.TeamId,
+			teamIds.Select(id => (Guid?)id));
+		if (teamIds.Contains(DefaultClubTeams.FirstTeamId))
+		{
+			access |= Builders<Match>.Filter.And(
+				Builders<Match>.Filter.Eq(match => match.TeamId, null),
+				Builders<Match>.Filter.Eq(match => match.Team, ClubTeam.First));
+		}
+		if (teamIds.Contains(DefaultClubTeams.SecondTeamId))
+		{
+			access |= Builders<Match>.Filter.And(
+				Builders<Match>.Filter.Eq(match => match.TeamId, null),
+				Builders<Match>.Filter.Eq(match => match.Team, ClubTeam.Second));
+		}
+		return filter & access;
+	}
+
+	private bool CanAccessMatch(Match match) =>
+		_teamAccess.CanAccessTeam(
+			match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team));
 
 	private static MatchState GetResultState(MatchVenue venue, MatchResult result)
 	{

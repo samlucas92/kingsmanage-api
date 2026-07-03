@@ -70,7 +70,7 @@ public class EventsController : ControllerBase
 		return Ok(clubEvent);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPost]
 	public async Task<ActionResult<ClubEvent>> Create(
 		CreateClubEventModel model,
@@ -156,7 +156,7 @@ public class EventsController : ControllerBase
 		);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPut("{id}")]
 	public async Task<ActionResult<ClubEvent>> Update(
 		string id,
@@ -219,7 +219,7 @@ public class EventsController : ControllerBase
 		return Ok(updatedEvent);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,
@@ -353,7 +353,7 @@ public class EventsController : ControllerBase
 		return Ok(updatedEvent);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPut("{id}/availability/{playerId}")]
 	public async Task<ActionResult<ClubEvent>> SetPlayerAvailability(
 		string id,

@@ -24,7 +24,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpGet]
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	public async Task<ActionResult<IReadOnlyList<PlayerFinanceViewModel>>> GetSeasonFinance(
 		[FromQuery] string? seasonId,
 		CancellationToken cancellationToken
@@ -54,7 +54,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpGet("player/{playerId}")]
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	public async Task<ActionResult<PlayerFinanceViewModel>> GetPlayerFinance(
 		string playerId,
 		[FromQuery] string? seasonId,
@@ -126,7 +126,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpPost("transactions")]
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	public async Task<ActionResult<FinanceTransactionViewModel>> AddTransaction(
 		FinanceTransactionRequest request,
 		CancellationToken cancellationToken
@@ -187,7 +187,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpPut("players/{playerId}/amount-owed")]
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	public async Task<ActionResult<FinanceTransactionViewModel>> SetPlayerAmountOwed(
 		string playerId,
 		[FromQuery] string? seasonId,
@@ -228,7 +228,7 @@ public class FinanceController : ControllerBase
 	}
 
 	[HttpDelete("transactions/{id}")]
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	public async Task<IActionResult> DeleteTransaction(
 		string id,
 		CancellationToken cancellationToken

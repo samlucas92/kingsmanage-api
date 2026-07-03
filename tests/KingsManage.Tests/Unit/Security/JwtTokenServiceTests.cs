@@ -67,6 +67,58 @@ public class JwtTokenServiceTests
 		Assert.That(token.Claims.Any(claim => claim.Type == HttpTenantContext.ClubClaim && claim.Value == clubId.ToString()), Is.True);
 	}
 
+	[Test]
+	public void CreateLoginResponse_ShouldIncludeOnlyActiveClubTeamAccess()
+	{
+		var organizationId = Guid.NewGuid();
+		var clubId = Guid.NewGuid();
+		var allowedTeamId = Guid.NewGuid();
+		var otherClubTeamId = Guid.NewGuid();
+		var user = new AppUser
+		{
+			Id = Guid.NewGuid(),
+			Email = "manager@test.local",
+			Role = UserRole.Coach,
+			DefaultOrganizationId = organizationId,
+			DefaultClubId = clubId,
+			Memberships =
+			[
+				new UserMembership
+				{
+					OrganizationId = organizationId,
+					ClubId = clubId,
+					TeamId = allowedTeamId,
+					Role = TenantRole.TeamManager
+				},
+				new UserMembership
+				{
+					OrganizationId = organizationId,
+					ClubId = Guid.NewGuid(),
+					TeamId = otherClubTeamId,
+					Role = TenantRole.TeamManager
+				}
+			],
+			IsActive = true
+		};
+
+		var token = new JwtSecurityTokenHandler().ReadJwtToken(
+			CreateService().CreateLoginResponse(user).Token);
+
+		Assert.That(
+			token.Claims.Any(claim =>
+				claim.Type == HttpTeamAccessContext.TeamAccessClaim &&
+				claim.Value == allowedTeamId.ToString()),
+			Is.True);
+		Assert.That(
+			token.Claims.Any(claim => claim.Value == otherClubTeamId.ToString()),
+			Is.False);
+		Assert.That(
+			token.Claims.Any(claim =>
+				claim.Type == HttpTeamAccessContext.TeamAccessClaim &&
+				claim.Value == HttpTeamAccessContext.ClubWideAccessValue),
+			Is.False);
+	}
+
 	private static JwtTokenService CreateService()
 	{
 		var settings = new JwtSettings

@@ -47,7 +47,7 @@ public class PlayersController : ControllerBase
 	}
 
 	[HttpPost]
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	public async Task<ActionResult<Player>> Create(
 		Player player,
 		CancellationToken cancellationToken
@@ -71,7 +71,7 @@ public class PlayersController : ControllerBase
 	}
 
 	[HttpPut("{id}")]
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	public async Task<ActionResult<Player>> Update(
 		string id,
 		Player player,
@@ -115,7 +115,7 @@ public class PlayersController : ControllerBase
 	}
 
 	[HttpPatch("{id}/active")]
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	public async Task<ActionResult<Player>> SetActive(
 		string id,
 		[FromBody] bool isActive,

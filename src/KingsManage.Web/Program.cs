@@ -26,6 +26,7 @@ using MongoFileLifecycleService = KingsManage.Mongo.Services.FileLifecycleServic
 using MongoUserMembershipService = KingsManage.Mongo.Services.UserMembershipService;
 using MongoUserService = KingsManage.Mongo.Services.UserService;
 using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
+using MongoOrganizationDashboardService = KingsManage.Mongo.Services.OrganizationDashboardService;
 using MongoSportsClubService = KingsManage.Mongo.Services.SportsClubService;
 using Newtonsoft.Json.Converters;
 
@@ -88,6 +89,7 @@ builder.Services.AddSingleton<TenantDataMigrator>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<ITeamAccessContext, HttpTeamAccessContext>();
 builder.Services.AddScoped<TenantMongoScope>();
 builder.Services.AddScoped<IPlayerService, MongoPlayerService>();
 builder.Services.AddScoped<ISeasonService, MongoSeasonService>();
@@ -109,6 +111,7 @@ builder.Services.AddScoped<RichTextAssetService>();
 builder.Services.AddSingleton<IFileContentScanner, BasicFileContentScanner>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
+builder.Services.AddScoped<IOrganizationDashboardService, MongoOrganizationDashboardService>();
 builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, MongoUserMembershipService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
@@ -154,16 +157,25 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
+	options.AddPolicy("SiteAdmin", policy => policy.RequireClaim(
+		HttpTenantContext.PlatformAdminClaim,
+		"true"));
+
 	options.AddPolicy("OrganizationAdmin", policy => policy.RequireAssertion(context =>
 		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
-		context.User.IsInRole(UserRole.Admin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString())));
 
 	options.AddPolicy("ClubAdmin", policy => policy.RequireAssertion(context =>
 		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
-		context.User.IsInRole(UserRole.Admin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString()) ||
 		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.ClubAdmin.ToString())));
+
+	options.AddPolicy("TeamManagement", policy => policy.RequireAssertion(context =>
+		context.User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.OrganizationAdmin.ToString()) ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.ClubAdmin.ToString()) ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.TeamManager.ToString()) ||
+		context.User.HasClaim(HttpTenantContext.TenantRoleClaim, TenantRole.Coach.ToString())));
 });
 
 builder.Services
@@ -233,6 +245,18 @@ app.UseSwaggerUI();
 app.UseCors("Frontend");
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+	try
+	{
+		await next();
+	}
+	catch (UnauthorizedAccessException exception)
+	{
+		context.Response.StatusCode = StatusCodes.Status403Forbidden;
+		await context.Response.WriteAsJsonAsync(new { message = exception.Message });
+	}
+});
 app.UseAuthorization();
 
 app.MapControllers();

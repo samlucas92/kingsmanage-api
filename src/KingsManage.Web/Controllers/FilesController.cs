@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -111,7 +112,7 @@ public class FilesController : ControllerBase
 		return Ok(visibleFiles);
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPost("upload-url")]
 	public async Task<ActionResult<FileUploadUrlResponse>> CreateUploadUrl(
 		CreateFileUploadUrlModel model,
@@ -281,7 +282,7 @@ public class FilesController : ControllerBase
 		});
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPost("{id}/mark-uploaded")]
 	public async Task<ActionResult<ClubFile>> MarkUploaded(
 		string id,
@@ -387,7 +388,7 @@ public class FilesController : ControllerBase
 		return Ok(file);
 	}
 
-	[Authorize(Policy = "OrganizationAdmin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpGet("storage-usage")]
 	public async Task<ActionResult<FileStorageUsage>> GetStorageUsage(
 		CancellationToken cancellationToken
@@ -445,6 +446,7 @@ public class FilesController : ControllerBase
 		{
 			return NotFound();
 		}
+		if (IsClubAdminOnly() && club.Id != _tenantContext.ClubId) return Forbid();
 
 		var previousFileId = club.LogoFileId;
 		var updated = await _clubService.SetLogoFileAsync(
@@ -465,7 +467,7 @@ public class FilesController : ControllerBase
 		return Ok(updated);
 	}
 
-	[Authorize(Policy = "OrganizationAdmin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpDelete("club-logo/{clubId:guid}")]
 	public async Task<ActionResult<SportsClub>> RemoveClubLogo(
 		Guid clubId,
@@ -477,6 +479,7 @@ public class FilesController : ControllerBase
 		{
 			return NotFound();
 		}
+		if (IsClubAdminOnly() && club.Id != _tenantContext.ClubId) return Forbid();
 
 		var updated = await _clubService.SetLogoFileAsync(clubId, null, cancellationToken);
 		if (club.LogoFileId is Guid fileId)
@@ -524,7 +527,7 @@ public class FilesController : ControllerBase
 		});
 	}
 
-	[Authorize(Roles = "Admin,Coach")]
+	[Authorize(Policy = "TeamManagement")]
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,
@@ -889,6 +892,12 @@ public class FilesController : ControllerBase
 
 		return CurrentUserIdResult.SuccessResult(userId);
 	}
+
+	private bool IsClubAdminOnly() =>
+		User.HasClaim(
+			HttpTenantContext.TenantRoleClaim,
+			TenantRole.ClubAdmin.ToString()) &&
+		!User.HasClaim(HttpTenantContext.PlatformAdminClaim, "true");
 
 	private sealed record CurrentUserIdResult(
 		bool Success,

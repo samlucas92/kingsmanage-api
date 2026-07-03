@@ -62,7 +62,7 @@ public class SeasonsController : ControllerBase
 		return Ok(season);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPost]
 	public async Task<ActionResult<Season>> Create(
 		Season season,
@@ -88,7 +88,7 @@ public class SeasonsController : ControllerBase
 		);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPost("setup")]
 	public async Task<ActionResult<SeasonSetupResult>> SetupSeason(
 		SeasonSetupRequest request,
@@ -172,7 +172,7 @@ public class SeasonsController : ControllerBase
 		});
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPut("{id}")]
 	public async Task<ActionResult<Season>> Update(
 		string id,
@@ -218,7 +218,7 @@ public class SeasonsController : ControllerBase
 		return Ok(updatedSeason);
 	}
 
-	[Authorize(Roles = "Admin")]
+	[Authorize(Policy = "ClubAdmin")]
 	[HttpPatch("{id}/set-active")]
 	public async Task<ActionResult<Season>> SetActive(
 		string id,

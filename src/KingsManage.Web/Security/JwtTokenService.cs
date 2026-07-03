@@ -76,6 +76,25 @@ public sealed class JwtTokenService : IJwtTokenService
 
 		claims.Add(new Claim(HttpTenantContext.TenantRoleClaim, tenantRole.Value.ToString()));
 		claims.Add(new Claim(HttpTenantContext.PlatformAdminClaim, user.IsPlatformAdmin.ToString().ToLowerInvariant()));
+		var activeMemberships = user.Memberships
+			.Where(membership => membership.OrganizationId == organizationId)
+			.Where(membership => membership.ClubId == null || membership.ClubId == clubId)
+			.ToList();
+		if (user.IsPlatformAdmin ||
+			user.Memberships.Count == 0 ||
+			activeMemberships.Any(membership => !membership.TeamId.HasValue))
+		{
+			claims.Add(new Claim(
+				HttpTeamAccessContext.TeamAccessClaim,
+				HttpTeamAccessContext.ClubWideAccessValue));
+		}
+		foreach (var teamId in activeMemberships
+			.Where(membership => membership.TeamId.HasValue)
+			.Select(membership => membership.TeamId!.Value)
+			.Distinct())
+		{
+			claims.Add(new Claim(HttpTeamAccessContext.TeamAccessClaim, teamId.ToString()));
+		}
 
 		if (user.PlayerId.HasValue)
 		{

@@ -91,8 +91,13 @@ public sealed class OrganizationControllerTests
 
 	private sealed class StubOrganizationService : IOrganizationService
 	{
+		public Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Organization>>([]);
+		public Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(null);
 		public Task<Organization?> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(new());
+		public Task<Organization?> CreateAsync(Organization organization, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(organization);
+		public Task<Organization?> UpdateAsync(Guid id, Organization organization, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(organization);
 		public Task<Organization?> UpdateCurrentAsync(Organization organization, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(organization);
+		public Task<Organization?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(null);
 	}
 
 	private sealed class StubClubService : ISportsClubService

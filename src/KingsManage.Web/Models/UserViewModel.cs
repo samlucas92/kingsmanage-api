@@ -13,6 +13,7 @@ public sealed class UserViewModel
 	public Guid? PlayerId { get; set; }
 	public Guid? DefaultClubId { get; set; }
 	public TenantRole? TenantRole { get; set; }
+	public bool IsPlatformAdmin { get; set; }
 	public List<UserMembership> Memberships { get; set; } = [];
 
 	public bool IsActive { get; set; }
@@ -33,6 +34,7 @@ public sealed class UserViewModel
 			PlayerId = user.PlayerId,
 			DefaultClubId = user.DefaultClubId,
 			TenantRole = tenantRole,
+			IsPlatformAdmin = user.IsPlatformAdmin,
 			Memberships = user.Memberships,
 			IsActive = user.IsActive,
 			CreatedAt = user.CreatedAt,

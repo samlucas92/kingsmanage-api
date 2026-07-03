@@ -29,6 +29,12 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
+	public void PlatformOrganizationsController_ShouldBeSiteAdminOnly()
+	{
+		AssertControllerHasPolicy(typeof(PlatformOrganizationsController), "SiteAdmin");
+	}
+
+	[Test]
 	public void FinanceController_ShouldRequireAuthorization()
 	{
 		var authorizeAttributes = GetAuthorizeAttributes(typeof(FinanceController));
@@ -37,13 +43,13 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
-	public void FinanceController_WriteAndAdminReadActions_ShouldBeAdminOnly()
+	public void FinanceController_WriteAndAdminReadActions_ShouldRequireClubAdmin()
 	{
-		AssertMethodHasRoles(typeof(FinanceController), "GetSeasonFinance", UserRole.Admin);
-		AssertMethodHasRoles(typeof(FinanceController), "GetPlayerFinance", UserRole.Admin);
-		AssertMethodHasRoles(typeof(FinanceController), "AddTransaction", UserRole.Admin);
-		AssertMethodHasRoles(typeof(FinanceController), "SetPlayerAmountOwed", UserRole.Admin);
-		AssertMethodHasRoles(typeof(FinanceController), "DeleteTransaction", UserRole.Admin);
+		AssertMethodHasPolicy(typeof(FinanceController), "GetSeasonFinance", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(FinanceController), "GetPlayerFinance", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(FinanceController), "AddTransaction", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(FinanceController), "SetPlayerAmountOwed", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(FinanceController), "DeleteTransaction", "ClubAdmin");
 	}
 
 	[Test]
@@ -52,21 +58,21 @@ public class ControllerAuthorizationTests
 		var authorizeAttributes = GetAuthorizeAttributes(typeof(PlayersController));
 		Assert.That(authorizeAttributes, Is.Not.Empty);
 		Assert.That(GetRoles(authorizeAttributes), Is.Empty);
-		AssertMethodHasRoles(typeof(PlayersController), "Create", UserRole.Admin, UserRole.Coach);
-		AssertMethodHasRoles(typeof(PlayersController), "Update", UserRole.Admin, UserRole.Coach);
-		AssertMethodHasRoles(typeof(PlayersController), "SetActive", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasPolicy(typeof(PlayersController), "Create", "TeamManagement");
+		AssertMethodHasPolicy(typeof(PlayersController), "Update", "TeamManagement");
+		AssertMethodHasPolicy(typeof(PlayersController), "SetActive", "TeamManagement");
 	}
 
 	[Test]
-	public void MatchesController_ShouldAllowAdminAndCoachOnly()
+	public void MatchesController_ShouldRequireTeamManagement()
 	{
-		AssertControllerHasRoles(typeof(MatchesController), UserRole.Admin, UserRole.Coach);
+		AssertControllerHasPolicy(typeof(MatchesController), "TeamManagement");
 	}
 
 	[Test]
-	public void StatsController_ShouldAllowAdminAndCoachOnly()
+	public void StatsController_ShouldRequireTeamManagement()
 	{
-		AssertControllerHasRoles(typeof(StatsController), UserRole.Admin, UserRole.Coach);
+		AssertControllerHasPolicy(typeof(StatsController), "TeamManagement");
 	}
 
 	[Test]
@@ -80,9 +86,9 @@ public class ControllerAuthorizationTests
 	[Test]
 	public void FilesController_WriteActions_ShouldAllowAdminAndCoachOnly()
 	{
-		AssertMethodHasRoles(typeof(FilesController), "CreateUploadUrl", UserRole.Admin, UserRole.Coach);
-		AssertMethodHasRoles(typeof(FilesController), "MarkUploaded", UserRole.Admin, UserRole.Coach);
-		AssertMethodHasRoles(typeof(FilesController), "Delete", UserRole.Admin, UserRole.Coach);
+		AssertMethodHasPolicy(typeof(FilesController), "CreateUploadUrl", "TeamManagement");
+		AssertMethodHasPolicy(typeof(FilesController), "MarkUploaded", "TeamManagement");
+		AssertMethodHasPolicy(typeof(FilesController), "Delete", "TeamManagement");
 	}
 
 	[Test]
@@ -94,37 +100,25 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
-	public void SeasonsController_WriteActions_ShouldBeAdminOnly()
+	public void SeasonsController_WriteActions_ShouldRequireClubAdmin()
 	{
-		AssertMethodHasRoles(typeof(SeasonsController), "Create", UserRole.Admin);
-		AssertMethodHasRoles(typeof(SeasonsController), "Update", UserRole.Admin);
-		AssertMethodHasRoles(typeof(SeasonsController), "SetActive", UserRole.Admin);
-		AssertMethodHasRoles(typeof(SeasonsController), "SetupSeason", UserRole.Admin);
+		AssertMethodHasPolicy(typeof(SeasonsController), "Create", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(SeasonsController), "Update", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(SeasonsController), "SetActive", "ClubAdmin");
+		AssertMethodHasPolicy(typeof(SeasonsController), "SetupSeason", "ClubAdmin");
 	}
 
-	private static void AssertControllerHasRoles(Type controllerType, params UserRole[] expectedRoles)
+	private static void AssertControllerHasPolicy(Type controllerType, string policy)
 	{
-		var authorizeAttributes = GetAuthorizeAttributes(controllerType);
-
-		Assert.That(authorizeAttributes, Is.Not.Empty, $"{controllerType.Name} should have an Authorize attribute.");
-
-		var actualRoles = GetRoles(authorizeAttributes);
-		var expectedRoleNames = expectedRoles.Select(role => role.ToString()).OrderBy(role => role).ToArray();
-
-		Assert.That(actualRoles, Is.EqualTo(expectedRoleNames), $"{controllerType.Name} should only allow the expected roles.");
+		var attributes = GetAuthorizeAttributes(controllerType);
+		Assert.That(attributes.Select(attribute => attribute.Policy), Does.Contain(policy));
 	}
 
-	private static void AssertMethodHasRoles(Type controllerType, string methodName, params UserRole[] expectedRoles)
+	private static void AssertMethodHasPolicy(Type controllerType, string methodName, string policy)
 	{
 		var method = GetMethod(controllerType, methodName);
-		var authorizeAttributes = method.GetCustomAttributes<AuthorizeAttribute>(inherit: true).ToArray();
-
-		Assert.That(authorizeAttributes, Is.Not.Empty, $"{controllerType.Name}.{methodName} should have an Authorize attribute.");
-
-		var actualRoles = GetRoles(authorizeAttributes);
-		var expectedRoleNames = expectedRoles.Select(role => role.ToString()).OrderBy(role => role).ToArray();
-
-		Assert.That(actualRoles, Is.EqualTo(expectedRoleNames), $"{controllerType.Name}.{methodName} should only allow the expected roles.");
+		var attributes = method.GetCustomAttributes<AuthorizeAttribute>(inherit: true).ToArray();
+		Assert.That(attributes.Select(attribute => attribute.Policy), Does.Contain(policy));
 	}
 
 	private static void AssertMethodHasAttribute<TAttribute>(Type controllerType, string methodName)
