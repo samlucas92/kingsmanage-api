@@ -161,6 +161,24 @@ public sealed class OrganizationControllerTests
 		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
 	}
 
+	[TestCase(SportsClubDeleteResult.Deleted, typeof(NoContentResult))]
+	[TestCase(SportsClubDeleteResult.NotFound, typeof(NotFoundResult))]
+	[TestCase(SportsClubDeleteResult.MustArchive, typeof(ConflictObjectResult))]
+	[TestCase(SportsClubDeleteResult.CurrentClub, typeof(ConflictObjectResult))]
+	[TestCase(SportsClubDeleteResult.InUse, typeof(ConflictObjectResult))]
+	public async Task DeleteClub_MapsServiceResult(
+		SportsClubDeleteResult deleteResult,
+		Type expectedResultType)
+	{
+		var controller = new OrganizationController(
+			new StubOrganizationService(),
+			new StubClubService { DeleteResult = deleteResult });
+
+		var result = await controller.DeleteClub(Guid.NewGuid(), CancellationToken.None);
+
+		Assert.That(result, Is.TypeOf(expectedResultType));
+	}
+
 	private sealed class StubOrganizationService : IOrganizationService
 	{
 		public Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Organization>>([]);
@@ -176,12 +194,14 @@ public sealed class OrganizationControllerTests
 	private sealed class StubClubService : ISportsClubService
 	{
 		public SportsClub? CreatedClub { get; private set; }
+		public SportsClubDeleteResult DeleteResult { get; init; } = SportsClubDeleteResult.NotFound;
 		public Task<IReadOnlyList<SportsClub>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<SportsClub>>([]);
 		public Task<SportsClub?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 		public Task<SportsClub> CreateAsync(SportsClub club, CancellationToken cancellationToken = default) { CreatedClub = club; club.Id = Guid.NewGuid(); return Task.FromResult(club); }
 		public Task<SportsClub?> UpdateAsync(Guid id, SportsClub club, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(club);
 		public Task<SportsClub?> SetLogoFileAsync(Guid id, Guid? logoFileId, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 		public Task<SportsClub?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
+		public Task<SportsClubDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(DeleteResult);
 	}
 
 	private sealed class StubBillingService(bool canAddClub) : IBillingService

@@ -8,4 +8,14 @@ public interface ISportsClubService
 	Task<SportsClub?> UpdateAsync(Guid id, SportsClub club, CancellationToken cancellationToken = default);
 	Task<SportsClub?> SetLogoFileAsync(Guid id, Guid? logoFileId, CancellationToken cancellationToken = default);
 	Task<SportsClub?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
+	Task<SportsClubDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
+public enum SportsClubDeleteResult
+{
+	Deleted,
+	NotFound,
+	MustArchive,
+	CurrentClub,
+	InUse
 }

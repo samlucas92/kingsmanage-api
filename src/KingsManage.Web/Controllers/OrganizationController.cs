@@ -93,6 +93,22 @@ public sealed class OrganizationController : ControllerBase
 			: NotFound();
 	}
 
+	[HttpDelete("clubs/{id:guid}")]
+	[Authorize(Policy = "OrganizationAdmin")]
+	public async Task<IActionResult> DeleteClub(Guid id, CancellationToken cancellationToken)
+	{
+		return await clubs.DeleteAsync(id, cancellationToken) switch
+		{
+			SportsClubDeleteResult.Deleted => NoContent(),
+			SportsClubDeleteResult.NotFound => NotFound(),
+			SportsClubDeleteResult.MustArchive => Conflict("Archive the club before deleting it."),
+			SportsClubDeleteResult.CurrentClub => Conflict("Switch to another club before deleting this club."),
+			SportsClubDeleteResult.InUse => Conflict(
+				"This club still has teams, users or operational data. Remove those records before deleting it."),
+			_ => StatusCode(StatusCodes.Status500InternalServerError)
+		};
+	}
+
 	private static string? ValidateClub(SportsClub club)
 	{
 		var basicError = ValidateNameAndSlug(club.Name, club.Slug) ??
