@@ -9,11 +9,11 @@ namespace KingsManage.Web.Controllers;
 [Route("api/club-teams")]
 public class ClubTeamsController : ControllerBase
 {
-	private readonly IClubTeamService _clubTeamService;
+	private readonly IClubTeamService clubTeamService;
 
 	public ClubTeamsController(IClubTeamService clubTeamService)
 	{
-		_clubTeamService = clubTeamService;
+		this.clubTeamService = clubTeamService;
 	}
 
 	[HttpGet]
@@ -21,7 +21,7 @@ public class ClubTeamsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var profiles = await _clubTeamService.GetAllAsync(cancellationToken);
+		var profiles = await clubTeamService.GetAllAsync(cancellationToken);
 		return Ok(profiles);
 	}
 
@@ -38,7 +38,7 @@ public class ClubTeamsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var createdProfile = await _clubTeamService.CreateAsync(profile, cancellationToken);
+		var createdProfile = await clubTeamService.CreateAsync(profile, cancellationToken);
 		return Created("/api/club-teams", createdProfile);
 	}
 
@@ -62,7 +62,7 @@ public class ClubTeamsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var updatedProfile = await _clubTeamService.UpdateAsync(
+		var updatedProfile = await clubTeamService.UpdateAsync(
 			teamId,
 			profile,
 			cancellationToken
@@ -83,7 +83,7 @@ public class ClubTeamsController : ControllerBase
 			return BadRequest("Team id must be a valid GUID.");
 		}
 
-		var result = await _clubTeamService.DeleteAsync(teamId, cancellationToken);
+		var result = await clubTeamService.DeleteAsync(teamId, cancellationToken);
 		return result switch
 		{
 			ClubTeamDeleteResult.Deleted => NoContent(),

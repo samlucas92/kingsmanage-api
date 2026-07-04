@@ -10,16 +10,16 @@ namespace KingsManage.Web.Controllers;
 [Route("api/stats")]
 public class StatsController : ControllerBase
 {
-	private readonly IPlayerService _playerService;
-	private readonly IStatsService _statsService;
+	private readonly IPlayerService playerService;
+	private readonly IStatsService statsService;
 
 	public StatsController(
 		IPlayerService playerService,
 		IStatsService statsService
 	)
 	{
-		_playerService = playerService;
-		_statsService = statsService;
+		this.playerService = playerService;
+		this.statsService = statsService;
 	}
 
 	[HttpGet("season/{seasonId}")]
@@ -33,13 +33,13 @@ public class StatsController : ControllerBase
 			return errorResult!;
 		}
 
-		var players = await _playerService.GetAllAsync(cancellationToken);
-		var selectedSeasonStats = await _statsService.GetSeasonStatsAsync(
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var selectedSeasonStats = await statsService.GetSeasonStatsAsync(
 			parsedSeasonId,
 			cancellationToken
 		);
-		var allSeasonStats = await _statsService.GetAllSeasonStatsAsync(cancellationToken);
-		var historicalStats = await _statsService.GetHistoricalStatsAsync(cancellationToken);
+		var allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
+		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
 
 		var viewModels = players
 			.OrderBy(player => player.Name)
@@ -65,7 +65,7 @@ public class StatsController : ControllerBase
 			return errorResult!;
 		}
 
-		await _statsService.RecalculateSeasonStatsAsync(
+		await statsService.RecalculateSeasonStatsAsync(
 			parsedSeasonId,
 			cancellationToken
 		);
@@ -78,7 +78,7 @@ public class StatsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var historicalStats = await _statsService.GetHistoricalStatsAsync(cancellationToken);
+		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
 
 		return Ok(historicalStats);
 	}
@@ -95,7 +95,7 @@ public class StatsController : ControllerBase
 			return errorResult!;
 		}
 
-		var player = await _playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
 		if (player is null)
 		{
 			return NotFound();
@@ -106,7 +106,7 @@ public class StatsController : ControllerBase
 			return BadRequest("Historical stats cannot be negative.");
 		}
 
-		var stats = await _statsService.UpsertHistoricalStatsAsync(
+		var stats = await statsService.UpsertHistoricalStatsAsync(
 			new PlayerHistoricalStats
 			{
 				PlayerId = parsedPlayerId,

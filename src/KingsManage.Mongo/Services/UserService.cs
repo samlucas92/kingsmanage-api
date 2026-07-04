@@ -10,18 +10,18 @@ public class UserService : IUserService
 	private const int PasswordHashBytes = 32;
 	private const int PasswordIterations = 210_000;
 
-	private readonly IMongoCollection<AppUser> _users;
-	private readonly ITenantContext _tenantContext;
+	private readonly IMongoCollection<AppUser> users;
+	private readonly ITenantContext tenantContext;
 
 	public UserService(MongoContext context, ITenantContext tenantContext)
 	{
-		_users = context.Database.GetCollection<AppUser>("users");
-		_tenantContext = tenantContext;
+		users = context.Database.GetCollection<AppUser>("users");
+		this.tenantContext = tenantContext;
 	}
 
 	public async Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
 	{
-		return await _users
+		return await users
 			.Find(GetTenantFilter())
 			.SortBy(user => user.Email)
 			.ToListAsync(cancellationToken);
@@ -29,7 +29,7 @@ public class UserService : IUserService
 
 	public async Task<AppUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
 	{
-		return await _users
+		return await users
 			.Find(GetTenantFilter() & Builders<AppUser>.Filter.Eq(user => user.Id, id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
@@ -38,7 +38,7 @@ public class UserService : IUserService
 	{
 		var normalisedEmail = NormaliseEmail(email);
 
-		return await _users
+		return await users
 			.Find(user => user.Email == normalisedEmail)
 			.FirstOrDefaultAsync(cancellationToken);
 	}
@@ -61,7 +61,7 @@ public class UserService : IUserService
 		user.CreatedAt = DateTime.UtcNow;
 		user.UpdatedAt = DateTime.UtcNow;
 
-		await _users.InsertOneAsync(user, cancellationToken: cancellationToken);
+		await users.InsertOneAsync(user, cancellationToken: cancellationToken);
 
 		return user;
 	}
@@ -91,7 +91,7 @@ public class UserService : IUserService
 		user.LastLoginAt = existingUser.LastLoginAt;
 		user.UpdatedAt = DateTime.UtcNow;
 
-		var result = await _users.ReplaceOneAsync(
+		var result = await users.ReplaceOneAsync(
 			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existing => existing.Id, user.Id),
 			user,
 			cancellationToken: cancellationToken
@@ -121,7 +121,7 @@ public class UserService : IUserService
 			.Set(user => user.IsActive, isActive)
 			.Set(user => user.UpdatedAt, DateTime.UtcNow);
 
-		return await _users.FindOneAndUpdateAsync(
+		return await users.FindOneAndUpdateAsync(
 			GetTenantFilter() & Builders<AppUser>.Filter.Eq(user => user.Id, id),
 			update,
 			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
@@ -132,13 +132,13 @@ public class UserService : IUserService
 	private async Task EnsureOrganizationAdminCanBeDeactivatedAsync(AppUser user, CancellationToken cancellationToken)
 	{
 		var isOrganizationAdmin = user.Memberships.Any(membership =>
-			membership.OrganizationId == _tenantContext.OrganizationId &&
+			membership.OrganizationId == tenantContext.OrganizationId &&
 			membership.Role == TenantRole.OrganizationAdmin);
 		if (!isOrganizationAdmin) return;
 
-		var activeAdminCount = await _users.CountDocumentsAsync(existing =>
+		var activeAdminCount = await users.CountDocumentsAsync(existing =>
 			existing.IsActive && existing.Memberships.Any(membership =>
-				membership.OrganizationId == _tenantContext.OrganizationId &&
+				membership.OrganizationId == tenantContext.OrganizationId &&
 				membership.Role == TenantRole.OrganizationAdmin), cancellationToken: cancellationToken);
 		if (activeAdminCount <= 1) throw new InvalidOperationException("The final Organization Admin cannot be deactivated.");
 	}
@@ -166,7 +166,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.DefaultClubId, user.DefaultClubId)
 			.Set(existingUser => existingUser.Memberships, user.Memberships);
 
-		return await _users.FindOneAndUpdateAsync(
+		return await users.FindOneAndUpdateAsync(
 			existingUser => existingUser.Id == user.Id,
 			update,
 			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
@@ -188,7 +188,7 @@ public class UserService : IUserService
 		}
 
 		var canAccessClub = user.IsPlatformAdmin || user.Memberships.Any(membership =>
-			membership.OrganizationId == _tenantContext.OrganizationId &&
+			membership.OrganizationId == tenantContext.OrganizationId &&
 			(membership.ClubId == clubId ||
 				(membership.ClubId == null && membership.Role == TenantRole.OrganizationAdmin)));
 
@@ -198,11 +198,11 @@ public class UserService : IUserService
 		}
 
 		var update = Builders<AppUser>.Update
-			.Set(existingUser => existingUser.DefaultOrganizationId, _tenantContext.OrganizationId)
+			.Set(existingUser => existingUser.DefaultOrganizationId, tenantContext.OrganizationId)
 			.Set(existingUser => existingUser.DefaultClubId, clubId)
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
-		return await _users.FindOneAndUpdateAsync(
+		return await users.FindOneAndUpdateAsync(
 			existingUser => existingUser.Id == id,
 			update,
 			new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
@@ -232,7 +232,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.PasswordHash, HashPassword(newPassword))
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
-		var result = await _users.UpdateOneAsync(
+		var result = await users.UpdateOneAsync(
 			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existingUser => existingUser.Id, id),
 			update,
 			cancellationToken: cancellationToken
@@ -256,7 +256,7 @@ public class UserService : IUserService
 			.Set(existingUser => existingUser.PasswordHash, HashPassword(newPassword))
 			.Set(existingUser => existingUser.UpdatedAt, DateTime.UtcNow);
 
-		var result = await _users.UpdateOneAsync(
+		var result = await users.UpdateOneAsync(
 			GetTenantFilter() & Builders<AppUser>.Filter.Eq(existingUser => existingUser.Id, id),
 			update,
 			cancellationToken: cancellationToken
@@ -271,7 +271,7 @@ public class UserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var existingUsers = await _users
+		var existingUsers = await users
 			.Find(_ => true)
 			.Limit(1)
 			.ToListAsync(cancellationToken);
@@ -299,7 +299,7 @@ public class UserService : IUserService
 
 	private FilterDefinition<AppUser> GetTenantFilter()
 	{
-		if (!_tenantContext.IsAvailable)
+		if (!tenantContext.IsAvailable)
 		{
 			throw new InvalidOperationException("A tenant context is required for user management.");
 		}
@@ -307,8 +307,8 @@ public class UserService : IUserService
 		return Builders<AppUser>.Filter.ElemMatch(
 			user => user.Memberships,
 			membership =>
-				membership.OrganizationId == _tenantContext.OrganizationId &&
-				(membership.ClubId == null || membership.ClubId == _tenantContext.ClubId));
+				membership.OrganizationId == tenantContext.OrganizationId &&
+				(membership.ClubId == null || membership.ClubId == tenantContext.ClubId));
 	}
 
 	private void EnsureMembership(AppUser user)
@@ -324,11 +324,11 @@ public class UserService : IUserService
 			return;
 		}
 
-		var organizationId = _tenantContext.IsAvailable
-			? _tenantContext.OrganizationId
+		var organizationId = tenantContext.IsAvailable
+			? tenantContext.OrganizationId
 			: DefaultTenant.OrganizationId;
-		var clubId = _tenantContext.IsAvailable
-			? _tenantContext.ClubId
+		var clubId = tenantContext.IsAvailable
+			? tenantContext.ClubId
 			: DefaultTenant.ClubId;
 
 		user.DefaultOrganizationId = organizationId;

@@ -5,37 +5,37 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class BillingService : IBillingService
 {
-	private readonly IMongoCollection<OrganizationSubscription> _subscriptions;
-	private readonly IMongoCollection<BillingInvoice> _invoices;
-	private readonly IMongoCollection<SportsClub> _clubs;
-	private readonly ITenantContext _tenant;
-	private readonly BillingSettings _settings;
+	private readonly IMongoCollection<OrganizationSubscription> subscriptions;
+	private readonly IMongoCollection<BillingInvoice> invoices;
+	private readonly IMongoCollection<SportsClub> clubs;
+	private readonly ITenantContext tenant;
+	private readonly BillingSettings settings;
 
 	public BillingService(
 		MongoContext context,
 		ITenantContext tenant,
 		BillingSettings settings)
 	{
-		_subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
-		_invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
-		_clubs = context.Database.GetCollection<SportsClub>("clubs");
-		_tenant = tenant;
-		_settings = settings;
+		subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
+		invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
+		clubs = context.Database.GetCollection<SportsClub>("clubs");
+		this.tenant = tenant;
+		this.settings = settings;
 	}
 
 	public Task<OrganizationSubscription> GetCurrentAsync(CancellationToken cancellationToken = default) =>
-		GetByOrganizationAsync(_tenant.OrganizationId, cancellationToken);
+		GetByOrganizationAsync(tenant.OrganizationId, cancellationToken);
 
 	public async Task<OrganizationSubscription> GetByOrganizationAsync(
 		Guid organizationId,
 		CancellationToken cancellationToken = default)
 	{
-		var existing = await _subscriptions
+		var existing = await subscriptions
 			.Find(subscription => subscription.OrganizationId == organizationId)
 			.FirstOrDefaultAsync(cancellationToken);
 		if (existing is not null) return ApplyStatusTransitions(existing);
 
-		var existingClubCount = await _clubs.CountDocumentsAsync(
+		var existingClubCount = await clubs.CountDocumentsAsync(
 			club => club.OrganizationId == organizationId && club.IsActive,
 			cancellationToken: cancellationToken);
 		var now = DateTime.UtcNow;
@@ -43,22 +43,22 @@ public sealed class BillingService : IBillingService
 		{
 			OrganizationId = organizationId,
 			ClubAllowance = Math.Max(1, (int)existingClubCount),
-			BaseMonthlyPrice = _settings.BaseMonthlyPrice,
-			AdditionalClubMonthlyPrice = _settings.AdditionalClubMonthlyPrice,
-			Currency = _settings.Currency,
-			TrialEndsAt = now.AddDays(Math.Max(1, _settings.TrialDays)),
+			BaseMonthlyPrice = settings.BaseMonthlyPrice,
+			AdditionalClubMonthlyPrice = settings.AdditionalClubMonthlyPrice,
+			Currency = settings.Currency,
+			TrialEndsAt = now.AddDays(Math.Max(1, settings.TrialDays)),
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 		try
 		{
-			await _subscriptions.InsertOneAsync(subscription, cancellationToken: cancellationToken);
+			await subscriptions.InsertOneAsync(subscription, cancellationToken: cancellationToken);
 			return subscription;
 		}
 		catch (MongoWriteException exception) when (
 			exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
 		{
-			return await _subscriptions
+			return await subscriptions
 				.Find(item => item.OrganizationId == organizationId)
 				.FirstAsync(cancellationToken);
 		}
@@ -69,8 +69,8 @@ public sealed class BillingService : IBillingService
 		CancellationToken cancellationToken = default)
 	{
 		var subscription = await GetCurrentAsync(cancellationToken);
-		var activeClubCount = await _clubs.CountDocumentsAsync(
-			club => club.OrganizationId == _tenant.OrganizationId && club.IsActive,
+		var activeClubCount = await clubs.CountDocumentsAsync(
+			club => club.OrganizationId == tenant.OrganizationId && club.IsActive,
 			cancellationToken: cancellationToken);
 		if (update.ClubAllowance < Math.Max(1, activeClubCount))
 			throw new ArgumentException("Club allowance cannot be lower than the number of active clubs.");
@@ -97,7 +97,7 @@ public sealed class BillingService : IBillingService
 		subscription.Status = update.Status;
 		subscription.CurrentPeriodEndsAt = update.CurrentPeriodEndsAt;
 		subscription.GracePeriodEndsAt = update.Status == SubscriptionStatus.GracePeriod
-			? update.GracePeriodEndsAt ?? DateTime.UtcNow.AddDays(Math.Max(1, _settings.GracePeriodDays))
+			? update.GracePeriodEndsAt ?? DateTime.UtcNow.AddDays(Math.Max(1, settings.GracePeriodDays))
 			: update.GracePeriodEndsAt;
 		subscription.UpdatedAt = DateTime.UtcNow;
 		await ReplaceAsync(subscription, cancellationToken);
@@ -107,7 +107,7 @@ public sealed class BillingService : IBillingService
 	public async Task<IReadOnlyList<BillingInvoice>> GetInvoicesAsync(
 		Guid organizationId,
 		CancellationToken cancellationToken = default) =>
-		await _invoices.Find(invoice => invoice.OrganizationId == organizationId)
+		await invoices.Find(invoice => invoice.OrganizationId == organizationId)
 			.SortByDescending(invoice => invoice.IssuedAt)
 			.ToListAsync(cancellationToken);
 
@@ -119,17 +119,17 @@ public sealed class BillingService : IBillingService
 		invoice.Number = invoice.Number.Trim();
 		invoice.Status = invoice.Status.Trim();
 		invoice.Currency = string.IsNullOrWhiteSpace(invoice.Currency)
-			? _settings.Currency
+			? settings.Currency
 			: invoice.Currency.Trim().ToUpperInvariant();
-		await _invoices.InsertOneAsync(invoice, cancellationToken: cancellationToken);
+		await invoices.InsertOneAsync(invoice, cancellationToken: cancellationToken);
 		return invoice;
 	}
 
 	public async Task<bool> CanAddClubAsync(CancellationToken cancellationToken = default)
 	{
 		var subscription = await GetCurrentAsync(cancellationToken);
-		var activeClubCount = await _clubs.CountDocumentsAsync(
-			club => club.OrganizationId == _tenant.OrganizationId && club.IsActive,
+		var activeClubCount = await clubs.CountDocumentsAsync(
+			club => club.OrganizationId == tenant.OrganizationId && club.IsActive,
 			cancellationToken: cancellationToken);
 		return IsWriteEnabled(subscription) && activeClubCount < subscription.ClubAllowance;
 	}
@@ -141,7 +141,7 @@ public sealed class BillingService : IBillingService
 			subscription.TrialEndsAt <= now)
 		{
 			subscription.Status = SubscriptionStatus.GracePeriod;
-			subscription.GracePeriodEndsAt = now.AddDays(Math.Max(1, _settings.GracePeriodDays));
+			subscription.GracePeriodEndsAt = now.AddDays(Math.Max(1, settings.GracePeriodDays));
 		}
 		if (subscription.Status == SubscriptionStatus.GracePeriod &&
 			subscription.GracePeriodEndsAt <= now)
@@ -159,7 +159,7 @@ public sealed class BillingService : IBillingService
 	private async Task ReplaceAsync(
 		OrganizationSubscription subscription,
 		CancellationToken cancellationToken) =>
-		await _subscriptions.ReplaceOneAsync(
+		await subscriptions.ReplaceOneAsync(
 			item => item.OrganizationId == subscription.OrganizationId,
 			subscription,
 			new ReplaceOptions { IsUpsert = true },

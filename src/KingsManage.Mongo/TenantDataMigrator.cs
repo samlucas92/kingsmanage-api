@@ -5,11 +5,11 @@ namespace KingsManage.Mongo;
 
 public sealed class TenantDataMigrator
 {
-	private readonly IMongoDatabase _database;
+	private readonly IMongoDatabase database;
 
 	public TenantDataMigrator(MongoContext context)
 	{
-		_database = context.Database;
+		database = context.Database;
 	}
 
 	public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -39,13 +39,13 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureBillingIndexesAsync(CancellationToken cancellationToken)
 	{
-		var subscriptions = _database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
+		var subscriptions = database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
 		await subscriptions.Indexes.CreateOneAsync(
 			new CreateIndexModel<OrganizationSubscription>(
 				Builders<OrganizationSubscription>.IndexKeys.Ascending(item => item.OrganizationId),
 				new CreateIndexOptions { Name = "OrganizationId_1", Unique = true }),
 			cancellationToken: cancellationToken);
-		var invoices = _database.GetCollection<BillingInvoice>("billingInvoices");
+		var invoices = database.GetCollection<BillingInvoice>("billingInvoices");
 		await invoices.Indexes.CreateOneAsync(
 			new CreateIndexModel<BillingInvoice>(
 				Builders<BillingInvoice>.IndexKeys
@@ -57,9 +57,9 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureFileLifecycleIndexesAsync(CancellationToken cancellationToken)
 	{
-		var objects = _database.GetCollection<StoredFileObject>("storedFileObjects");
-		var files = _database.GetCollection<ClubFile>("files");
-		var audit = _database.GetCollection<FileLifecycleAudit>("fileLifecycleAudit");
+		var objects = database.GetCollection<StoredFileObject>("storedFileObjects");
+		var files = database.GetCollection<ClubFile>("files");
+		var audit = database.GetCollection<FileLifecycleAudit>("fileLifecycleAudit");
 
 		await objects.Indexes.CreateOneAsync(
 			new CreateIndexModel<StoredFileObject>(
@@ -94,7 +94,7 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureStoredFileObjectIndexesAsync(CancellationToken cancellationToken)
 	{
-		var objects = _database.GetCollection<StoredFileObject>("storedFileObjects");
+		var objects = database.GetCollection<StoredFileObject>("storedFileObjects");
 		var keys = Builders<StoredFileObject>.IndexKeys
 			.Ascending(item => item.OrganizationId)
 			.Ascending(item => item.ContentHash);
@@ -114,8 +114,8 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureDefaultOrganizationAndClubAsync(CancellationToken cancellationToken)
 	{
-		var organizations = _database.GetCollection<Organization>("organizations");
-		var clubs = _database.GetCollection<SportsClub>("clubs");
+		var organizations = database.GetCollection<Organization>("organizations");
+		var clubs = database.GetCollection<SportsClub>("clubs");
 		var now = DateTime.UtcNow;
 
 		await organizations.UpdateOneAsync(
@@ -148,7 +148,7 @@ public sealed class TenantDataMigrator
 	private async Task BackfillAsync<T>(string collectionName, CancellationToken cancellationToken)
 		where T : ITenantOwned
 	{
-		var collection = _database.GetCollection<T>(collectionName);
+		var collection = database.GetCollection<T>(collectionName);
 		var filter = Builders<T>.Filter.Or(
 			Builders<T>.Filter.Exists(nameof(ITenantOwned.OrganizationId), false),
 			Builders<T>.Filter.Eq(item => item.OrganizationId, Guid.Empty),
@@ -163,7 +163,7 @@ public sealed class TenantDataMigrator
 
 	private async Task BackfillUsersAsync(CancellationToken cancellationToken)
 	{
-		var users = _database.GetCollection<AppUser>("users");
+		var users = database.GetCollection<AppUser>("users");
 		var legacyUsers = await users.Find(user =>
 			user.DefaultOrganizationId == null ||
 			user.DefaultClubId == null ||
@@ -193,14 +193,14 @@ public sealed class TenantDataMigrator
 
 	private async Task EnsureTenantIndexesAsync(CancellationToken cancellationToken)
 	{
-		var organizations = _database.GetCollection<Organization>("organizations");
+		var organizations = database.GetCollection<Organization>("organizations");
 		await organizations.Indexes.CreateOneAsync(
 			new CreateIndexModel<Organization>(
 				Builders<Organization>.IndexKeys.Ascending(organization => organization.Slug),
 				new CreateIndexOptions { Name = "Slug_1", Unique = true }),
 			cancellationToken: cancellationToken);
 
-		var clubs = _database.GetCollection<SportsClub>("clubs");
+		var clubs = database.GetCollection<SportsClub>("clubs");
 		await clubs.Indexes.CreateOneAsync(
 			new CreateIndexModel<SportsClub>(
 				Builders<SportsClub>.IndexKeys
@@ -227,7 +227,7 @@ public sealed class TenantDataMigrator
 	private async Task EnsureTenantIndexAsync<T>(string collectionName, CancellationToken cancellationToken)
 		where T : ITenantOwned
 	{
-		var collection = _database.GetCollection<T>(collectionName);
+		var collection = database.GetCollection<T>(collectionName);
 		var keys = Builders<T>.IndexKeys
 			.Ascending(item => item.OrganizationId)
 			.Ascending(item => item.ClubId);

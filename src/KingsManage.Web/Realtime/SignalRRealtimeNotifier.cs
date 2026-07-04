@@ -6,11 +6,11 @@ namespace KingsManage.Web.Realtime;
 
 public sealed class SignalRRealtimeNotifier : IRealtimeNotifier
 {
-	private readonly IHubContext<ClubHub> _hubContext;
+	private readonly IHubContext<ClubHub> hubContext;
 
 	public SignalRRealtimeNotifier(IHubContext<ClubHub> hubContext)
 	{
-		_hubContext = hubContext;
+		this.hubContext = hubContext;
 	}
 
 	public async Task NotificationCreatedAsync(
@@ -20,7 +20,7 @@ public sealed class SignalRRealtimeNotifier : IRealtimeNotifier
 	{
 		foreach (var recipient in notification.Recipients)
 		{
-			await _hubContext.Clients
+			await hubContext.Clients
 				.Group(RealtimeGroups.User(
 					notification.OrganizationId,
 					notification.ClubId,
@@ -40,7 +40,7 @@ public sealed class SignalRRealtimeNotifier : IRealtimeNotifier
 		Guid userId,
 		CancellationToken cancellationToken = default
 	) =>
-		_hubContext.Clients
+		hubContext.Clients
 			.Group(RealtimeGroups.User(organizationId, clubId, userId))
 			.SendAsync("NotificationsChanged", cancellationToken: cancellationToken);
 
@@ -100,7 +100,7 @@ public sealed class SignalRRealtimeNotifier : IRealtimeNotifier
 			.Distinct()
 			.ToList();
 
-		return _hubContext.Clients
+		return hubContext.Clients
 			.Groups(groups)
 			.SendAsync(eventName, payload, cancellationToken);
 	}

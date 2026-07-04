@@ -52,7 +52,7 @@ public sealed class BillingControllerTests
 
 	private sealed class StubBillingService : IBillingService
 	{
-		private readonly OrganizationSubscription _subscription = new()
+		private readonly OrganizationSubscription subscription = new()
 		{
 			OrganizationId = DefaultTenant.OrganizationId,
 			ClubAllowance = 1,
@@ -61,19 +61,19 @@ public sealed class BillingControllerTests
 		};
 
 		public Task<OrganizationSubscription> GetCurrentAsync(CancellationToken cancellationToken = default) =>
-			Task.FromResult(_subscription);
+			Task.FromResult(subscription);
 		public Task<OrganizationSubscription> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
-			Task.FromResult(_subscription);
+			Task.FromResult(subscription);
 		public Task<OrganizationSubscription> UpdateCurrentAsync(SubscriptionUpdate update, CancellationToken cancellationToken = default)
 		{
-			_subscription.ClubAllowance = update.ClubAllowance;
-			_subscription.BillingEmail = update.BillingEmail;
-			return Task.FromResult(_subscription);
+			subscription.ClubAllowance = update.ClubAllowance;
+			subscription.BillingEmail = update.BillingEmail;
+			return Task.FromResult(subscription);
 		}
 		public Task<OrganizationSubscription> SetStatusAsync(Guid organizationId, SubscriptionStatusUpdate update, CancellationToken cancellationToken = default)
 		{
-			_subscription.Status = update.Status;
-			return Task.FromResult(_subscription);
+			subscription.Status = update.Status;
+			return Task.FromResult(subscription);
 		}
 		public Task<IReadOnlyList<BillingInvoice>> GetInvoicesAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
 			Task.FromResult<IReadOnlyList<BillingInvoice>>([]);

@@ -12,16 +12,16 @@ namespace KingsManage.Web.Controllers;
 [Route("api/notifications")]
 public class NotificationsController : ControllerBase
 {
-	private readonly IClubNotificationService _notificationService;
-	private readonly IRealtimeNotifier _realtimeNotifier;
+	private readonly IClubNotificationService notificationService;
+	private readonly IRealtimeNotifier realtimeNotifier;
 
 	public NotificationsController(
 		IClubNotificationService notificationService,
 		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
-		_notificationService = notificationService;
-		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
+		this.notificationService = notificationService;
+		this.realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet("mine")]
@@ -37,7 +37,7 @@ public class NotificationsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var notifications = await _notificationService.GetForUserAsync(
+		var notifications = await notificationService.GetForUserAsync(
 			userIdResult.UserId,
 			unreadOnly,
 			cancellationToken
@@ -62,7 +62,7 @@ public class NotificationsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var unreadCount = await _notificationService.GetUnreadCountAsync(
+		var unreadCount = await notificationService.GetUnreadCountAsync(
 			userIdResult.UserId,
 			cancellationToken
 		);
@@ -88,7 +88,7 @@ public class NotificationsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var notification = await _notificationService.MarkReadAsync(
+		var notification = await notificationService.MarkReadAsync(
 			notificationId,
 			userIdResult.UserId,
 			cancellationToken
@@ -99,7 +99,7 @@ public class NotificationsController : ControllerBase
 			return NotFound();
 		}
 
-		await _realtimeNotifier.NotificationsChangedAsync(
+		await realtimeNotifier.NotificationsChangedAsync(
 			notification.OrganizationId,
 			notification.ClubId,
 			userIdResult.UserId,
@@ -121,14 +121,14 @@ public class NotificationsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var updatedCount = await _notificationService.MarkAllReadAsync(
+		var updatedCount = await notificationService.MarkAllReadAsync(
 			userIdResult.UserId,
 			cancellationToken
 		);
 
 		if (updatedCount > 0)
 		{
-			var notifications = await _notificationService.GetForUserAsync(
+			var notifications = await notificationService.GetForUserAsync(
 				userIdResult.UserId,
 				false,
 				cancellationToken
@@ -137,7 +137,7 @@ public class NotificationsController : ControllerBase
 
 			if (notification is not null)
 			{
-				await _realtimeNotifier.NotificationsChangedAsync(
+				await realtimeNotifier.NotificationsChangedAsync(
 					notification.OrganizationId,
 					notification.ClubId,
 					userIdResult.UserId,

@@ -9,19 +9,19 @@ namespace KingsManage.Web.Controllers;
 [Route("api/billing")]
 public sealed class BillingController : ControllerBase
 {
-	private readonly IBillingService _billing;
-	private readonly ITenantContext _tenant;
+	private readonly IBillingService billing;
+	private readonly ITenantContext tenant;
 
 	public BillingController(IBillingService billing, ITenantContext tenant)
 	{
-		_billing = billing;
-		_tenant = tenant;
+		this.billing = billing;
+		this.tenant = tenant;
 	}
 
 	[HttpGet("subscription")]
 	public async Task<ActionResult<OrganizationSubscription>> GetSubscription(
 		CancellationToken cancellationToken) =>
-		Ok(await _billing.GetCurrentAsync(cancellationToken));
+		Ok(await billing.GetCurrentAsync(cancellationToken));
 
 	[HttpPut("subscription")]
 	public async Task<ActionResult<OrganizationSubscription>> UpdateSubscription(
@@ -30,7 +30,7 @@ public sealed class BillingController : ControllerBase
 	{
 		try
 		{
-			return Ok(await _billing.UpdateCurrentAsync(update, cancellationToken));
+			return Ok(await billing.UpdateCurrentAsync(update, cancellationToken));
 		}
 		catch (ArgumentException exception)
 		{
@@ -41,5 +41,5 @@ public sealed class BillingController : ControllerBase
 	[HttpGet("invoices")]
 	public async Task<ActionResult<IReadOnlyList<BillingInvoice>>> GetInvoices(
 		CancellationToken cancellationToken) =>
-		Ok(await _billing.GetInvoicesAsync(_tenant.OrganizationId, cancellationToken));
+		Ok(await billing.GetInvoicesAsync(tenant.OrganizationId, cancellationToken));
 }

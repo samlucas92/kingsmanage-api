@@ -9,11 +9,11 @@ namespace KingsManage.Web.Controllers;
 [Route("api/players")]
 public class PlayersController : ControllerBase
 {
-	private readonly IPlayerService _playerService;
+	private readonly IPlayerService playerService;
 
 	public PlayersController(IPlayerService playerService)
 	{
-		_playerService = playerService;
+		this.playerService = playerService;
 	}
 
 	[HttpGet]
@@ -21,7 +21,7 @@ public class PlayersController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var players = await _playerService.GetAllAsync(cancellationToken);
+		var players = await playerService.GetAllAsync(cancellationToken);
 		return Ok(players);
 	}
 
@@ -36,7 +36,7 @@ public class PlayersController : ControllerBase
 			return errorResult!;
 		}
 
-		var player = await _playerService.GetByIdAsync(playerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(playerId, cancellationToken);
 
 		if (player is null)
 		{
@@ -58,7 +58,7 @@ public class PlayersController : ControllerBase
 			return BadRequest("Player name is required.");
 		}
 
-		var createdPlayer = await _playerService.CreateAsync(
+		var createdPlayer = await playerService.CreateAsync(
 			player,
 			cancellationToken
 		);
@@ -88,7 +88,7 @@ public class PlayersController : ControllerBase
 			return BadRequest("Player name is required.");
 		}
 
-		var existingPlayer = await _playerService.GetByIdAsync(
+		var existingPlayer = await playerService.GetByIdAsync(
 			playerId,
 			cancellationToken
 		);
@@ -101,7 +101,7 @@ public class PlayersController : ControllerBase
 		player.Id = playerId;
 		player.CreatedAt = existingPlayer.CreatedAt;
 
-		var updatedPlayer = await _playerService.UpdateAsync(
+		var updatedPlayer = await playerService.UpdateAsync(
 			player,
 			cancellationToken
 		);
@@ -127,7 +127,7 @@ public class PlayersController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedPlayer = await _playerService.SetActiveAsync(
+		var updatedPlayer = await playerService.SetActiveAsync(
 			playerId,
 			isActive,
 			cancellationToken

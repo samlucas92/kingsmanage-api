@@ -10,16 +10,16 @@ namespace KingsManage.Web.Controllers;
 [Route("api/matches")]
 public class MatchesController : ControllerBase
 {
-	private readonly IMatchService _matchService;
-	private readonly IStatsService _statsService;
+	private readonly IMatchService matchService;
+	private readonly IStatsService statsService;
 
 	public MatchesController(
 		IMatchService matchService,
 		IStatsService statsService
 	)
 	{
-		_matchService = matchService;
-		_statsService = statsService;
+		this.matchService = matchService;
+		this.statsService = statsService;
 	}
 
 	[HttpGet]
@@ -37,14 +37,14 @@ public class MatchesController : ControllerBase
 				return BadRequest("Season id must be a valid GUID.");
 			}
 
-			matches = await _matchService.GetBySeasonAsync(
+			matches = await matchService.GetBySeasonAsync(
 				parsedSeasonId,
 				cancellationToken
 			);
 		}
 		else
 		{
-			matches = await _matchService.GetAllAsync(cancellationToken);
+			matches = await matchService.GetAllAsync(cancellationToken);
 		}
 
 		return Ok(matches.Select(MatchViewModel.FromMatch).ToList());
@@ -71,14 +71,14 @@ public class MatchesController : ControllerBase
 				return BadRequest("Season id must be a valid GUID.");
 			}
 
-			matches = await _matchService.GetBySeasonAsync(
+			matches = await matchService.GetBySeasonAsync(
 				parsedSeasonId,
 				cancellationToken
 			);
 		}
 		else
 		{
-			matches = await _matchService.GetAllAsync(cancellationToken);
+			matches = await matchService.GetAllAsync(cancellationToken);
 		}
 
 		var playerMatches = matches
@@ -104,7 +104,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var match = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var match = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (match is null)
 		{
@@ -127,7 +127,7 @@ public class MatchesController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var createdMatch = await _matchService.CreateAsync(match, cancellationToken);
+		var createdMatch = await matchService.CreateAsync(match, cancellationToken);
 		await RecalculateAffectedSeasonsAsync(null, createdMatch, cancellationToken);
 
 		return CreatedAtAction(
@@ -156,7 +156,7 @@ public class MatchesController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
@@ -166,7 +166,7 @@ public class MatchesController : ControllerBase
 		match.Id = matchId;
 		match.CreatedAt = existingMatch.CreatedAt;
 
-		var updatedMatch = await _matchService.UpdateAsync(match, cancellationToken);
+		var updatedMatch = await matchService.UpdateAsync(match, cancellationToken);
 
 		if (updatedMatch is null)
 		{
@@ -246,14 +246,14 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var deleted = await _matchService.DeleteAsync(matchId, cancellationToken);
+		var deleted = await matchService.DeleteAsync(matchId, cancellationToken);
 
 		if (!deleted)
 		{
@@ -277,14 +277,14 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var updatedMatch = await _matchService.SetSelectedPlayersAsync(
+		var updatedMatch = await matchService.SetSelectedPlayersAsync(
 			matchId,
 			selectedPlayers,
 			cancellationToken
@@ -312,7 +312,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedMatch = await _matchService.SetLineupFormationAsync(
+		var updatedMatch = await matchService.SetLineupFormationAsync(
 			matchId,
 			formation,
 			cancellationToken
@@ -337,7 +337,7 @@ public class MatchesController : ControllerBase
 		{
 			return BadRequest("Formation key is required.");
 		}
-		var updatedMatch = await _matchService.SetLineupFormationKeyAsync(matchId, request.FormationKey, cancellationToken);
+		var updatedMatch = await matchService.SetLineupFormationKeyAsync(matchId, request.FormationKey, cancellationToken);
 		return updatedMatch is null ? NotFound() : Ok(updatedMatch);
 	}
 
@@ -352,7 +352,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedMatch = await _matchService.ToggleLineupLockedAsync(
+		var updatedMatch = await matchService.ToggleLineupLockedAsync(
 			matchId,
 			cancellationToken
 		);
@@ -382,14 +382,14 @@ public class MatchesController : ControllerBase
 			return BadRequest("Goals cannot be negative.");
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var updatedMatch = await _matchService.SetResultAsync(
+		var updatedMatch = await matchService.SetResultAsync(
 			matchId,
 			result,
 			cancellationToken
@@ -416,14 +416,14 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var updatedMatch = await _matchService.ClearResultAsync(
+		var updatedMatch = await matchService.ClearResultAsync(
 			matchId,
 			cancellationToken
 		);
@@ -450,7 +450,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
@@ -463,7 +463,7 @@ public class MatchesController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var updatedMatch = await _matchService.UpdatePlayerStatsAsync(
+		var updatedMatch = await matchService.UpdatePlayerStatsAsync(
 			matchId,
 			playerStats,
 			cancellationToken
@@ -491,7 +491,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedMatch = await _matchService.UpdateNotesAsync(
+		var updatedMatch = await matchService.UpdateNotesAsync(
 			matchId,
 			notes,
 			cancellationToken
@@ -522,14 +522,14 @@ public class MatchesController : ControllerBase
 			return BadRequest("New date is required.");
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var updatedMatch = await _matchService.PostponeAsync(
+		var updatedMatch = await matchService.PostponeAsync(
 			matchId,
 			model.NewDate,
 			model.Reason,
@@ -557,14 +557,14 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
 		{
 			return NotFound();
 		}
 
-		var updatedMatch = await _matchService.RestoreAsync(matchId, cancellationToken);
+		var updatedMatch = await matchService.RestoreAsync(matchId, cancellationToken);
 
 		if (updatedMatch is null)
 		{
@@ -594,7 +594,7 @@ public class MatchesController : ControllerBase
 
 		foreach (var seasonId in affectedSeasonIds)
 		{
-			await _statsService.RecalculateSeasonStatsAsync(
+			await statsService.RecalculateSeasonStatsAsync(
 				seasonId,
 				cancellationToken
 			);

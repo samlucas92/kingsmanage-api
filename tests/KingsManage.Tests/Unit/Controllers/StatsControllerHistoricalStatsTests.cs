@@ -192,38 +192,38 @@ public class StatsControllerHistoricalStatsTests
 
 	private sealed class FakePlayerService : IPlayerService
 	{
-		private readonly List<Player> _players;
+		private readonly List<Player> players;
 
 		public FakePlayerService(List<Player> players)
 		{
-			_players = players;
+			this.players = players;
 		}
 
 		public Task<IReadOnlyList<Player>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult<IReadOnlyList<Player>>(_players);
+			return Task.FromResult<IReadOnlyList<Player>>(players);
 		}
 
 		public Task<Player?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(_players.FirstOrDefault(player => player.Id == id));
+			return Task.FromResult(players.FirstOrDefault(player => player.Id == id));
 		}
 
 		public Task<Player> CreateAsync(Player player, CancellationToken cancellationToken = default)
 		{
-			_players.Add(player);
+			players.Add(player);
 			return Task.FromResult(player);
 		}
 
 		public Task<Player?> UpdateAsync(Player player, CancellationToken cancellationToken = default)
 		{
-			var index = _players.FindIndex(existingPlayer => existingPlayer.Id == player.Id);
+			var index = players.FindIndex(existingPlayer => existingPlayer.Id == player.Id);
 			if (index < 0)
 			{
 				return Task.FromResult<Player?>(null);
 			}
 
-			_players[index] = player;
+			players[index] = player;
 			return Task.FromResult<Player?>(player);
 		}
 
@@ -233,7 +233,7 @@ public class StatsControllerHistoricalStatsTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var player = _players.FirstOrDefault(existingPlayer => existingPlayer.Id == id);
+			var player = players.FirstOrDefault(existingPlayer => existingPlayer.Id == id);
 			if (player is null)
 			{
 				return Task.FromResult<Player?>(null);
@@ -246,11 +246,11 @@ public class StatsControllerHistoricalStatsTests
 
 	private sealed class FakeStatsService : IStatsService
 	{
-		private readonly List<PlayerHistoricalStats> _historicalStats;
+		private readonly List<PlayerHistoricalStats> historicalStats;
 
 		public FakeStatsService(List<PlayerHistoricalStats> historicalStats)
 		{
-			_historicalStats = historicalStats;
+			this.historicalStats = historicalStats;
 		}
 
 		public Task<List<PlayerSeasonStats>> GetSeasonStatsAsync(
@@ -280,7 +280,7 @@ public class StatsControllerHistoricalStatsTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			return Task.FromResult(_historicalStats);
+			return Task.FromResult(historicalStats);
 		}
 
 		public Task<PlayerHistoricalStats?> GetHistoricalStatsByPlayerIdAsync(
@@ -288,7 +288,7 @@ public class StatsControllerHistoricalStatsTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			return Task.FromResult(_historicalStats.FirstOrDefault(stats => stats.PlayerId == playerId));
+			return Task.FromResult(historicalStats.FirstOrDefault(stats => stats.PlayerId == playerId));
 		}
 
 		public Task<PlayerHistoricalStats> UpsertHistoricalStatsAsync(
@@ -296,7 +296,7 @@ public class StatsControllerHistoricalStatsTests
 			CancellationToken cancellationToken = default
 		)
 		{
-			var existingStats = _historicalStats.FirstOrDefault(
+			var existingStats = historicalStats.FirstOrDefault(
 				existingStats => existingStats.PlayerId == stats.PlayerId
 			);
 
@@ -312,7 +312,7 @@ public class StatsControllerHistoricalStatsTests
 			stats.Id = stats.Id == Guid.Empty ? Guid.NewGuid() : stats.Id;
 			stats.CreatedAt = DateTime.UtcNow;
 			stats.UpdatedAt = DateTime.UtcNow;
-			_historicalStats.Add(stats);
+			historicalStats.Add(stats);
 
 			return Task.FromResult(stats);
 		}

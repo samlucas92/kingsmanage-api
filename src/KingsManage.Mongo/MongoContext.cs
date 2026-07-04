@@ -8,7 +8,7 @@ namespace KingsManage.Mongo;
 public class MongoContext
 {
 	private static readonly object MongoConfigurationLock = new();
-	private static bool _isMongoConfigured;
+	private static bool isMongoConfigured;
 
 	public IMongoDatabase Database { get; }
 
@@ -22,14 +22,14 @@ public class MongoContext
 
 	private static void ConfigureMongoSerialization()
 	{
-		if (_isMongoConfigured)
+		if (isMongoConfigured)
 		{
 			return;
 		}
 
 		lock (MongoConfigurationLock)
 		{
-			if (_isMongoConfigured)
+			if (isMongoConfigured)
 			{
 				return;
 			}
@@ -38,7 +38,7 @@ public class MongoContext
 				new GuidSerializer(GuidRepresentation.Standard)
 			);
 
-			_isMongoConfigured = true;
+			isMongoConfigured = true;
 		}
 	}
 }

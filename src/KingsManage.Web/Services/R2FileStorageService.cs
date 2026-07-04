@@ -14,9 +14,9 @@ public sealed class R2FileStorageService : IFileStorageService
 	private const string PayloadHash = "UNSIGNED-PAYLOAD";
 	private static readonly TimeSpan ValidationUrlExpiry = TimeSpan.FromMinutes(5);
 
-	private readonly R2StorageSettings _settings;
-	private readonly IHttpClientFactory _httpClientFactory;
-	private readonly IFileContentScanner _contentScanner;
+	private readonly R2StorageSettings settings;
+	private readonly IHttpClientFactory httpClientFactory;
+	private readonly IFileContentScanner contentScanner;
 
 	public R2FileStorageService(
 		R2StorageSettings settings,
@@ -24,9 +24,9 @@ public sealed class R2FileStorageService : IFileStorageService
 		IFileContentScanner contentScanner
 	)
 	{
-		_settings = settings;
-		_httpClientFactory = httpClientFactory;
-		_contentScanner = contentScanner;
+		this.settings = settings;
+		this.httpClientFactory = httpClientFactory;
+		this.contentScanner = contentScanner;
 	}
 
 	public Task<FileStorageSignedUrl> CreateUploadUrlAsync(
@@ -57,7 +57,7 @@ public sealed class R2FileStorageService : IFileStorageService
 	{
 		var signedUrl = CreateSignedUrl("GET", storageKey, ValidationUrlExpiry);
 		using var request = new HttpRequestMessage(HttpMethod.Get, signedUrl.Url);
-		using var response = await _httpClientFactory
+		using var response = await httpClientFactory
 			.CreateClient()
 			.SendAsync(
 				request,
@@ -124,7 +124,7 @@ public sealed class R2FileStorageService : IFileStorageService
 		}
 
 		var contentHash = ToHex(hasher.GetHashAndReset());
-		var scanResult = await _contentScanner.ScanAsync(
+		var scanResult = await contentScanner.ScanAsync(
 			content.ToArray(),
 			actualContentType,
 			cancellationToken
@@ -171,7 +171,7 @@ public sealed class R2FileStorageService : IFileStorageService
 	{
 		var signedUrl = CreateSignedUrl("DELETE", storageKey, ValidationUrlExpiry);
 		using var request = new HttpRequestMessage(HttpMethod.Delete, signedUrl.Url);
-		using var response = await _httpClientFactory
+		using var response = await httpClientFactory
 			.CreateClient()
 			.SendAsync(request, cancellationToken);
 
@@ -195,14 +195,14 @@ public sealed class R2FileStorageService : IFileStorageService
 		var amzDate = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
 		var dateStamp = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 		var expiresSeconds = Math.Clamp((int)expiresIn.TotalSeconds, 1, 604800);
-		var host = $"{_settings.AccountId}.r2.cloudflarestorage.com";
+		var host = $"{settings.AccountId}.r2.cloudflarestorage.com";
 		var credentialScope = $"{dateStamp}/{Region}/{Service}/aws4_request";
-		var canonicalUri = $"/{UrlEncodePathSegment(_settings.BucketName)}/{EncodeStorageKey(storageKey)}";
+		var canonicalUri = $"/{UrlEncodePathSegment(settings.BucketName)}/{EncodeStorageKey(storageKey)}";
 
 		var queryParameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
 		{
 			["X-Amz-Algorithm"] = Algorithm,
-			["X-Amz-Credential"] = $"{_settings.AccessKeyId}/{credentialScope}",
+			["X-Amz-Credential"] = $"{settings.AccessKeyId}/{credentialScope}",
 			["X-Amz-Date"] = amzDate,
 			["X-Amz-Expires"] = expiresSeconds.ToString(CultureInfo.InvariantCulture),
 			["X-Amz-SignedHeaders"] = "host"
@@ -229,7 +229,7 @@ public sealed class R2FileStorageService : IFileStorageService
 			ToHex(Sha256Hash(canonicalRequest))
 		);
 
-		var signingKey = GetSignatureKey(_settings.SecretAccessKey, dateStamp, Region, Service);
+		var signingKey = GetSignatureKey(settings.SecretAccessKey, dateStamp, Region, Service);
 		var signature = ToHex(HmacSha256(signingKey, stringToSign));
 		var url = $"https://{host}{canonicalUri}?{canonicalQueryString}&X-Amz-Signature={signature}";
 
@@ -243,10 +243,10 @@ public sealed class R2FileStorageService : IFileStorageService
 	private void ValidateSettings()
 	{
 		if (
-			string.IsNullOrWhiteSpace(_settings.AccountId) ||
-			string.IsNullOrWhiteSpace(_settings.AccessKeyId) ||
-			string.IsNullOrWhiteSpace(_settings.SecretAccessKey) ||
-			string.IsNullOrWhiteSpace(_settings.BucketName)
+			string.IsNullOrWhiteSpace(settings.AccountId) ||
+			string.IsNullOrWhiteSpace(settings.AccessKeyId) ||
+			string.IsNullOrWhiteSpace(settings.SecretAccessKey) ||
+			string.IsNullOrWhiteSpace(settings.BucketName)
 		)
 		{
 			throw new InvalidOperationException("R2 storage settings are missing.");

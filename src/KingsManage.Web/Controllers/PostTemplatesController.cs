@@ -10,21 +10,21 @@ namespace KingsManage.Web.Controllers;
 [Route("api/post-templates")]
 public class PostTemplatesController : ControllerBase
 {
-	private readonly IClubPostTemplateService _service;
-	private readonly RichTextAssetService _richTextAssets;
+	private readonly IClubPostTemplateService service;
+	private readonly RichTextAssetService richTextAssets;
 
 	public PostTemplatesController(
 		IClubPostTemplateService service,
 		RichTextAssetService richTextAssets
 	)
 	{
-		_service = service;
-		_richTextAssets = richTextAssets;
+		this.service = service;
+		this.richTextAssets = richTextAssets;
 	}
 
 	[HttpGet]
 	public async Task<ActionResult<IReadOnlyList<ClubPostTemplate>>> GetAll(CancellationToken cancellationToken) =>
-		Ok(await _service.GetAllAsync(cancellationToken));
+		Ok(await service.GetAllAsync(cancellationToken));
 
 	[HttpPost]
 	public async Task<ActionResult<ClubPostTemplate>> Create(
@@ -39,7 +39,7 @@ public class PostTemplatesController : ControllerBase
 		if (userId is null) return BadRequest("Current user id is invalid.");
 		try
 		{
-			template.BodyTemplate = await _richTextAssets.SynchronizeAsync(
+			template.BodyTemplate = await richTextAssets.SynchronizeAsync(
 				template.BodyTemplate,
 				null,
 				ClubFileLinkedEntityType.PostTemplate,
@@ -53,7 +53,7 @@ public class PostTemplatesController : ControllerBase
 		{
 			return BadRequest(exception.Message);
 		}
-		return Ok(await _service.CreateAsync(template, cancellationToken));
+		return Ok(await service.CreateAsync(template, cancellationToken));
 	}
 
 	[HttpPut("{id:guid}")]
@@ -65,14 +65,14 @@ public class PostTemplatesController : ControllerBase
 	{
 		var error = Validate(template);
 		if (error is not null) return BadRequest(error);
-		var existing = await _service.GetByIdAsync(id, cancellationToken);
+		var existing = await service.GetByIdAsync(id, cancellationToken);
 		if (existing is null) return NotFound();
 		var userId = GetCurrentUserId();
 		if (userId is null) return BadRequest("Current user id is invalid.");
 		template.Id = id;
 		try
 		{
-			template.BodyTemplate = await _richTextAssets.SynchronizeAsync(
+			template.BodyTemplate = await richTextAssets.SynchronizeAsync(
 				template.BodyTemplate,
 				existing.BodyTemplate,
 				ClubFileLinkedEntityType.PostTemplate,
@@ -86,19 +86,19 @@ public class PostTemplatesController : ControllerBase
 		{
 			return BadRequest(exception.Message);
 		}
-		var updated = await _service.UpdateAsync(template, cancellationToken);
+		var updated = await service.UpdateAsync(template, cancellationToken);
 		return updated is null ? NotFound() : Ok(updated);
 	}
 
 	[HttpDelete("{id:guid}")]
 	public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
 	{
-		var existing = await _service.GetByIdAsync(id, cancellationToken);
+		var existing = await service.GetByIdAsync(id, cancellationToken);
 		if (existing is null) return NotFound();
 		var userId = GetCurrentUserId();
 		if (userId is null) return BadRequest("Current user id is invalid.");
-		if (!await _service.DeleteAsync(id, cancellationToken)) return NotFound();
-		await _richTextAssets.DeleteAllAsync(
+		if (!await service.DeleteAsync(id, cancellationToken)) return NotFound();
+		await richTextAssets.DeleteAllAsync(
 			existing.BodyTemplate,
 			ClubFileLinkedEntityType.PostTemplate,
 			id,

@@ -7,25 +7,25 @@ namespace KingsManage.Tests.Integration.Auth;
 [TestFixture]
 public sealed class AuthAuthorizationIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task UsersEndpoint_WhenNoTokenIsSent_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.GetAsync("/api/users");
 
@@ -35,7 +35,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task UsersEndpoint_WhenAdminTokenIsSent_ShouldReturnOk()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -48,7 +48,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task UsersEndpoint_WhenCoachTokenIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -61,7 +61,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task UsersEndpoint_WhenPlayerTokenIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -74,7 +74,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task StatsEndpoint_WhenNoTokenIsSent_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.GetAsync($"/api/stats/season/{Guid.NewGuid()}");
 
@@ -84,7 +84,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task StatsEndpoint_WhenAdminTokenIsSent_ShouldReturnOk()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -97,7 +97,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task StatsEndpoint_WhenCoachTokenIsSent_ShouldReturnOk()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -110,7 +110,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task StatsEndpoint_WhenPlayerTokenIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -123,7 +123,7 @@ public sealed class AuthAuthorizationIntegrationTests
 	[Test]
 	public async Task PlatformOrganizations_WhenOrganizationAdminIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -139,7 +139,7 @@ public sealed class AuthAuthorizationIntegrationTests
 		const string email = "site-admin@test.local";
 		const string password = "SiteAdmin123!";
 		AddTenantUser(email, password, TenantRole.OrganizationAdmin, isPlatformAdmin: true);
-		var client = await _factory.CreateAuthenticatedClientAsync(email, password);
+		var client = await factory.CreateAuthenticatedClientAsync(email, password);
 
 		var response = await client.GetAsync("/api/platform/organizations");
 
@@ -152,7 +152,7 @@ public sealed class AuthAuthorizationIntegrationTests
 		const string email = "club-admin@test.local";
 		const string password = "ClubAdmin123!";
 		AddTenantUser(email, password, TenantRole.ClubAdmin);
-		var client = await _factory.CreateAuthenticatedClientAsync(email, password);
+		var client = await factory.CreateAuthenticatedClientAsync(email, password);
 
 		var organizationResponse = await client.GetAsync("/api/organization");
 		var usersResponse = await client.GetAsync("/api/users");
@@ -175,7 +175,7 @@ public sealed class AuthAuthorizationIntegrationTests
 			TenantRole.TeamManager,
 			DefaultClubTeams.FirstTeamId
 		);
-		var client = await _factory.CreateAuthenticatedClientAsync(email, password);
+		var client = await factory.CreateAuthenticatedClientAsync(email, password);
 
 		var statsResponse = await client.GetAsync($"/api/stats/season/{Guid.NewGuid()}");
 		var financeResponse = await client.GetAsync("/api/finance");
@@ -198,7 +198,7 @@ public sealed class AuthAuthorizationIntegrationTests
 			TenantRole.Player,
 			DefaultClubTeams.FirstTeamId
 		);
-		var client = await _factory.CreateAuthenticatedClientAsync(email, password);
+		var client = await factory.CreateAuthenticatedClientAsync(email, password);
 
 		var playersResponse = await client.GetAsync("/api/players");
 		var eventsResponse = await client.GetAsync("/api/events");
@@ -219,7 +219,7 @@ public sealed class AuthAuthorizationIntegrationTests
 		Guid? teamId = null,
 		bool isPlatformAdmin = false)
 	{
-		_factory.UserService.AddUser(
+		factory.UserService.AddUser(
 			new AppUser
 			{
 				Id = Guid.NewGuid(),

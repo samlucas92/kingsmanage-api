@@ -330,15 +330,15 @@ public sealed class TestMessageService : IMessageService
 
 public sealed class TestUserService : IUserService
 {
-	private readonly List<AppUser> _users = new();
-	private readonly Dictionary<Guid, string> _passwordsByUserId = new();
+	private readonly List<AppUser> users = new();
+	private readonly Dictionary<Guid, string> passwordsByUserId = new();
 
-	public IReadOnlyList<AppUser> Users => _users;
+	public IReadOnlyList<AppUser> Users => users;
 
 	public void Clear()
 	{
-		_users.Clear();
-		_passwordsByUserId.Clear();
+		users.Clear();
+		passwordsByUserId.Clear();
 	}
 
 	public void AddUser(AppUser user, string password)
@@ -357,18 +357,18 @@ public sealed class TestUserService : IUserService
 
 		user.UpdatedAt = DateTime.UtcNow;
 
-		_users.Add(user);
-		_passwordsByUserId[user.Id] = password;
+		users.Add(user);
+		passwordsByUserId[user.Id] = password;
 	}
 
 	public Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
 	{
-		return Task.FromResult<IReadOnlyList<AppUser>>(_users.ToList());
+		return Task.FromResult<IReadOnlyList<AppUser>>(users.ToList());
 	}
 
 	public Task<AppUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
 	{
-		return Task.FromResult(_users.FirstOrDefault(user => user.Id == id));
+		return Task.FromResult(users.FirstOrDefault(user => user.Id == id));
 	}
 
 	public Task<AppUser?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
@@ -376,7 +376,7 @@ public sealed class TestUserService : IUserService
 		var normalisedEmail = NormaliseEmail(email);
 
 		return Task.FromResult(
-			_users.FirstOrDefault(user =>
+			users.FirstOrDefault(user =>
 				user.Email.Equals(normalisedEmail, StringComparison.OrdinalIgnoreCase)
 			)
 		);
@@ -395,7 +395,7 @@ public sealed class TestUserService : IUserService
 
 	public Task<AppUser?> UpdateAsync(AppUser user, CancellationToken cancellationToken = default)
 	{
-		var existingUser = _users.FirstOrDefault(currentUser => currentUser.Id == user.Id);
+		var existingUser = users.FirstOrDefault(currentUser => currentUser.Id == user.Id);
 
 		if (existingUser is null)
 		{
@@ -417,7 +417,7 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var user = _users.FirstOrDefault(currentUser => currentUser.Id == id);
+		var user = users.FirstOrDefault(currentUser => currentUser.Id == id);
 
 		if (user is null)
 		{
@@ -438,7 +438,7 @@ public sealed class TestUserService : IUserService
 	{
 		var normalisedEmail = NormaliseEmail(email);
 
-		var user = _users.FirstOrDefault(currentUser =>
+		var user = users.FirstOrDefault(currentUser =>
 			currentUser.Email.Equals(normalisedEmail, StringComparison.OrdinalIgnoreCase)
 		);
 
@@ -447,7 +447,7 @@ public sealed class TestUserService : IUserService
 			return Task.FromResult<AppUser?>(null);
 		}
 
-		if (!_passwordsByUserId.TryGetValue(user.Id, out var savedPassword))
+		if (!passwordsByUserId.TryGetValue(user.Id, out var savedPassword))
 		{
 			return Task.FromResult<AppUser?>(null);
 		}
@@ -470,14 +470,14 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var user = _users.FirstOrDefault(currentUser => currentUser.Id == id);
+		var user = users.FirstOrDefault(currentUser => currentUser.Id == id);
 
 		if (user is null || !user.IsActive)
 		{
 			return Task.FromResult(false);
 		}
 
-		if (!_passwordsByUserId.TryGetValue(user.Id, out var savedPassword))
+		if (!passwordsByUserId.TryGetValue(user.Id, out var savedPassword))
 		{
 			return Task.FromResult(false);
 		}
@@ -487,7 +487,7 @@ public sealed class TestUserService : IUserService
 			return Task.FromResult(false);
 		}
 
-		_passwordsByUserId[user.Id] = newPassword;
+		passwordsByUserId[user.Id] = newPassword;
 		user.UpdatedAt = DateTime.UtcNow;
 
 		return Task.FromResult(true);
@@ -499,14 +499,14 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var user = _users.FirstOrDefault(currentUser => currentUser.Id == id);
+		var user = users.FirstOrDefault(currentUser => currentUser.Id == id);
 
 		if (user is null)
 		{
 			return Task.FromResult(false);
 		}
 
-		_passwordsByUserId[user.Id] = newPassword;
+		passwordsByUserId[user.Id] = newPassword;
 		user.UpdatedAt = DateTime.UtcNow;
 
 		return Task.FromResult(true);
@@ -518,9 +518,9 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		if (_users.Any())
+		if (users.Any())
 		{
-			return Task.FromResult(_users.First());
+			return Task.FromResult(users.First());
 		}
 
 		var user = new AppUser

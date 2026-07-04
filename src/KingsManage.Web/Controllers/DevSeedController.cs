@@ -11,14 +11,14 @@ namespace KingsManage.Web.Controllers;
 [Route("api/dev-seed")]
 public class DevSeedController : ControllerBase
 {
-	private readonly IHostEnvironment _environment;
-	private readonly IStatsService _statsService;
-	private readonly IMongoCollection<Player> _players;
-	private readonly IMongoCollection<Season> _seasons;
-	private readonly IMongoCollection<Match> _matches;
-	private readonly IMongoCollection<PlayerHistoricalStats> _historicalStats;
-	private readonly IMongoCollection<PlayerSeasonStats> _seasonStats;
-	private readonly IMongoCollection<FinanceTransaction> _financeTransactions;
+	private readonly IHostEnvironment environment;
+	private readonly IStatsService statsService;
+	private readonly IMongoCollection<Player> players;
+	private readonly IMongoCollection<Season> seasons;
+	private readonly IMongoCollection<Match> matches;
+	private readonly IMongoCollection<PlayerHistoricalStats> historicalStats;
+	private readonly IMongoCollection<PlayerSeasonStats> seasonStats;
+	private readonly IMongoCollection<FinanceTransaction> financeTransactions;
 
 	public DevSeedController(
 		IHostEnvironment environment,
@@ -26,14 +26,14 @@ public class DevSeedController : ControllerBase
 		IStatsService statsService
 	)
 	{
-		_environment = environment;
-		_statsService = statsService;
-		_players = context.Database.GetCollection<Player>("players");
-		_seasons = context.Database.GetCollection<Season>("seasons");
-		_matches = context.Database.GetCollection<Match>("matches");
-		_historicalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
-		_seasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
-		_financeTransactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
+		this.environment = environment;
+		this.statsService = statsService;
+		players = context.Database.GetCollection<Player>("players");
+		seasons = context.Database.GetCollection<Season>("seasons");
+		matches = context.Database.GetCollection<Match>("matches");
+		historicalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
+		seasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
+		financeTransactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
 	}
 
 	[HttpPost("all")]
@@ -42,7 +42,7 @@ public class DevSeedController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (!_environment.IsDevelopment())
+		if (!environment.IsDevelopment())
 		{
 			return NotFound();
 		}
@@ -62,7 +62,7 @@ public class DevSeedController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		if (!_environment.IsDevelopment())
+		if (!environment.IsDevelopment())
 		{
 			return NotFound();
 		}
@@ -84,12 +84,12 @@ public class DevSeedController : ControllerBase
 	{
 		if (clearExisting)
 		{
-			await _players.DeleteManyAsync(_ => true, cancellationToken);
-			await _matches.DeleteManyAsync(_ => true, cancellationToken);
-			await _seasons.DeleteManyAsync(_ => true, cancellationToken);
-			await _historicalStats.DeleteManyAsync(_ => true, cancellationToken);
-			await _seasonStats.DeleteManyAsync(_ => true, cancellationToken);
-			await _financeTransactions.DeleteManyAsync(_ => true, cancellationToken);
+			await players.DeleteManyAsync(_ => true, cancellationToken);
+			await matches.DeleteManyAsync(_ => true, cancellationToken);
+			await seasons.DeleteManyAsync(_ => true, cancellationToken);
+			await historicalStats.DeleteManyAsync(_ => true, cancellationToken);
+			await seasonStats.DeleteManyAsync(_ => true, cancellationToken);
+			await financeTransactions.DeleteManyAsync(_ => true, cancellationToken);
 		}
 
 		var result = new SeedImportResult();
@@ -157,7 +157,7 @@ public class DevSeedController : ControllerBase
 
 		foreach (var seasonId in seasonIdsToRecalculate)
 		{
-			await _statsService.RecalculateSeasonStatsAsync(
+			await statsService.RecalculateSeasonStatsAsync(
 				seasonId,
 				cancellationToken
 			);
@@ -201,7 +201,7 @@ public class DevSeedController : ControllerBase
 				UpdatedAt = DateTime.UtcNow
 			};
 
-			var result = await _players.ReplaceOneAsync(
+			var result = await players.ReplaceOneAsync(
 				existingPlayer => existingPlayer.Id == player.Id,
 				player,
 				new ReplaceOptions { IsUpsert = true },
@@ -252,7 +252,7 @@ public class DevSeedController : ControllerBase
 				UpdatedAt = DateTime.UtcNow
 			};
 
-			var result = await _seasons.ReplaceOneAsync(
+			var result = await seasons.ReplaceOneAsync(
 				existingSeason => existingSeason.Id == season.Id,
 				season,
 				new ReplaceOptions { IsUpsert = true },
@@ -287,10 +287,10 @@ public class DevSeedController : ControllerBase
 			}
 
 			var playerId = GetPlayerId(seedStats.PlayerId, playerIdMap);
-			var existingStats = await _historicalStats
+			var existingStats = await this.historicalStats
 				.Find(stats => stats.PlayerId == playerId)
 				.FirstOrDefaultAsync(cancellationToken);
-			var historicalStats = new PlayerHistoricalStats
+			var historicalRecord = new PlayerHistoricalStats
 			{
 				Id = existingStats?.Id ?? Guid.NewGuid(),
 				PlayerId = playerId,
@@ -300,9 +300,9 @@ public class DevSeedController : ControllerBase
 				UpdatedAt = DateTime.UtcNow
 			};
 
-			var result = await _historicalStats.ReplaceOneAsync(
+			var result = await this.historicalStats.ReplaceOneAsync(
 				existing => existing.PlayerId == playerId,
-				historicalStats,
+				historicalRecord,
 				new ReplaceOptions { IsUpsert = true },
 				cancellationToken
 			);
@@ -358,7 +358,7 @@ public class DevSeedController : ControllerBase
 					UpdatedAt = DateTime.UtcNow
 				};
 
-				var result = await _financeTransactions.ReplaceOneAsync(
+				var result = await financeTransactions.ReplaceOneAsync(
 					existing => existing.Id == charge.Id,
 					charge,
 					new ReplaceOptions { IsUpsert = true },
@@ -404,7 +404,7 @@ public class DevSeedController : ControllerBase
 					UpdatedAt = DateTime.UtcNow
 				};
 
-				var result = await _financeTransactions.ReplaceOneAsync(
+				var result = await financeTransactions.ReplaceOneAsync(
 					existing => existing.Id == transaction.Id,
 					transaction,
 					new ReplaceOptions { IsUpsert = true },
@@ -488,7 +488,7 @@ public class DevSeedController : ControllerBase
 				seasonIdsToRecalculate.Add(match.SeasonId.Value);
 			}
 
-			var replaceResult = await _matches.ReplaceOneAsync(
+			var replaceResult = await matches.ReplaceOneAsync(
 				existingMatch => existingMatch.Id == match.Id,
 				match,
 				new ReplaceOptions { IsUpsert = true },

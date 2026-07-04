@@ -5,33 +5,33 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class OrganizationDashboardService : IOrganizationDashboardService
 {
-	private readonly IMongoCollection<SportsClub> _clubs;
-	private readonly IMongoCollection<ClubTeamProfile> _teams;
-	private readonly IMongoCollection<AppUser> _users;
-	private readonly IMongoCollection<Player> _players;
-	private readonly IMongoCollection<Match> _matches;
-	private readonly IMongoCollection<ClubEvent> _events;
-	private readonly IMongoCollection<FinanceTransaction> _transactions;
-	private readonly ITenantContext _tenant;
+	private readonly IMongoCollection<SportsClub> clubs;
+	private readonly IMongoCollection<ClubTeamProfile> teams;
+	private readonly IMongoCollection<AppUser> users;
+	private readonly IMongoCollection<Player> players;
+	private readonly IMongoCollection<Match> matches;
+	private readonly IMongoCollection<ClubEvent> events;
+	private readonly IMongoCollection<FinanceTransaction> transactions;
+	private readonly ITenantContext tenant;
 
 	public OrganizationDashboardService(MongoContext context, ITenantContext tenant)
 	{
-		_clubs = context.Database.GetCollection<SportsClub>("clubs");
-		_teams = context.Database.GetCollection<ClubTeamProfile>("clubTeamProfiles");
-		_users = context.Database.GetCollection<AppUser>("users");
-		_players = context.Database.GetCollection<Player>("players");
-		_matches = context.Database.GetCollection<Match>("matches");
-		_events = context.Database.GetCollection<ClubEvent>("events");
-		_transactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
-		_tenant = tenant;
+		clubs = context.Database.GetCollection<SportsClub>("clubs");
+		teams = context.Database.GetCollection<ClubTeamProfile>("clubTeamProfiles");
+		users = context.Database.GetCollection<AppUser>("users");
+		players = context.Database.GetCollection<Player>("players");
+		matches = context.Database.GetCollection<Match>("matches");
+		events = context.Database.GetCollection<ClubEvent>("events");
+		transactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
+		this.tenant = tenant;
 	}
 
 	public async Task<OrganizationDashboard?> GetAsync(
 		Guid? clubId = null,
 		CancellationToken cancellationToken = default)
 	{
-		var clubs = await _clubs
-			.Find(club => club.OrganizationId == _tenant.OrganizationId)
+		var clubs = await this.clubs
+			.Find(club => club.OrganizationId == tenant.OrganizationId)
 			.SortBy(club => club.Name)
 			.ToListAsync(cancellationToken);
 		if (clubId.HasValue && clubs.All(club => club.Id != clubId.Value)) return null;
@@ -42,35 +42,35 @@ public sealed class OrganizationDashboardService : IOrganizationDashboardService
 			.ToHashSet();
 		var tenantFilter = Builders<ClubTeamProfile>.Filter.Eq(
 			team => team.OrganizationId,
-			_tenant.OrganizationId);
-		var teams = await _teams.Find(tenantFilter).ToListAsync(cancellationToken);
-		var players = await _players
+			tenant.OrganizationId);
+		var teams = await this.teams.Find(tenantFilter).ToListAsync(cancellationToken);
+		var players = await this.players
 			.Find(player =>
-				player.OrganizationId == _tenant.OrganizationId &&
+				player.OrganizationId == tenant.OrganizationId &&
 				selectedClubIds.Contains(player.ClubId))
 			.ToListAsync(cancellationToken);
-		var users = await _users
+		var users = await this.users
 			.Find(user => user.Memberships.Any(membership =>
-				membership.OrganizationId == _tenant.OrganizationId))
+				membership.OrganizationId == tenant.OrganizationId))
 			.ToListAsync(cancellationToken);
-		var matches = await _matches
+		var matches = await this.matches
 			.Find(match =>
-				match.OrganizationId == _tenant.OrganizationId &&
+				match.OrganizationId == tenant.OrganizationId &&
 				selectedClubIds.Contains(match.ClubId) &&
 				!match.IsCompleted &&
 				match.Date >= DateTime.UtcNow)
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
-		var events = await _events
+		var events = await this.events
 			.Find(clubEvent =>
-				clubEvent.OrganizationId == _tenant.OrganizationId &&
+				clubEvent.OrganizationId == tenant.OrganizationId &&
 				selectedClubIds.Contains(clubEvent.ClubId) &&
 				clubEvent.StartDateTime >= DateTime.UtcNow)
 			.SortBy(clubEvent => clubEvent.StartDateTime)
 			.ToListAsync(cancellationToken);
-		var transactions = await _transactions
+		var transactions = await this.transactions
 			.Find(transaction =>
-				transaction.OrganizationId == _tenant.OrganizationId &&
+				transaction.OrganizationId == tenant.OrganizationId &&
 				selectedClubIds.Contains(transaction.ClubId))
 			.ToListAsync(cancellationToken);
 
@@ -122,7 +122,7 @@ public sealed class OrganizationDashboardService : IOrganizationDashboardService
 		var clubTeams = teams.Where(team => team.ClubId == club.Id && team.IsActive).ToList();
 		var clubPlayers = players.Where(player => player.ClubId == club.Id && player.IsActive).ToList();
 		var clubUsers = users.Where(user => user.Memberships.Any(membership =>
-			membership.OrganizationId == _tenant.OrganizationId &&
+			membership.OrganizationId == tenant.OrganizationId &&
 			(membership.ClubId == club.Id || membership.ClubId == null))).ToList();
 		var outstanding = BuildFinanceSummary(
 			transactions.Where(transaction => transaction.ClubId == club.Id)).Outstanding;

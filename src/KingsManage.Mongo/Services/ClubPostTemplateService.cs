@@ -5,17 +5,17 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubPostTemplateService : IClubPostTemplateService
 {
-	private readonly IMongoCollection<ClubPostTemplate> _templates;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<ClubPostTemplate> templates;
+	private readonly TenantMongoScope tenant;
 
 	public ClubPostTemplateService(MongoContext context, TenantMongoScope tenant)
 	{
-		_templates = context.Database.GetCollection<ClubPostTemplate>("postTemplates");
-		_tenant = tenant;
+		templates = context.Database.GetCollection<ClubPostTemplate>("postTemplates");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubPostTemplate>> GetAllAsync(CancellationToken cancellationToken = default) =>
-		await _templates.Find(_tenant.Filter<ClubPostTemplate>())
+		await templates.Find(tenant.Filter<ClubPostTemplate>())
 			.SortBy(template => template.Name)
 			.ToListAsync(cancellationToken);
 
@@ -23,8 +23,8 @@ public class ClubPostTemplateService : IClubPostTemplateService
 		Guid id,
 		CancellationToken cancellationToken = default
 	) =>
-		await _templates.Find(
-				_tenant.Filter<ClubPostTemplate>() &
+		await templates.Find(
+				tenant.Filter<ClubPostTemplate>() &
 				Builders<ClubPostTemplate>.Filter.Eq(template => template.Id, id)
 			)
 			.FirstOrDefaultAsync(cancellationToken);
@@ -32,27 +32,27 @@ public class ClubPostTemplateService : IClubPostTemplateService
 	public async Task<ClubPostTemplate> CreateAsync(ClubPostTemplate template, CancellationToken cancellationToken = default)
 	{
 		template.Id = template.Id == Guid.Empty ? Guid.NewGuid() : template.Id;
-		_tenant.Assign(template);
+		tenant.Assign(template);
 		template.CreatedAt = DateTime.UtcNow;
 		template.UpdatedAt = template.CreatedAt;
-		await _templates.InsertOneAsync(template, cancellationToken: cancellationToken);
+		await templates.InsertOneAsync(template, cancellationToken: cancellationToken);
 		return template;
 	}
 
 	public async Task<ClubPostTemplate?> UpdateAsync(ClubPostTemplate template, CancellationToken cancellationToken = default)
 	{
-		var filter = _tenant.Filter<ClubPostTemplate>() &
+		var filter = tenant.Filter<ClubPostTemplate>() &
 			Builders<ClubPostTemplate>.Filter.Eq(item => item.Id, template.Id);
-		var existing = await _templates.Find(filter).FirstOrDefaultAsync(cancellationToken);
+		var existing = await templates.Find(filter).FirstOrDefaultAsync(cancellationToken);
 		if (existing is null)
 		{
 			return null;
 		}
 
-		_tenant.Assign(template);
+		tenant.Assign(template);
 		template.CreatedAt = existing.CreatedAt;
 		template.UpdatedAt = DateTime.UtcNow;
-		var result = await _templates.ReplaceOneAsync(
+		var result = await templates.ReplaceOneAsync(
 			filter,
 			template,
 			cancellationToken: cancellationToken
@@ -62,8 +62,8 @@ public class ClubPostTemplateService : IClubPostTemplateService
 
 	public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
 	{
-		var result = await _templates.DeleteOneAsync(
-			_tenant.Filter<ClubPostTemplate>() & Builders<ClubPostTemplate>.Filter.Eq(template => template.Id, id),
+		var result = await templates.DeleteOneAsync(
+			tenant.Filter<ClubPostTemplate>() & Builders<ClubPostTemplate>.Filter.Eq(template => template.Id, id),
 			cancellationToken
 		);
 		return result.DeletedCount > 0;

@@ -6,11 +6,11 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubTeamService : IClubTeamService
 {
-	private readonly IMongoCollection<ClubTeamProfile> _clubTeams;
-	private readonly IMongoCollection<Match> _matches;
-	private readonly IMongoCollection<ClubEvent> _events;
-	private readonly IMongoCollection<PlayerSeasonStats> _playerSeasonStats;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<ClubTeamProfile> clubTeams;
+	private readonly IMongoCollection<Match> matches;
+	private readonly IMongoCollection<ClubEvent> events;
+	private readonly IMongoCollection<PlayerSeasonStats> playerSeasonStats;
+	private readonly TenantMongoScope tenant;
 
 	public ClubTeamService(MongoContext context, TenantMongoScope tenant)
 	{
@@ -22,18 +22,18 @@ public class ClubTeamService : IClubTeamService
 				classMap.SetIgnoreExtraElements(true);
 			});
 		}
-		_clubTeams = context.Database.GetCollection<ClubTeamProfile>("clubTeamProfiles");
-		_matches = context.Database.GetCollection<Match>("matches");
-		_events = context.Database.GetCollection<ClubEvent>("events");
-		_playerSeasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
-		_tenant = tenant;
+		clubTeams = context.Database.GetCollection<ClubTeamProfile>("clubTeamProfiles");
+		matches = context.Database.GetCollection<Match>("matches");
+		events = context.Database.GetCollection<ClubEvent>("events");
+		playerSeasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubTeamProfile>> GetAllAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
-		var storedProfiles = await _clubTeams.Find(_tenant.Filter<ClubTeamProfile>()).ToListAsync(cancellationToken);
+		var storedProfiles = await clubTeams.Find(tenant.Filter<ClubTeamProfile>()).ToListAsync(cancellationToken);
 		var profilesById = storedProfiles
 			.Where(profile => profile.Id != Guid.Empty)
 			.GroupBy(profile => profile.Id)
@@ -45,6 +45,7 @@ public class ClubTeamService : IClubTeamService
 				profile.Id != DefaultClubTeams.FirstTeamId &&
 				profile.Id != DefaultClubTeams.SecondTeamId
 			))
+			.Where(profile => !profile.IsDeleted)
 			.OrderBy(profile => profile.SortOrder)
 			.ThenBy(profile => profile.DisplayName)
 			.ToList();
@@ -55,10 +56,11 @@ public class ClubTeamService : IClubTeamService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var profile = await _clubTeams
-			.Find(_tenant.Filter<ClubTeamProfile>(existingProfile => existingProfile.Id == id))
+		var profile = await clubTeams
+			.Find(tenant.Filter<ClubTeamProfile>(existingProfile => existingProfile.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
+		if (profile?.IsDeleted == true) return null;
 		return profile ?? GetDefaults().SingleOrDefault(defaultProfile => defaultProfile.Id == id);
 	}
 
@@ -69,11 +71,12 @@ public class ClubTeamService : IClubTeamService
 	{
 		var now = DateTime.UtcNow;
 		profile.Id = Guid.NewGuid();
+		profile.IsDeleted = false;
 		Normalise(profile);
 		profile.CreatedAt = now;
 		profile.UpdatedAt = now;
-		_tenant.Assign(profile);
-		await _clubTeams.InsertOneAsync(profile, cancellationToken: cancellationToken);
+		tenant.Assign(profile);
+		await clubTeams.InsertOneAsync(profile, cancellationToken: cancellationToken);
 		return profile;
 	}
 
@@ -88,17 +91,26 @@ public class ClubTeamService : IClubTeamService
 			return ClubTeamDeleteResult.NotFound;
 		}
 
-		if (id == DefaultClubTeams.FirstTeamId || id == DefaultClubTeams.SecondTeamId)
-		{
-			return ClubTeamDeleteResult.InUse;
-		}
-
-		var matchInUse = await _matches.Find(_tenant.Filter<Match>(match => match.TeamId == id)).AnyAsync(cancellationToken);
-		var eventInUse = await _events.Find(_tenant.Filter<ClubEvent>(clubEvent =>
+		var legacyTeam = id == DefaultClubTeams.FirstTeamId
+			? ClubTeam.First
+			: ClubTeam.Second;
+		var isLegacyDefault = id == DefaultClubTeams.FirstTeamId ||
+			id == DefaultClubTeams.SecondTeamId;
+		var matchInUse = await matches.Find(tenant.Filter<Match>(match =>
+			match.TeamId == id ||
+			(isLegacyDefault && match.TeamId == null && match.Team == legacyTeam)))
+			.AnyAsync(cancellationToken);
+		var eventInUse = await events.Find(tenant.Filter<ClubEvent>(clubEvent =>
 			clubEvent.TeamIds.Contains(id) ||
-			clubEvent.MatchLinks.Any(link => link.TeamId == id)
+			clubEvent.MatchLinks.Any(link => link.TeamId == id) ||
+			(isLegacyDefault &&
+				(clubEvent.TeamScope == ClubEventTeamScope.Both ||
+					(id == DefaultClubTeams.FirstTeamId &&
+						clubEvent.TeamScope == ClubEventTeamScope.First) ||
+					(id == DefaultClubTeams.SecondTeamId &&
+						clubEvent.TeamScope == ClubEventTeamScope.Second)))
 		)).AnyAsync(cancellationToken);
-		var statsInUse = await _playerSeasonStats.Find(_tenant.Filter<PlayerSeasonStats>(stats => stats.TeamId == id))
+		var statsInUse = await playerSeasonStats.Find(tenant.Filter<PlayerSeasonStats>(stats => stats.TeamId == id))
 			.AnyAsync(cancellationToken);
 
 		if (matchInUse || eventInUse || statsInUse)
@@ -106,7 +118,21 @@ public class ClubTeamService : IClubTeamService
 			return ClubTeamDeleteResult.InUse;
 		}
 
-		await _clubTeams.DeleteOneAsync(_tenant.Filter<ClubTeamProfile>(profile => profile.Id == id), cancellationToken);
+		if (id == DefaultClubTeams.FirstTeamId || id == DefaultClubTeams.SecondTeamId)
+		{
+			existingProfile.IsDeleted = true;
+			existingProfile.IsActive = false;
+			existingProfile.UpdatedAt = DateTime.UtcNow;
+			tenant.Assign(existingProfile);
+			await clubTeams.ReplaceOneAsync(
+				tenant.Filter<ClubTeamProfile>(profile => profile.Id == id),
+				existingProfile,
+				new ReplaceOptions { IsUpsert = true },
+				cancellationToken);
+			return ClubTeamDeleteResult.Deleted;
+		}
+
+		await clubTeams.DeleteOneAsync(tenant.Filter<ClubTeamProfile>(profile => profile.Id == id), cancellationToken);
 		return ClubTeamDeleteResult.Deleted;
 	}
 
@@ -119,13 +145,14 @@ public class ClubTeamService : IClubTeamService
 		var existingProfile = await GetByIdAsync(id, cancellationToken);
 		var now = DateTime.UtcNow;
 		profile.Id = id;
+		profile.IsDeleted = false;
 		Normalise(profile);
 		profile.CreatedAt = existingProfile?.CreatedAt ?? now;
 		profile.UpdatedAt = now;
-		_tenant.Assign(profile);
+		tenant.Assign(profile);
 
-		await _clubTeams.ReplaceOneAsync(
-			_tenant.Filter<ClubTeamProfile>(currentProfile => currentProfile.Id == id),
+		await clubTeams.ReplaceOneAsync(
+			tenant.Filter<ClubTeamProfile>(currentProfile => currentProfile.Id == id),
 			profile,
 			new ReplaceOptions { IsUpsert = true },
 			cancellationToken

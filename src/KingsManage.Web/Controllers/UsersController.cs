@@ -10,17 +10,17 @@ namespace KingsManage.Web.Controllers;
 [Authorize(Policy = "OrganizationAdmin")]
 public class UsersController : ControllerBase
 {
-	private readonly IUserService _userService;
+	private readonly IUserService userService;
 
 	public UsersController(IUserService userService)
 	{
-		_userService = userService;
+		this.userService = userService;
 	}
 
 	[HttpGet]
 	public async Task<ActionResult<List<UserViewModel>>> GetAll(CancellationToken cancellationToken)
 	{
-		var users = await _userService.GetAllAsync(cancellationToken);
+		var users = await userService.GetAllAsync(cancellationToken);
 
 		return Ok(users.Select(user => UserViewModel.FromUser(user)).ToList());
 	}
@@ -36,7 +36,7 @@ public class UsersController : ControllerBase
 			return errorResult!;
 		}
 
-		var user = await _userService.GetByIdAsync(userId, cancellationToken);
+		var user = await userService.GetByIdAsync(userId, cancellationToken);
 
 		if (user is null)
 		{
@@ -59,7 +59,7 @@ public class UsersController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingUser = await _userService.GetByEmailAsync(request.Email, cancellationToken);
+		var existingUser = await userService.GetByEmailAsync(request.Email, cancellationToken);
 
 		if (existingUser is not null)
 		{
@@ -74,7 +74,7 @@ public class UsersController : ControllerBase
 			IsActive = request.IsActive
 		};
 
-		var createdUser = await _userService.CreateAsync(user, request.Password, cancellationToken);
+		var createdUser = await userService.CreateAsync(user, request.Password, cancellationToken);
 		var viewModel = UserViewModel.FromUser(createdUser);
 
 		return CreatedAtAction(nameof(GetById), new { id = viewModel.Id }, viewModel);
@@ -99,14 +99,14 @@ public class UsersController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingUser = await _userService.GetByIdAsync(userId, cancellationToken);
+		var existingUser = await userService.GetByIdAsync(userId, cancellationToken);
 
 		if (existingUser is null)
 		{
 			return NotFound();
 		}
 
-		var userWithSameEmail = await _userService.GetByEmailAsync(request.Email, cancellationToken);
+		var userWithSameEmail = await userService.GetByEmailAsync(request.Email, cancellationToken);
 
 		if (userWithSameEmail is not null && userWithSameEmail.Id != userId)
 		{
@@ -121,7 +121,7 @@ public class UsersController : ControllerBase
 		AppUser? updatedUser;
 		try
 		{
-			updatedUser = await _userService.UpdateAsync(existingUser, cancellationToken);
+			updatedUser = await userService.UpdateAsync(existingUser, cancellationToken);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -151,7 +151,7 @@ public class UsersController : ControllerBase
 		AppUser? updatedUser;
 		try
 		{
-			updatedUser = await _userService.SetActiveAsync(userId, isActive, cancellationToken);
+			updatedUser = await userService.SetActiveAsync(userId, isActive, cancellationToken);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -185,7 +185,7 @@ public class UsersController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var reset = await _userService.ResetPasswordAsync(
+		var reset = await userService.ResetPasswordAsync(
 			userId,
 			request.NewPassword,
 			cancellationToken

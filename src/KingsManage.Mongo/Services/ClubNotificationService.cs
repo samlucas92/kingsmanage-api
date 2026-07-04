@@ -6,8 +6,8 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubNotificationService : IClubNotificationService
 {
-	private readonly IMongoCollection<ClubNotification> _notifications;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<ClubNotification> notifications;
+	private readonly TenantMongoScope tenant;
 
 	static ClubNotificationService()
 	{
@@ -36,8 +36,8 @@ public class ClubNotificationService : IClubNotificationService
 
 	public ClubNotificationService(MongoContext context, TenantMongoScope tenant)
 	{
-		_notifications = context.Database.GetCollection<ClubNotification>("notifications");
-		_tenant = tenant;
+		notifications = context.Database.GetCollection<ClubNotification>("notifications");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubNotification>> GetForUserAsync(
@@ -56,8 +56,8 @@ public class ClubNotificationService : IClubNotificationService
 				recipient => recipient.UserId == userId
 			);
 
-		var notifications = await _notifications
-			.Find(_tenant.Filter<ClubNotification>() & filter)
+		var notifications = await this.notifications
+			.Find(tenant.Filter<ClubNotification>() & filter)
 			.SortByDescending(notification => notification.CreatedAt)
 			.ToListAsync(cancellationToken);
 
@@ -74,8 +74,8 @@ public class ClubNotificationService : IClubNotificationService
 			recipient => recipient.UserId == userId && recipient.Status == NotificationStatus.Unread
 		);
 
-		return (int)await _notifications.CountDocumentsAsync(
-			_tenant.Filter<ClubNotification>() & filter,
+		return (int)await notifications.CountDocumentsAsync(
+			tenant.Filter<ClubNotification>() & filter,
 			cancellationToken: cancellationToken);
 	}
 
@@ -86,9 +86,9 @@ public class ClubNotificationService : IClubNotificationService
 	{
 		notification.Id = notification.Id == Guid.Empty ? Guid.NewGuid() : notification.Id;
 		PrepareForSave(notification);
-		_tenant.Assign(notification);
+		tenant.Assign(notification);
 
-		await _notifications.InsertOneAsync(notification, cancellationToken: cancellationToken);
+		await notifications.InsertOneAsync(notification, cancellationToken: cancellationToken);
 
 		return notification;
 	}
@@ -99,8 +99,8 @@ public class ClubNotificationService : IClubNotificationService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var notification = await _notifications
-			.Find(_tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notificationId))
+		var notification = await notifications
+			.Find(tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notificationId))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		if (notification is null)
@@ -120,8 +120,8 @@ public class ClubNotificationService : IClubNotificationService
 		recipient.Status = NotificationStatus.Read;
 		recipient.ReadAt ??= DateTime.UtcNow;
 
-		var result = await _notifications.ReplaceOneAsync(
-			_tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notificationId),
+		var result = await notifications.ReplaceOneAsync(
+			tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notificationId),
 			notification,
 			cancellationToken: cancellationToken
 		);
@@ -139,8 +139,8 @@ public class ClubNotificationService : IClubNotificationService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var notifications = await _notifications
-			.Find(_tenant.Filter<ClubNotification>(notification => notification.Recipients.Any(recipient => recipient.UserId == userId)))
+		var notifications = await this.notifications
+			.Find(tenant.Filter<ClubNotification>(notification => notification.Recipients.Any(recipient => recipient.UserId == userId)))
 			.ToListAsync(cancellationToken);
 
 		var updatedCount = 0;
@@ -157,8 +157,8 @@ public class ClubNotificationService : IClubNotificationService
 			recipient.Status = NotificationStatus.Read;
 			recipient.ReadAt = DateTime.UtcNow;
 
-			await _notifications.ReplaceOneAsync(
-				_tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notification.Id),
+			await this.notifications.ReplaceOneAsync(
+				tenant.Filter<ClubNotification>(currentNotification => currentNotification.Id == notification.Id),
 				notification,
 				cancellationToken: cancellationToken
 			);

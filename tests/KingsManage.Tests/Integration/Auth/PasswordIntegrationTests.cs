@@ -7,25 +7,25 @@ namespace KingsManage.Tests.Integration.Auth;
 [TestFixture]
 public sealed class PasswordIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task ChangePassword_WhenNoTokenIsSent_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			"/api/auth/change-password",
@@ -42,7 +42,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ChangePassword_WhenCurrentPasswordIsCorrect_ShouldUpdatePassword()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -58,7 +58,7 @@ public sealed class PasswordIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
 
-		var oldPasswordLoginResponse = await _factory.CreateClient().PostAsJsonAsync(
+		var oldPasswordLoginResponse = await factory.CreateClient().PostAsJsonAsync(
 			"/api/auth/login",
 			new
 			{
@@ -69,7 +69,7 @@ public sealed class PasswordIntegrationTests
 
 		Assert.That(oldPasswordLoginResponse.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
 
-		var newPasswordLoginResponse = await _factory.CreateClient().PostAsJsonAsync(
+		var newPasswordLoginResponse = await factory.CreateClient().PostAsJsonAsync(
 			"/api/auth/login",
 			new
 			{
@@ -84,7 +84,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ChangePassword_WhenCurrentPasswordIsWrong_ShouldReturnBadRequestAndKeepOldPassword()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -100,7 +100,7 @@ public sealed class PasswordIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
-		var oldPasswordLoginResponse = await _factory.CreateClient().PostAsJsonAsync(
+		var oldPasswordLoginResponse = await factory.CreateClient().PostAsJsonAsync(
 			"/api/auth/login",
 			new
 			{
@@ -115,7 +115,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ChangePassword_WhenNewPasswordIsTooShort_ShouldReturnBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -135,7 +135,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenNoTokenIsSent_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			$"/api/users/{TestUsers.CoachId}/reset-password",
@@ -151,7 +151,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenAdminTokenIsSent_ShouldUpdatePassword()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -166,7 +166,7 @@ public sealed class PasswordIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
 
-		var oldPasswordLoginResponse = await _factory.CreateClient().PostAsJsonAsync(
+		var oldPasswordLoginResponse = await factory.CreateClient().PostAsJsonAsync(
 			"/api/auth/login",
 			new
 			{
@@ -177,7 +177,7 @@ public sealed class PasswordIntegrationTests
 
 		Assert.That(oldPasswordLoginResponse.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
 
-		var newPasswordLoginResponse = await _factory.CreateClient().PostAsJsonAsync(
+		var newPasswordLoginResponse = await factory.CreateClient().PostAsJsonAsync(
 			"/api/auth/login",
 			new
 			{
@@ -192,7 +192,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenCoachTokenIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -211,7 +211,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenPlayerTokenIsSent_ShouldReturnForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -230,7 +230,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenUserDoesNotExist_ShouldReturnNotFound()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -249,7 +249,7 @@ public sealed class PasswordIntegrationTests
 	[Test]
 	public async Task ResetPassword_WhenNewPasswordIsTooShort_ShouldReturnBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);

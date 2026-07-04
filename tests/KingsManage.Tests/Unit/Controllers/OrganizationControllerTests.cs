@@ -186,11 +186,11 @@ public sealed class OrganizationControllerTests
 
 	private sealed class StubBillingService(bool canAddClub) : IBillingService
 	{
-		private readonly OrganizationSubscription _subscription = new();
-		public Task<OrganizationSubscription> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
-		public Task<OrganizationSubscription> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
-		public Task<OrganizationSubscription> UpdateCurrentAsync(SubscriptionUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
-		public Task<OrganizationSubscription> SetStatusAsync(Guid organizationId, SubscriptionStatusUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
+		private readonly OrganizationSubscription subscription = new();
+		public Task<OrganizationSubscription> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(subscription);
+		public Task<OrganizationSubscription> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult(subscription);
+		public Task<OrganizationSubscription> UpdateCurrentAsync(SubscriptionUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(subscription);
+		public Task<OrganizationSubscription> SetStatusAsync(Guid organizationId, SubscriptionStatusUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(subscription);
 		public Task<IReadOnlyList<BillingInvoice>> GetInvoicesAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<BillingInvoice>>([]);
 		public Task<BillingInvoice> AddInvoiceAsync(BillingInvoice invoice, CancellationToken cancellationToken = default) => Task.FromResult(invoice);
 		public Task<bool> CanAddClubAsync(CancellationToken cancellationToken = default) => Task.FromResult(canAddClub);

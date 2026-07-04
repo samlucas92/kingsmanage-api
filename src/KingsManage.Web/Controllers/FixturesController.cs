@@ -10,11 +10,11 @@ namespace KingsManage.Web.Controllers;
 [Route("api/fixtures")]
 public class FixturesController : ControllerBase
 {
-	private readonly IMatchService _matchService;
+	private readonly IMatchService matchService;
 
 	public FixturesController(IMatchService matchService)
 	{
-		_matchService = matchService;
+		this.matchService = matchService;
 	}
 
 	[HttpGet]
@@ -22,7 +22,7 @@ public class FixturesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var matches = await _matchService.GetAllAsync(cancellationToken);
+		var matches = await matchService.GetAllAsync(cancellationToken);
 		return Ok(matches
 			.OrderBy(match => match.Date)
 			.Select(MatchViewModel.FromMatch)

@@ -9,25 +9,25 @@ namespace KingsManage.Tests.Integration.Auth;
 [TestFixture]
 public sealed class AuthIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task Login_WhenAdminCredentialsAreValid_ShouldReturnOkWithToken()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			"/api/auth/login",
@@ -53,7 +53,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task Login_WhenPasswordIsWrong_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			"/api/auth/login",
@@ -70,7 +70,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task Login_WhenEmailDoesNotExist_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			"/api/auth/login",
@@ -87,7 +87,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task Login_WhenUserIsInactive_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.PostAsJsonAsync(
 			"/api/auth/login",
@@ -104,7 +104,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task GetCurrentUser_WhenNoTokenIsSent_ShouldReturnUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.GetAsync("/api/auth/me");
 
@@ -114,7 +114,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task GetCurrentUser_WhenAdminTokenIsSent_ShouldReturnCurrentUser()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -133,7 +133,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task GetCurrentUser_WhenCoachTokenIsSent_ShouldReturnCurrentUser()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -152,7 +152,7 @@ public sealed class AuthIntegrationTests
 	[Test]
 	public async Task GetCurrentUser_WhenPlayerTokenIsSent_ShouldReturnCurrentUser()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);

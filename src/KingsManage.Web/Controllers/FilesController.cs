@@ -34,16 +34,16 @@ public class FilesController : ControllerBase
 		".pdf"
 	};
 
-	private readonly IClubFileService _fileService;
-	private readonly IStoredFileObjectService _storedObjectService;
-	private readonly IFileStorageService _storageService;
-	private readonly IFileLifecycleService _lifecycleService;
-	private readonly ITenantContext _tenantContext;
-	private readonly IClubPostService _postService;
-	private readonly IClubEventService _eventService;
-	private readonly IPlayerService _playerService;
-	private readonly ISportsClubService _clubService;
-	private readonly IClubPostTemplateService _templateService;
+	private readonly IClubFileService fileService;
+	private readonly IStoredFileObjectService storedObjectService;
+	private readonly IFileStorageService storageService;
+	private readonly IFileLifecycleService lifecycleService;
+	private readonly ITenantContext tenantContext;
+	private readonly IClubPostService postService;
+	private readonly IClubEventService eventService;
+	private readonly IPlayerService playerService;
+	private readonly ISportsClubService clubService;
+	private readonly IClubPostTemplateService templateService;
 
 	public FilesController(
 		IClubFileService fileService,
@@ -58,16 +58,16 @@ public class FilesController : ControllerBase
 		IClubPostTemplateService templateService
 	)
 	{
-		_fileService = fileService;
-		_storedObjectService = storedObjectService;
-		_storageService = storageService;
-		_lifecycleService = lifecycleService;
-		_tenantContext = tenantContext;
-		_postService = postService;
-		_eventService = eventService;
-		_playerService = playerService;
-		_clubService = clubService;
-		_templateService = templateService;
+		this.fileService = fileService;
+		this.storedObjectService = storedObjectService;
+		this.storageService = storageService;
+		this.lifecycleService = lifecycleService;
+		this.tenantContext = tenantContext;
+		this.postService = postService;
+		this.eventService = eventService;
+		this.playerService = playerService;
+		this.clubService = clubService;
+		this.templateService = templateService;
 	}
 
 	[HttpGet]
@@ -93,7 +93,7 @@ public class FilesController : ControllerBase
 			return NotFound();
 		}
 
-		var files = await _fileService.GetByLinkedEntityAsync(
+		var files = await fileService.GetByLinkedEntityAsync(
 			linkedEntityType,
 			linkedEntityId,
 			cancellationToken
@@ -133,19 +133,19 @@ public class FilesController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var capacity = await _lifecycleService.CheckUploadCapacityAsync(
-			_tenantContext.OrganizationId,
+		var capacity = await lifecycleService.CheckUploadCapacityAsync(
+			tenantContext.OrganizationId,
 			model.ContentHash,
 			model.SizeBytes,
 			cancellationToken
 		);
 		if (!capacity.IsAllowed)
 		{
-			await _lifecycleService.RecordAuditAsync(
+			await lifecycleService.RecordAuditAsync(
 				new FileLifecycleAudit
 				{
-					OrganizationId = _tenantContext.OrganizationId,
-					ClubId = _tenantContext.ClubId,
+					OrganizationId = tenantContext.OrganizationId,
+					ClubId = tenantContext.ClubId,
 					UserId = userIdResult.UserId,
 					EventType = FileLifecycleEventType.UploadRejected,
 					Detail = "Organization file-storage quota exceeded."
@@ -171,10 +171,10 @@ public class FilesController : ControllerBase
 			var candidate = new StoredFileObject
 			{
 				Id = Guid.NewGuid(),
-				OrganizationId = _tenantContext.OrganizationId,
+				OrganizationId = tenantContext.OrganizationId,
 				ContentHash = contentHash,
 				StorageKey = BuildContentAddressedStorageKey(
-					_tenantContext.OrganizationId,
+					tenantContext.OrganizationId,
 					contentHash
 				),
 				StorageProvider = "CloudflareR2",
@@ -185,7 +185,7 @@ public class FilesController : ControllerBase
 			StoredFileObjectResolution resolution;
 			try
 			{
-				resolution = await _storedObjectService.ResolveAsync(
+				resolution = await storedObjectService.ResolveAsync(
 					candidate,
 					cancellationToken
 				);
@@ -212,7 +212,7 @@ public class FilesController : ControllerBase
 
 		if (
 			storedObject is not null &&
-			!await _storedObjectService.IncrementReferenceCountAsync(
+			!await storedObjectService.IncrementReferenceCountAsync(
 				storedObject.Id,
 				cancellationToken
 			)
@@ -221,7 +221,7 @@ public class FilesController : ControllerBase
 			return Conflict("The stored object is currently being removed. Please retry the upload.");
 		}
 
-		var file = await _fileService.CreateAsync(
+		var file = await fileService.CreateAsync(
 			new ClubFile
 			{
 				Id = fileId,
@@ -262,7 +262,7 @@ public class FilesController : ControllerBase
 		FileStorageSignedUrl? signedUrl = null;
 		if (uploadRequired)
 		{
-			signedUrl = await _storageService.CreateUploadUrlAsync(
+			signedUrl = await storageService.CreateUploadUrlAsync(
 				file.StorageKey,
 				UploadUrlExpiry,
 				cancellationToken
@@ -294,7 +294,7 @@ public class FilesController : ControllerBase
 			return errorResult!;
 		}
 
-		var pendingFile = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		var pendingFile = await fileService.GetByIdAsync(fileId, cancellationToken);
 
 		if (pendingFile is null || pendingFile.Status == ClubFileStatus.Deleted)
 		{
@@ -306,7 +306,7 @@ public class FilesController : ControllerBase
 			return Ok(pendingFile);
 		}
 
-		var validation = await _storageService.ValidateObjectAsync(
+		var validation = await storageService.ValidateObjectAsync(
 			pendingFile.StorageKey,
 			pendingFile.ContentHash,
 			pendingFile.ContentType,
@@ -338,14 +338,14 @@ public class FilesController : ControllerBase
 				: validation.ThreatName;
 			if (pendingFile.StoredObjectId is Guid quarantinedObjectId)
 			{
-				await _storedObjectService.MarkQuarantinedAsync(
+				await storedObjectService.MarkQuarantinedAsync(
 					quarantinedObjectId,
 					reason,
 					cancellationToken
 				);
 			}
 
-			var quarantinedFile = await _fileService.MarkQuarantinedAsync(
+			var quarantinedFile = await fileService.MarkQuarantinedAsync(
 				pendingFile.Id,
 				reason,
 				cancellationToken
@@ -363,13 +363,13 @@ public class FilesController : ControllerBase
 
 		if (pendingFile.StoredObjectId is Guid storedObjectId)
 		{
-			await _storedObjectService.MarkUploadedAsync(
+			await storedObjectService.MarkUploadedAsync(
 				storedObjectId,
 				cancellationToken
 			);
 		}
 
-		var file = await _fileService.MarkUploadedAsync(fileId, cancellationToken);
+		var file = await fileService.MarkUploadedAsync(fileId, cancellationToken);
 
 		if (file is null)
 		{
@@ -395,8 +395,8 @@ public class FilesController : ControllerBase
 	)
 	{
 		return Ok(
-			await _lifecycleService.GetUsageAsync(
-				_tenantContext.OrganizationId,
+			await lifecycleService.GetUsageAsync(
+				tenantContext.OrganizationId,
 				cancellationToken
 			)
 		);
@@ -410,8 +410,8 @@ public class FilesController : ControllerBase
 	)
 	{
 		return Ok(
-			await _lifecycleService.GetAuditAsync(
-				_tenantContext.OrganizationId,
+			await lifecycleService.GetAuditAsync(
+				tenantContext.OrganizationId,
 				limit,
 				cancellationToken
 			)
@@ -430,7 +430,7 @@ public class FilesController : ControllerBase
 			return errorResult!;
 		}
 
-		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
 		if (
 			file is null ||
 			file.Status != ClubFileStatus.Uploaded ||
@@ -441,15 +441,15 @@ public class FilesController : ControllerBase
 			return BadRequest("A valid uploaded club logo is required.");
 		}
 
-		var club = await _clubService.GetByIdAsync(file.LinkedEntityId, cancellationToken);
+		var club = await clubService.GetByIdAsync(file.LinkedEntityId, cancellationToken);
 		if (club is null)
 		{
 			return NotFound();
 		}
-		if (IsClubAdminOnly() && club.Id != _tenantContext.ClubId) return Forbid();
+		if (IsClubAdminOnly() && club.Id != tenantContext.ClubId) return Forbid();
 
 		var previousFileId = club.LogoFileId;
-		var updated = await _clubService.SetLogoFileAsync(
+		var updated = await clubService.SetLogoFileAsync(
 			club.Id,
 			file.Id,
 			cancellationToken
@@ -474,14 +474,14 @@ public class FilesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var club = await _clubService.GetByIdAsync(clubId, cancellationToken);
+		var club = await clubService.GetByIdAsync(clubId, cancellationToken);
 		if (club is null)
 		{
 			return NotFound();
 		}
-		if (IsClubAdminOnly() && club.Id != _tenantContext.ClubId) return Forbid();
+		if (IsClubAdminOnly() && club.Id != tenantContext.ClubId) return Forbid();
 
-		var updated = await _clubService.SetLogoFileAsync(clubId, null, cancellationToken);
+		var updated = await clubService.SetLogoFileAsync(clubId, null, cancellationToken);
 		if (club.LogoFileId is Guid fileId)
 		{
 			await DeleteManagedReferenceAsync(fileId, cancellationToken);
@@ -501,7 +501,7 @@ public class FilesController : ControllerBase
 			return errorResult!;
 		}
 
-		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
 
 		if (file is null || file.Status != ClubFileStatus.Uploaded)
 		{
@@ -513,7 +513,7 @@ public class FilesController : ControllerBase
 			return Forbid();
 		}
 
-		var signedUrl = await _storageService.CreateDownloadUrlAsync(
+		var signedUrl = await storageService.CreateDownloadUrlAsync(
 			file.StorageKey,
 			DownloadUrlExpiry,
 			cancellationToken
@@ -546,8 +546,8 @@ public class FilesController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
-		var deleted = await _fileService.SoftDeleteAsync(
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
+		var deleted = await fileService.SoftDeleteAsync(
 			fileId,
 			userIdResult.UserId,
 			cancellationToken
@@ -560,7 +560,7 @@ public class FilesController : ControllerBase
 
 		if (file?.StoredObjectId is Guid storedObjectId)
 		{
-			await _storedObjectService.DecrementReferenceCountAsync(
+			await storedObjectService.DecrementReferenceCountAsync(
 				storedObjectId,
 				cancellationToken
 			);
@@ -590,13 +590,13 @@ public class FilesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		return _lifecycleService.RecordAuditAsync(
+		return lifecycleService.RecordAuditAsync(
 			new FileLifecycleAudit
 			{
 				OrganizationId = file.OrganizationId == Guid.Empty
-					? _tenantContext.OrganizationId
+					? tenantContext.OrganizationId
 					: file.OrganizationId,
-				ClubId = file.ClubId == Guid.Empty ? _tenantContext.ClubId : file.ClubId,
+				ClubId = file.ClubId == Guid.Empty ? tenantContext.ClubId : file.ClubId,
 				FileId = file.Id,
 				StoredObjectId = storedObject?.Id ?? file.StoredObjectId,
 				UserId = userId,
@@ -709,16 +709,16 @@ public class FilesController : ControllerBase
 		return linkedEntityType switch
 		{
 			ClubFileLinkedEntityType.Post =>
-				await _postService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+				await postService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.Event =>
-				await _eventService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+				await eventService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.Player =>
-				await _playerService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+				await playerService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.ClubDocument => true,
 			ClubFileLinkedEntityType.ClubLogo =>
-				await _clubService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+				await clubService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.PostTemplate =>
-				await _templateService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
+				await templateService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.RichTextDraft => true,
 			_ => false
 		};
@@ -737,7 +737,7 @@ public class FilesController : ControllerBase
 		return file.LinkedEntityType switch
 		{
 			ClubFileLinkedEntityType.Post =>
-				await _postService.GetByIdAsync(file.LinkedEntityId, cancellationToken) is not null,
+				await postService.GetByIdAsync(file.LinkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.Event => await CanCurrentUserAccessEventFileAsync(file.LinkedEntityId, cancellationToken),
 			ClubFileLinkedEntityType.Player => IsAdminOrCoach(),
 			ClubFileLinkedEntityType.ClubDocument => IsAdminOrCoach(),
@@ -753,7 +753,7 @@ public class FilesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var file = await _fileService.GetByIdAsync(fileId, cancellationToken);
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
 		if (file is null)
 		{
 			return;
@@ -765,14 +765,14 @@ public class FilesController : ControllerBase
 			return;
 		}
 
-		if (!await _fileService.SoftDeleteAsync(fileId, user.UserId, cancellationToken))
+		if (!await fileService.SoftDeleteAsync(fileId, user.UserId, cancellationToken))
 		{
 			return;
 		}
 
 		if (file.StoredObjectId is Guid storedObjectId)
 		{
-			await _storedObjectService.DecrementReferenceCountAsync(
+			await storedObjectService.DecrementReferenceCountAsync(
 				storedObjectId,
 				cancellationToken
 			);
@@ -784,7 +784,7 @@ public class FilesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var clubEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (clubEvent is null)
 		{

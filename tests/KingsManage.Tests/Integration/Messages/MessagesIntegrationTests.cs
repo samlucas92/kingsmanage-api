@@ -10,17 +10,17 @@ namespace KingsManage.Tests.Integration.Messages;
 [TestFixture]
 public sealed class MessagesIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
-	public void TearDown() => _factory.Dispose();
+	public void TearDown() => factory.Dispose();
 
 	[Test]
 	public async Task CreateDirectThread_Twice_ReusesExistingThread()
@@ -31,7 +31,7 @@ public sealed class MessagesIntegrationTests
 
 		Assert.That(first.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 		Assert.That(second.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-		Assert.That(_factory.MessageService.Threads, Has.Count.EqualTo(1));
+		Assert.That(factory.MessageService.Threads, Has.Count.EqualTo(1));
 
 		using var firstJson = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
 		using var secondJson = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
@@ -49,7 +49,7 @@ public sealed class MessagesIntegrationTests
 	[Test]
 	public async Task GetThread_AsNonParticipant_ReturnsNotFound()
 	{
-		var thread = await _factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.AdminId, TestUsers.CoachId);
+		var thread = await factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.AdminId, TestUsers.CoachId);
 		var client = await CreatePlayerClientAsync();
 		var response = await client.GetAsync($"/api/messages/threads/{thread.Id}");
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -58,22 +58,22 @@ public sealed class MessagesIntegrationTests
 	[Test]
 	public async Task SendMessage_AsNonParticipant_ReturnsNotFound()
 	{
-		var thread = await _factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.AdminId, TestUsers.CoachId);
+		var thread = await factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.AdminId, TestUsers.CoachId);
 		var client = await CreatePlayerClientAsync();
 		var response = await client.PostAsJsonAsync($"/api/messages/threads/{thread.Id}/messages", new { Body = "Hello" });
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-		Assert.That(_factory.MessageService.Messages, Is.Empty);
+		Assert.That(factory.MessageService.Messages, Is.Empty);
 	}
 
 	[Test]
 	public async Task SendMessage_NotifiesRecipientButNotSender()
 	{
-		var thread = await _factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.PlayerId, TestUsers.CoachId);
+		var thread = await factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.PlayerId, TestUsers.CoachId);
 		var client = await CreatePlayerClientAsync();
 		var response = await client.PostAsJsonAsync($"/api/messages/threads/{thread.Id}/messages", new { Body = "Are you free for training?" });
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		var notification = _factory.ClubNotificationService.Notifications.Single();
+		var notification = factory.ClubNotificationService.Notifications.Single();
 		Assert.That(notification.Type, Is.EqualTo(NotificationType.NewDirectMessage));
 		Assert.That(notification.SourceType, Is.EqualTo(NotificationSourceType.Message));
 		Assert.That(notification.Recipients.Select(recipient => recipient.UserId), Is.EqualTo(new[] { TestUsers.CoachId }));
@@ -83,7 +83,7 @@ public sealed class MessagesIntegrationTests
 	[Test]
 	public async Task MarkRead_UpdatesCurrentParticipantReadState()
 	{
-		var thread = await _factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.PlayerId, TestUsers.CoachId);
+		var thread = await factory.MessageService.GetOrCreateDirectThreadAsync(TestUsers.PlayerId, TestUsers.CoachId);
 		thread.Participants.First(participant => participant.UserId == TestUsers.PlayerId).LastReadAt = null;
 		var client = await CreatePlayerClientAsync();
 		var response = await client.PostAsync($"/api/messages/threads/{thread.Id}/mark-read", null);
@@ -92,5 +92,5 @@ public sealed class MessagesIntegrationTests
 		Assert.That(thread.Participants.First(participant => participant.UserId == TestUsers.PlayerId).LastReadAt, Is.Not.Null);
 	}
 
-	private Task<HttpClient> CreatePlayerClientAsync() => _factory.CreateAuthenticatedClientAsync(TestUsers.PlayerEmail, TestUsers.PlayerPassword);
+	private Task<HttpClient> CreatePlayerClientAsync() => factory.CreateAuthenticatedClientAsync(TestUsers.PlayerEmail, TestUsers.PlayerPassword);
 }

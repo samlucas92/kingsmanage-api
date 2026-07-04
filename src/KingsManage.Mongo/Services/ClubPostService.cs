@@ -6,8 +6,8 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubPostService : IClubPostService
 {
-	private readonly IMongoCollection<ClubPost> _posts;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<ClubPost> posts;
+	private readonly TenantMongoScope tenant;
 
 	static ClubPostService()
 	{
@@ -25,16 +25,16 @@ public class ClubPostService : IClubPostService
 
 	public ClubPostService(MongoContext context, TenantMongoScope tenant)
 	{
-		_posts = context.Database.GetCollection<ClubPost>("posts");
-		_tenant = tenant;
+		posts = context.Database.GetCollection<ClubPost>("posts");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubPost>> GetAllAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
-		var posts = await _posts
-			.Find(_tenant.Filter<ClubPost>())
+		var posts = await this.posts
+			.Find(tenant.Filter<ClubPost>())
 			.SortByDescending(post => post.IsPinned)
 			.ThenByDescending(post => post.CreatedAt)
 			.ToListAsync(cancellationToken);
@@ -47,8 +47,8 @@ public class ClubPostService : IClubPostService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var post = await _posts
-			.Find(_tenant.Filter<ClubPost>(post => post.Id == id))
+		var post = await posts
+			.Find(tenant.Filter<ClubPost>(post => post.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return post is null ? null : NormaliseFromStorage(post);
@@ -61,9 +61,9 @@ public class ClubPostService : IClubPostService
 	{
 		post.Id = post.Id == Guid.Empty ? Guid.NewGuid() : post.Id;
 		PrepareForSave(post, true);
-		_tenant.Assign(post);
+		tenant.Assign(post);
 
-		await _posts.InsertOneAsync(post, cancellationToken: cancellationToken);
+		await posts.InsertOneAsync(post, cancellationToken: cancellationToken);
 
 		return post;
 	}
@@ -74,10 +74,10 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		PrepareForSave(post, false);
-		_tenant.Assign(post);
+		tenant.Assign(post);
 
-		var result = await _posts.ReplaceOneAsync(
-			_tenant.Filter<ClubPost>(existingPost => existingPost.Id == post.Id),
+		var result = await posts.ReplaceOneAsync(
+			tenant.Filter<ClubPost>(existingPost => existingPost.Id == post.Id),
 			post,
 			cancellationToken: cancellationToken
 		);
@@ -95,8 +95,8 @@ public class ClubPostService : IClubPostService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var result = await _posts.DeleteOneAsync(
-			_tenant.Filter<ClubPost>(post => post.Id == id),
+		var result = await posts.DeleteOneAsync(
+			tenant.Filter<ClubPost>(post => post.Id == id),
 			cancellationToken
 		);
 

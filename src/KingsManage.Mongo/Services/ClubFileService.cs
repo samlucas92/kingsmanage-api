@@ -6,8 +6,8 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubFileService : IClubFileService
 {
-	private readonly IMongoCollection<ClubFile> _files;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<ClubFile> files;
+	private readonly TenantMongoScope tenant;
 
 	static ClubFileService()
 	{
@@ -25,8 +25,8 @@ public class ClubFileService : IClubFileService
 
 	public ClubFileService(MongoContext context, TenantMongoScope tenant)
 	{
-		_files = context.Database.GetCollection<ClubFile>("files");
-		_tenant = tenant;
+		files = context.Database.GetCollection<ClubFile>("files");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<ClubFile>> GetByLinkedEntityAsync(
@@ -35,8 +35,8 @@ public class ClubFileService : IClubFileService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var files = await _files
-			.Find(_tenant.Filter<ClubFile>(file =>
+		var files = await this.files
+			.Find(tenant.Filter<ClubFile>(file =>
 				file.LinkedEntityType == linkedEntityType &&
 				file.LinkedEntityId == linkedEntityId &&
 				file.Status != ClubFileStatus.Deleted))
@@ -51,8 +51,8 @@ public class ClubFileService : IClubFileService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var file = await _files
-			.Find(_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id))
+		var file = await files
+			.Find(tenant.Filter<ClubFile>(currentFile => currentFile.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return file is null ? null : NormaliseFromStorage(file);
@@ -65,9 +65,9 @@ public class ClubFileService : IClubFileService
 	{
 		file.Id = file.Id == Guid.Empty ? Guid.NewGuid() : file.Id;
 		PrepareForSave(file, true);
-		_tenant.Assign(file);
+		tenant.Assign(file);
 
-		await _files.InsertOneAsync(file, cancellationToken: cancellationToken);
+		await files.InsertOneAsync(file, cancellationToken: cancellationToken);
 
 		return file;
 	}
@@ -88,8 +88,8 @@ public class ClubFileService : IClubFileService
 		file.UploadedAt = DateTime.UtcNow;
 		file.UpdatedAt = DateTime.UtcNow;
 
-		var result = await _files.ReplaceOneAsync(
-			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
+		var result = await files.ReplaceOneAsync(
+			tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
 			file,
 			cancellationToken: cancellationToken
 		);
@@ -115,8 +115,8 @@ public class ClubFileService : IClubFileService
 		file.QuarantineReason = reason.Trim();
 		file.UpdatedAt = DateTime.UtcNow;
 
-		var result = await _files.ReplaceOneAsync(
-			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
+		var result = await files.ReplaceOneAsync(
+			tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
 			file,
 			cancellationToken: cancellationToken
 		);
@@ -142,8 +142,8 @@ public class ClubFileService : IClubFileService
 		file.DeletedByUserId = deletedByUserId;
 		file.UpdatedAt = DateTime.UtcNow;
 
-		var result = await _files.ReplaceOneAsync(
-			_tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
+		var result = await files.ReplaceOneAsync(
+			tenant.Filter<ClubFile>(currentFile => currentFile.Id == id),
 			file,
 			cancellationToken: cancellationToken
 		);

@@ -10,17 +10,17 @@ public sealed class HttpTenantContext : ITenantContext
 	public const string TenantRoleClaim = "tenantRole";
 	public const string PlatformAdminClaim = "platformAdmin";
 
-	private readonly IHttpContextAccessor _httpContextAccessor;
+	private readonly IHttpContextAccessor httpContextAccessor;
 
 	public HttpTenantContext(IHttpContextAccessor httpContextAccessor)
 	{
-		_httpContextAccessor = httpContextAccessor;
+		this.httpContextAccessor = httpContextAccessor;
 	}
 
 	public bool IsAvailable =>
-		Guid.TryParse(_httpContextAccessor.HttpContext?.User.FindFirstValue(OrganizationClaim), out var organizationId) &&
+		Guid.TryParse(httpContextAccessor.HttpContext?.User.FindFirstValue(OrganizationClaim), out var organizationId) &&
 		organizationId != Guid.Empty &&
-		Guid.TryParse(_httpContextAccessor.HttpContext?.User.FindFirstValue(ClubClaim), out var clubId) &&
+		Guid.TryParse(httpContextAccessor.HttpContext?.User.FindFirstValue(ClubClaim), out var clubId) &&
 		clubId != Guid.Empty;
 
 	public Guid OrganizationId => ReadRequiredClaim(OrganizationClaim);
@@ -29,7 +29,7 @@ public sealed class HttpTenantContext : ITenantContext
 
 	private Guid ReadRequiredClaim(string claimType)
 	{
-		var value = _httpContextAccessor.HttpContext?.User.FindFirstValue(claimType);
+		var value = httpContextAccessor.HttpContext?.User.FindFirstValue(claimType);
 		if (Guid.TryParse(value, out var id) && id != Guid.Empty)
 		{
 			return id;

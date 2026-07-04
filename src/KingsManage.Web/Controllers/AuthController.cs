@@ -11,16 +11,16 @@ namespace KingsManage.Web.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-	private readonly IUserService _userService;
-	private readonly IJwtTokenService _jwtTokenService;
+	private readonly IUserService userService;
+	private readonly IJwtTokenService jwtTokenService;
 
 	public AuthController(
 		IUserService userService,
 		IJwtTokenService jwtTokenService
 	)
 	{
-		_userService = userService;
-		_jwtTokenService = jwtTokenService;
+		this.userService = userService;
+		this.jwtTokenService = jwtTokenService;
 	}
 
 	[HttpPost("login")]
@@ -40,7 +40,7 @@ public class AuthController : ControllerBase
 			return BadRequest("Password is required.");
 		}
 
-		var user = await _userService.ValidateCredentialsAsync(
+		var user = await userService.ValidateCredentialsAsync(
 			request.Email,
 			request.Password,
 			cancellationToken
@@ -51,7 +51,7 @@ public class AuthController : ControllerBase
 			return Unauthorized("Invalid email or password.");
 		}
 
-		return Ok(_jwtTokenService.CreateLoginResponse(user));
+		return Ok(jwtTokenService.CreateLoginResponse(user));
 	}
 
 	[HttpGet("me")]
@@ -65,7 +65,7 @@ public class AuthController : ControllerBase
 			return Unauthorized();
 		}
 
-		var user = await _userService.GetByIdAsync(userId, cancellationToken);
+		var user = await userService.GetByIdAsync(userId, cancellationToken);
 
 		if (user is null || !user.IsActive)
 		{
@@ -98,7 +98,7 @@ public class AuthController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var changed = await _userService.ChangePasswordAsync(
+		var changed = await userService.ChangePasswordAsync(
 			userId,
 			request.CurrentPassword,
 			request.NewPassword,

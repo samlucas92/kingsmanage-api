@@ -10,20 +10,20 @@ namespace KingsManage.Web.Controllers;
 [Route("api/user-memberships")]
 public sealed class UserMembershipsController : ControllerBase
 {
-	private readonly IUserMembershipService _service;
+	private readonly IUserMembershipService service;
 
-	public UserMembershipsController(IUserMembershipService service) => _service = service;
+	public UserMembershipsController(IUserMembershipService service) => this.service = service;
 
 	[HttpGet("options")]
 	public async Task<ActionResult<IReadOnlyList<MembershipClubOption>>> GetOptions(CancellationToken cancellationToken) =>
-		Ok(await _service.GetOptionsAsync(cancellationToken));
+		Ok(await service.GetOptionsAsync(cancellationToken));
 
 	[HttpPut("{userId:guid}")]
 	public async Task<ActionResult<UserViewModel>> Update(Guid userId, UpdateMembershipsRequest request, CancellationToken cancellationToken)
 	{
 		try
 		{
-			var user = await _service.UpdateAsync(userId, request.Memberships, request.DefaultClubId, cancellationToken);
+			var user = await service.UpdateAsync(userId, request.Memberships, request.DefaultClubId, cancellationToken);
 			return user is null ? NotFound() : Ok(UserViewModel.FromUser(user));
 		}
 		catch (ArgumentException exception)

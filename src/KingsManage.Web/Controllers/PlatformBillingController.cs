@@ -9,31 +9,31 @@ namespace KingsManage.Web.Controllers;
 [Route("api/platform/billing")]
 public sealed class PlatformBillingController : ControllerBase
 {
-	private readonly IBillingService _billing;
+	private readonly IBillingService billing;
 
 	public PlatformBillingController(IBillingService billing)
 	{
-		_billing = billing;
+		this.billing = billing;
 	}
 
 	[HttpGet("{organizationId:guid}")]
 	public async Task<ActionResult<OrganizationSubscription>> Get(
 		Guid organizationId,
 		CancellationToken cancellationToken) =>
-		Ok(await _billing.GetByOrganizationAsync(organizationId, cancellationToken));
+		Ok(await billing.GetByOrganizationAsync(organizationId, cancellationToken));
 
 	[HttpPatch("{organizationId:guid}/status")]
 	public async Task<ActionResult<OrganizationSubscription>> SetStatus(
 		Guid organizationId,
 		SubscriptionStatusUpdate update,
 		CancellationToken cancellationToken) =>
-		Ok(await _billing.SetStatusAsync(organizationId, update, cancellationToken));
+		Ok(await billing.SetStatusAsync(organizationId, update, cancellationToken));
 
 	[HttpGet("{organizationId:guid}/invoices")]
 	public async Task<ActionResult<IReadOnlyList<BillingInvoice>>> GetInvoices(
 		Guid organizationId,
 		CancellationToken cancellationToken) =>
-		Ok(await _billing.GetInvoicesAsync(organizationId, cancellationToken));
+		Ok(await billing.GetInvoicesAsync(organizationId, cancellationToken));
 
 	[HttpPost("{organizationId:guid}/invoices")]
 	public async Task<ActionResult<BillingInvoice>> AddInvoice(
@@ -46,7 +46,7 @@ public sealed class PlatformBillingController : ControllerBase
 		if (invoice.Amount < 0)
 			return BadRequest("Invoice amount cannot be negative.");
 		invoice.OrganizationId = organizationId;
-		var created = await _billing.AddInvoiceAsync(invoice, cancellationToken);
+		var created = await billing.AddInvoiceAsync(invoice, cancellationToken);
 		return Created($"/api/platform/billing/{organizationId}/invoices", created);
 	}
 }

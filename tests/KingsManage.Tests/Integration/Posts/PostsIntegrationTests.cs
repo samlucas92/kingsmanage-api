@@ -10,25 +10,25 @@ namespace KingsManage.Tests.Integration.Posts;
 [TestFixture]
 public sealed class PostsIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task GetPosts_WithoutToken_ReturnsUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.GetAsync("/api/posts");
 
@@ -38,7 +38,7 @@ public sealed class PostsIntegrationTests
 	[Test]
 	public async Task GetPosts_AsPlayer_ReturnsPosts()
 	{
-		_factory.ClubPostService.Posts.Add(
+		factory.ClubPostService.Posts.Add(
 			new ClubPost
 			{
 				Id = Guid.Parse("80000000-0000-0000-0000-000000000001"),
@@ -52,7 +52,7 @@ public sealed class PostsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -66,7 +66,7 @@ public sealed class PostsIntegrationTests
 	[Test]
 	public async Task CreatePost_AsCoach_CreatesPost()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -95,7 +95,7 @@ public sealed class PostsIntegrationTests
 	[Test]
 	public async Task CreatePost_AsPlayer_ReturnsForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -119,7 +119,7 @@ public sealed class PostsIntegrationTests
 	{
 		var postId = Guid.Parse("80000000-0000-0000-0000-000000000002");
 
-		_factory.ClubPostService.Posts.Add(
+		factory.ClubPostService.Posts.Add(
 			new ClubPost
 			{
 				Id = postId,
@@ -133,7 +133,7 @@ public sealed class PostsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -163,7 +163,7 @@ public sealed class PostsIntegrationTests
 	{
 		var postId = Guid.Parse("80000000-0000-0000-0000-000000000003");
 
-		_factory.ClubPostService.Posts.Add(
+		factory.ClubPostService.Posts.Add(
 			new ClubPost
 			{
 				Id = postId,
@@ -177,7 +177,7 @@ public sealed class PostsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -185,6 +185,6 @@ public sealed class PostsIntegrationTests
 		var response = await client.DeleteAsync($"/api/posts/{postId}");
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
-		Assert.That(_factory.ClubPostService.Posts, Is.Empty);
+		Assert.That(factory.ClubPostService.Posts, Is.Empty);
 	}
 }

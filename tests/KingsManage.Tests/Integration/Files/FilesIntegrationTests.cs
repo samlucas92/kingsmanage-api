@@ -10,26 +10,26 @@ namespace KingsManage.Tests.Integration.Files;
 [TestFixture]
 public sealed class FilesIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task CreateUploadUrl_AsCoach_CreatesPendingFileAndUploadUrl()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -48,7 +48,7 @@ public sealed class FilesIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-		Assert.That(_factory.ClubFileService.Files, Has.Count.EqualTo(1));
+		Assert.That(factory.ClubFileService.Files, Has.Count.EqualTo(1));
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 		var root = document.RootElement;
@@ -60,7 +60,7 @@ public sealed class FilesIntegrationTests
 		Assert.That(file.GetProperty("status").GetString(), Is.EqualTo("PendingUpload"));
 		Assert.That(file.GetProperty("uploadedByUserEmail").GetString(), Is.EqualTo(TestUsers.CoachEmail));
 		Assert.That(
-			_factory.FileLifecycleService.Audit.Single().EventType,
+			factory.FileLifecycleService.Audit.Single().EventType,
 			Is.EqualTo(FileLifecycleEventType.UploadRequested)
 		);
 	}
@@ -69,7 +69,7 @@ public sealed class FilesIntegrationTests
 	public async Task CreateUploadUrl_AsPlayer_ReturnsForbidden()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -88,14 +88,14 @@ public sealed class FilesIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
-		Assert.That(_factory.ClubFileService.Files, Is.Empty);
+		Assert.That(factory.ClubFileService.Files, Is.Empty);
 	}
 
 	[Test]
 	public async Task CreateUploadUrl_WithUploadedMatchingHash_ReusesStoredObject()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -157,11 +157,11 @@ public sealed class FilesIntegrationTests
 			secondDocument.RootElement.GetProperty("file").GetProperty("status").GetString(),
 			Is.EqualTo("Uploaded")
 		);
-		Assert.That(_factory.StoredFileObjectService.Objects, Has.Count.EqualTo(1));
-		Assert.That(_factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(2));
-		Assert.That(_factory.ClubFileService.Files, Has.Count.EqualTo(2));
+		Assert.That(factory.StoredFileObjectService.Objects, Has.Count.EqualTo(1));
+		Assert.That(factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(2));
+		Assert.That(factory.ClubFileService.Files, Has.Count.EqualTo(2));
 		Assert.That(
-			_factory.ClubFileService.Files.Select(file => file.StorageKey).Distinct().Count(),
+			factory.ClubFileService.Files.Select(file => file.StorageKey).Distinct().Count(),
 			Is.EqualTo(1)
 		);
 
@@ -172,14 +172,14 @@ public sealed class FilesIntegrationTests
 		var deleteResponse = await client.DeleteAsync($"/api/files/{secondFileId}");
 
 		Assert.That(deleteResponse.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
-		Assert.That(_factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(1));
+		Assert.That(factory.StoredFileObjectService.Objects.Single().ReferenceCount, Is.EqualTo(1));
 	}
 
 	[Test]
 	public async Task CreateUploadUrl_WithMalformedHash_ReturnsBadRequest()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -206,7 +206,7 @@ public sealed class FilesIntegrationTests
 	public async Task CreateUploadUrl_WithInvalidContentType_ReturnsBadRequest()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -232,8 +232,8 @@ public sealed class FilesIntegrationTests
 	public async Task CreateUploadUrl_WhenOrganizationQuotaIsExceeded_ReturnsPayloadTooLarge()
 	{
 		var postId = SeedPost();
-		_factory.FileLifecycleService.UploadAllowed = false;
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		factory.FileLifecycleService.UploadAllowed = false;
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -256,9 +256,9 @@ public sealed class FilesIntegrationTests
 			Is.EqualTo(HttpStatusCode.RequestEntityTooLarge)
 		);
 		Assert.That(await response.Content.ReadAsStringAsync(), Does.Contain("quota exceeded"));
-		Assert.That(_factory.ClubFileService.Files, Is.Empty);
+		Assert.That(factory.ClubFileService.Files, Is.Empty);
 		Assert.That(
-			_factory.FileLifecycleService.Audit.Single().EventType,
+			factory.FileLifecycleService.Audit.Single().EventType,
 			Is.EqualTo(FileLifecycleEventType.UploadRejected)
 		);
 	}
@@ -267,7 +267,7 @@ public sealed class FilesIntegrationTests
 	public async Task MarkUploaded_AsAdmin_MarksPendingFileUploaded()
 	{
 		var fileId = SeedPendingFile();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -275,16 +275,16 @@ public sealed class FilesIntegrationTests
 		var response = await client.PostAsync($"/api/files/{fileId}/mark-uploaded", null);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-		Assert.That(_factory.ClubFileService.Files.Single().Status, Is.EqualTo(ClubFileStatus.Uploaded));
-		Assert.That(_factory.ClubFileService.Files.Single().UploadedAt, Is.Not.Null);
-		Assert.That(_factory.FileStorageService.ValidatedStorageKeys, Has.Count.EqualTo(1));
+		Assert.That(factory.ClubFileService.Files.Single().Status, Is.EqualTo(ClubFileStatus.Uploaded));
+		Assert.That(factory.ClubFileService.Files.Single().UploadedAt, Is.Not.Null);
+		Assert.That(factory.FileStorageService.ValidatedStorageKeys, Has.Count.EqualTo(1));
 	}
 
 	[Test]
 	public async Task MarkUploaded_WhenStoredChecksumDoesNotMatch_LeavesFilePending()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -313,7 +313,7 @@ public sealed class FilesIntegrationTests
 			.GetProperty("file")
 			.GetProperty("id")
 			.GetGuid();
-		_factory.FileStorageService.ValidationResult = new FileStorageValidationResult
+		factory.FileStorageService.ValidationResult = new FileStorageValidationResult
 		{
 			IsValid = false,
 			ErrorMessage = "Stored object checksum does not match the upload."
@@ -330,11 +330,11 @@ public sealed class FilesIntegrationTests
 			Does.Contain("checksum does not match")
 		);
 		Assert.That(
-			_factory.ClubFileService.Files.Single().Status,
+			factory.ClubFileService.Files.Single().Status,
 			Is.EqualTo(ClubFileStatus.PendingUpload)
 		);
 		Assert.That(
-			_factory.StoredFileObjectService.Objects.Single().Status,
+			factory.StoredFileObjectService.Objects.Single().Status,
 			Is.EqualTo(StoredFileObjectStatus.PendingUpload)
 		);
 	}
@@ -343,7 +343,7 @@ public sealed class FilesIntegrationTests
 	public async Task MarkUploaded_WhenSecurityScanFails_QuarantinesFileAndObject()
 	{
 		var postId = SeedPost();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -369,7 +369,7 @@ public sealed class FilesIntegrationTests
 			.GetProperty("file")
 			.GetProperty("id")
 			.GetGuid();
-		_factory.FileStorageService.ValidationResult = new FileStorageValidationResult
+		factory.FileStorageService.ValidationResult = new FileStorageValidationResult
 		{
 			IsValid = true,
 			IsSafe = false,
@@ -386,15 +386,15 @@ public sealed class FilesIntegrationTests
 			Is.EqualTo(HttpStatusCode.UnprocessableEntity)
 		);
 		Assert.That(
-			_factory.ClubFileService.Files.Single().Status,
+			factory.ClubFileService.Files.Single().Status,
 			Is.EqualTo(ClubFileStatus.Quarantined)
 		);
 		Assert.That(
-			_factory.StoredFileObjectService.Objects.Single().Status,
+			factory.StoredFileObjectService.Objects.Single().Status,
 			Is.EqualTo(StoredFileObjectStatus.Quarantined)
 		);
 		Assert.That(
-			_factory.FileLifecycleService.Audit.Last().EventType,
+			factory.FileLifecycleService.Audit.Last().EventType,
 			Is.EqualTo(FileLifecycleEventType.FileQuarantined)
 		);
 	}
@@ -402,7 +402,7 @@ public sealed class FilesIntegrationTests
 	[Test]
 	public async Task GetStorageUsage_AsAdmin_ReturnsOrganizationUsage()
 	{
-		_factory.FileLifecycleService.Usage = new FileStorageUsage
+		factory.FileLifecycleService.Usage = new FileStorageUsage
 		{
 			UsedBytes = 800,
 			QuotaBytes = 1000,
@@ -410,7 +410,7 @@ public sealed class FilesIntegrationTests
 			UsedPercent = 80,
 			IsNearLimit = true
 		};
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -426,7 +426,7 @@ public sealed class FilesIntegrationTests
 	[Test]
 	public async Task GetStorageUsage_AsPlayer_ReturnsForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -440,7 +440,7 @@ public sealed class FilesIntegrationTests
 	public async Task CreateDownloadUrl_ForUploadedPostFile_AsPlayer_ReturnsDownloadUrl()
 	{
 		var fileId = SeedUploadedFile();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -460,7 +460,7 @@ public sealed class FilesIntegrationTests
 	public async Task CreateDownloadUrl_ForPendingFile_ReturnsNotFound()
 	{
 		var fileId = SeedPendingFile();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -474,7 +474,7 @@ public sealed class FilesIntegrationTests
 	public async Task Delete_AsAdmin_SoftDeletesFile()
 	{
 		var fileId = SeedUploadedFile();
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -483,7 +483,7 @@ public sealed class FilesIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
 
-		var file = _factory.ClubFileService.Files.Single();
+		var file = factory.ClubFileService.Files.Single();
 		Assert.That(file.Status, Is.EqualTo(ClubFileStatus.Deleted));
 		Assert.That(file.DeletedByUserId, Is.EqualTo(TestUsers.AdminId));
 		Assert.That(file.DeletedAt, Is.Not.Null);
@@ -493,9 +493,9 @@ public sealed class FilesIntegrationTests
 	{
 		var postId = Guid.Parse("80000000-0000-0000-0000-000000000101");
 
-		if (_factory.ClubPostService.Posts.All(post => post.Id != postId))
+		if (factory.ClubPostService.Posts.All(post => post.Id != postId))
 		{
-			_factory.ClubPostService.Posts.Add(
+			factory.ClubPostService.Posts.Add(
 				new ClubPost
 				{
 					Id = postId,
@@ -518,7 +518,7 @@ public sealed class FilesIntegrationTests
 		var postId = SeedPost();
 		var fileId = Guid.Parse("90000000-0000-0000-0000-000000000001");
 
-		_factory.ClubFileService.Files.Add(
+		factory.ClubFileService.Files.Add(
 			new ClubFile
 			{
 				Id = fileId,
@@ -544,7 +544,7 @@ public sealed class FilesIntegrationTests
 	private Guid SeedUploadedFile()
 	{
 		var fileId = SeedPendingFile();
-		var file = _factory.ClubFileService.Files.Single(currentFile => currentFile.Id == fileId);
+		var file = factory.ClubFileService.Files.Single(currentFile => currentFile.Id == fileId);
 
 		file.Status = ClubFileStatus.Uploaded;
 		file.UploadedAt = DateTime.UtcNow;

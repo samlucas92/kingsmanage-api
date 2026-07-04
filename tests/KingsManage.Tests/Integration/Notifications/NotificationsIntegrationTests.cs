@@ -10,25 +10,25 @@ namespace KingsManage.Tests.Integration.Notifications;
 [TestFixture]
 public sealed class NotificationsIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task CreatePost_AsAdmin_CreatesNotificationsForOtherActiveUsers()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -45,9 +45,9 @@ public sealed class NotificationsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		Assert.That(_factory.ClubNotificationService.Notifications, Has.Count.EqualTo(1));
+		Assert.That(factory.ClubNotificationService.Notifications, Has.Count.EqualTo(1));
 
-		var notification = _factory.ClubNotificationService.Notifications.Single();
+		var notification = factory.ClubNotificationService.Notifications.Single();
 		var recipientIds = notification.Recipients.Select(recipient => recipient.UserId).ToList();
 
 		Assert.That(notification.Type, Is.EqualTo(NotificationType.NewPost));
@@ -66,7 +66,7 @@ public sealed class NotificationsIntegrationTests
 		SeedNotificationForUsers(TestUsers.PlayerId, TestUsers.CoachId);
 		SeedNotificationForUsers(TestUsers.CoachId);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -92,7 +92,7 @@ public sealed class NotificationsIntegrationTests
 		readNotification.Recipients.Single().Status = NotificationStatus.Read;
 		readNotification.Recipients.Single().ReadAt = DateTime.UtcNow;
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -110,7 +110,7 @@ public sealed class NotificationsIntegrationTests
 	public async Task MarkRead_AsPlayer_MarksOwnNotificationRead()
 	{
 		var notification = SeedNotificationForUsers(TestUsers.PlayerId);
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -137,7 +137,7 @@ public sealed class NotificationsIntegrationTests
 		SeedNotificationForUsers(TestUsers.PlayerId, TestUsers.CoachId);
 		SeedNotificationForUsers(TestUsers.CoachId);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -150,7 +150,7 @@ public sealed class NotificationsIntegrationTests
 
 		Assert.That(document.RootElement.GetProperty("updatedCount").GetInt32(), Is.EqualTo(2));
 		Assert.That(
-			_factory.ClubNotificationService.Notifications.Count(notification =>
+			factory.ClubNotificationService.Notifications.Count(notification =>
 				notification.Recipients.Any(recipient =>
 					recipient.UserId == TestUsers.PlayerId &&
 					recipient.Status == NotificationStatus.Unread)),
@@ -161,7 +161,7 @@ public sealed class NotificationsIntegrationTests
 	[Test]
 	public async Task CreateMeetingEvent_AsAdmin_DoesNotNotifyPlayers()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -184,9 +184,9 @@ public sealed class NotificationsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		Assert.That(_factory.ClubNotificationService.Notifications, Has.Count.EqualTo(1));
+		Assert.That(factory.ClubNotificationService.Notifications, Has.Count.EqualTo(1));
 
-		var recipientIds = _factory.ClubNotificationService.Notifications
+		var recipientIds = factory.ClubNotificationService.Notifications
 			.Single()
 			.Recipients
 			.Select(recipient => recipient.UserId)
@@ -214,7 +214,7 @@ public sealed class NotificationsIntegrationTests
 				.ToList()
 		};
 
-		_factory.ClubNotificationService.Notifications.Add(notification);
+		factory.ClubNotificationService.Notifications.Add(notification);
 
 		return notification;
 	}

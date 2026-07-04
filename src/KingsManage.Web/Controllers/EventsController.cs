@@ -12,13 +12,13 @@ namespace KingsManage.Web.Controllers;
 [Route("api/events")]
 public class EventsController : ControllerBase
 {
-	private readonly IClubEventService _eventService;
-	private readonly IMatchService _matchService;
-	private readonly IClubNotificationService _notificationService;
-	private readonly ISeasonService _seasonService;
-	private readonly IStatsService _statsService;
-	private readonly IUserService _userService;
-	private readonly IRealtimeNotifier _realtimeNotifier;
+	private readonly IClubEventService eventService;
+	private readonly IMatchService matchService;
+	private readonly IClubNotificationService notificationService;
+	private readonly ISeasonService seasonService;
+	private readonly IStatsService statsService;
+	private readonly IUserService userService;
+	private readonly IRealtimeNotifier realtimeNotifier;
 
 	public EventsController(
 		IClubEventService eventService,
@@ -30,13 +30,13 @@ public class EventsController : ControllerBase
 		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
-		_eventService = eventService;
-		_matchService = matchService;
-		_notificationService = notificationService;
-		_seasonService = seasonService;
-		_statsService = statsService;
-		_userService = userService;
-		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
+		this.eventService = eventService;
+		this.matchService = matchService;
+		this.notificationService = notificationService;
+		this.seasonService = seasonService;
+		this.statsService = statsService;
+		this.userService = userService;
+		this.realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet]
@@ -44,7 +44,7 @@ public class EventsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var events = await _eventService.GetAllAsync(cancellationToken);
+		var events = await eventService.GetAllAsync(cancellationToken);
 
 		return Ok(FilterVisibleEvents(events).ToList());
 	}
@@ -60,7 +60,7 @@ public class EventsController : ControllerBase
 			return errorResult!;
 		}
 
-		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var clubEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (clubEvent is null || !CanViewEvent(clubEvent))
 		{
@@ -101,7 +101,7 @@ public class EventsController : ControllerBase
 
 		if (model.Type == ClubEventType.Match && model.CreateLinkedMatches)
 		{
-			var activeSeason = await _seasonService.GetActiveAsync(cancellationToken);
+			var activeSeason = await seasonService.GetActiveAsync(cancellationToken);
 
 			if (activeSeason is null)
 			{
@@ -112,7 +112,7 @@ public class EventsController : ControllerBase
 
 			foreach (var matchToCreate in model.CreateMatches)
 			{
-				var createdMatch = await _matchService.CreateAsync(
+				var createdMatch = await matchService.CreateAsync(
 					matchToCreate.ToMatch(
 						activeSeason.Id,
 						model.StartDateTime,
@@ -132,7 +132,7 @@ public class EventsController : ControllerBase
 			}
 		}
 
-		var createdEvent = await _eventService.CreateAsync(
+		var createdEvent = await eventService.CreateAsync(
 			clubEvent,
 			cancellationToken
 		);
@@ -169,7 +169,7 @@ public class EventsController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var existingEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (existingEvent is null)
 		{
@@ -187,7 +187,7 @@ public class EventsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var updatedEvent = await _eventService.UpdateAsync(
+		var updatedEvent = await eventService.UpdateAsync(
 			model.ToClubEvent(existingEvent),
 			cancellationToken
 		);
@@ -231,7 +231,7 @@ public class EventsController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var existingEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (existingEvent is null)
 		{
@@ -248,7 +248,7 @@ public class EventsController : ControllerBase
 
 		foreach (var matchId in linkedMatchIds)
 		{
-			var linkedMatch = await _matchService.GetByIdAsync(matchId, cancellationToken);
+			var linkedMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 			if (linkedMatch is not null)
 			{
@@ -256,7 +256,7 @@ public class EventsController : ControllerBase
 			}
 		}
 
-		var deleted = await _eventService.DeleteAsync(eventId, cancellationToken);
+		var deleted = await eventService.DeleteAsync(eventId, cancellationToken);
 
 		if (!deleted)
 		{
@@ -265,7 +265,7 @@ public class EventsController : ControllerBase
 
 		foreach (var match in linkedMatches)
 		{
-			await _matchService.DeleteAsync(match.Id, cancellationToken);
+			await matchService.DeleteAsync(match.Id, cancellationToken);
 		}
 
 		await RecalculateDeletedLinkedMatchesAsync(linkedMatches, cancellationToken);
@@ -291,14 +291,14 @@ public class EventsController : ControllerBase
 			return BadRequest(playerIdResult.ErrorMessage);
 		}
 
-		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var clubEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (clubEvent is null || !CanViewEvent(clubEvent))
 		{
 			return NotFound();
 		}
 
-		var updatedEvent = await _eventService.MarkSeenAsync(
+		var updatedEvent = await eventService.MarkSeenAsync(
 			eventId,
 			playerIdResult.PlayerId,
 			cancellationToken
@@ -331,14 +331,14 @@ public class EventsController : ControllerBase
 			return BadRequest(playerIdResult.ErrorMessage);
 		}
 
-		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var clubEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (clubEvent is null || !CanViewEvent(clubEvent))
 		{
 			return NotFound();
 		}
 
-		var updatedEvent = await _eventService.SetAvailabilityAsync(
+		var updatedEvent = await eventService.SetAvailabilityAsync(
 			eventId,
 			playerIdResult.PlayerId,
 			model.Status,
@@ -372,14 +372,14 @@ public class EventsController : ControllerBase
 			return playerErrorResult!;
 		}
 
-		var clubEvent = await _eventService.GetByIdAsync(eventId, cancellationToken);
+		var clubEvent = await eventService.GetByIdAsync(eventId, cancellationToken);
 
 		if (clubEvent is null)
 		{
 			return NotFound();
 		}
 
-		var updatedEvent = await _eventService.SetAvailabilityAsync(
+		var updatedEvent = await eventService.SetAvailabilityAsync(
 			eventId,
 			parsedPlayerId,
 			model.Status,
@@ -446,7 +446,7 @@ public class EventsController : ControllerBase
 			return;
 		}
 
-		var notification = await _notificationService.CreateAsync(
+		var notification = await notificationService.CreateAsync(
 			new ClubNotification
 			{
 				Type = notificationType,
@@ -464,7 +464,7 @@ public class EventsController : ControllerBase
 			cancellationToken
 		);
 
-		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
+		await realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private async Task<List<AppUser>> GetVisibleActiveUsersExceptAsync(
@@ -473,7 +473,7 @@ public class EventsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var users = await _userService.GetAllAsync(cancellationToken);
+		var users = await userService.GetAllAsync(cancellationToken);
 
 		return users
 			.Where(user => user.IsActive)
@@ -523,7 +523,7 @@ public class EventsController : ControllerBase
 
 		foreach (var seasonId in affectedSeasonIds)
 		{
-			await _statsService.RecalculateSeasonStatsAsync(
+			await statsService.RecalculateSeasonStatsAsync(
 				seasonId,
 				cancellationToken
 			);
@@ -757,7 +757,7 @@ public class EventsController : ControllerBase
 				return "Linked match id is required.";
 			}
 
-			var linkedMatch = await _matchService.GetByIdAsync(
+			var linkedMatch = await matchService.GetByIdAsync(
 				matchLink.MatchId.Value,
 				cancellationToken
 			);
@@ -855,7 +855,7 @@ public class EventsController : ControllerBase
 
 		foreach (var removedMatchId in previousMatchIds.Except(updatedMatchIds))
 		{
-			var match = await _matchService.GetByIdAsync(
+			var match = await matchService.GetByIdAsync(
 				removedMatchId,
 				cancellationToken
 			);
@@ -867,12 +867,12 @@ public class EventsController : ControllerBase
 
 			match.ClubEventId = null;
 
-			await _matchService.UpdateAsync(match, cancellationToken);
+			await matchService.UpdateAsync(match, cancellationToken);
 		}
 
 		foreach (var updatedMatchId in updatedMatchIds)
 		{
-			var match = await _matchService.GetByIdAsync(
+			var match = await matchService.GetByIdAsync(
 				updatedMatchId,
 				cancellationToken
 			);
@@ -884,7 +884,7 @@ public class EventsController : ControllerBase
 
 			match.ClubEventId = eventId.Value;
 
-			await _matchService.UpdateAsync(match, cancellationToken);
+			await matchService.UpdateAsync(match, cancellationToken);
 		}
 	}
 
@@ -934,7 +934,7 @@ public class EventsController : ControllerBase
 			return PlayerIdResult.Failure("Could not identify the signed-in user.");
 		}
 
-		var user = await _userService.GetByIdAsync(userId, cancellationToken);
+		var user = await userService.GetByIdAsync(userId, cancellationToken);
 
 		if (user?.PlayerId is null || user.PlayerId == Guid.Empty)
 		{

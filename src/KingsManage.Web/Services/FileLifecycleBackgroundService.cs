@@ -4,9 +4,9 @@ namespace KingsManage.Web.Services;
 
 public sealed class FileLifecycleBackgroundService : BackgroundService
 {
-	private readonly IServiceScopeFactory _scopeFactory;
-	private readonly FileLifecycleSettings _settings;
-	private readonly ILogger<FileLifecycleBackgroundService> _logger;
+	private readonly IServiceScopeFactory scopeFactory;
+	private readonly FileLifecycleSettings settings;
+	private readonly ILogger<FileLifecycleBackgroundService> logger;
 
 	public FileLifecycleBackgroundService(
 		IServiceScopeFactory scopeFactory,
@@ -14,15 +14,15 @@ public sealed class FileLifecycleBackgroundService : BackgroundService
 		ILogger<FileLifecycleBackgroundService> logger
 	)
 	{
-		_scopeFactory = scopeFactory;
-		_settings = settings;
-		_logger = logger;
+		this.scopeFactory = scopeFactory;
+		this.settings = settings;
+		this.logger = logger;
 	}
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		var interval = TimeSpan.FromMinutes(
-			Math.Max(1, _settings.CleanupIntervalMinutes)
+			Math.Max(1, settings.CleanupIntervalMinutes)
 		);
 		using var timer = new PeriodicTimer(interval);
 
@@ -38,7 +38,7 @@ public sealed class FileLifecycleBackgroundService : BackgroundService
 	{
 		try
 		{
-			await using var scope = _scopeFactory.CreateAsyncScope();
+			await using var scope = scopeFactory.CreateAsyncScope();
 			var lifecycle = scope.ServiceProvider.GetRequiredService<IFileLifecycleService>();
 			var result = await lifecycle.RunMaintenanceAsync(
 				DateTime.UtcNow,
@@ -52,7 +52,7 @@ public sealed class FileLifecycleBackgroundService : BackgroundService
 				result.DeletionFailures > 0
 			)
 			{
-				_logger.LogInformation(
+				logger.LogInformation(
 					"File lifecycle maintenance completed: {AbandonedReferences} abandoned references, {ReconciledObjects} reconciled objects, {DeletedObjects} deleted objects, {DeletionFailures} deletion failures.",
 					result.AbandonedReferencesDeleted,
 					result.ReferenceCountsReconciled,
@@ -66,7 +66,7 @@ public sealed class FileLifecycleBackgroundService : BackgroundService
 		}
 		catch (Exception exception)
 		{
-			_logger.LogError(exception, "File lifecycle maintenance failed.");
+			logger.LogError(exception, "File lifecycle maintenance failed.");
 		}
 	}
 }

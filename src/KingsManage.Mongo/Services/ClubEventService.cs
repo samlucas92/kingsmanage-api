@@ -6,9 +6,9 @@ namespace KingsManage.Mongo.Services;
 
 public class ClubEventService : IClubEventService
 {
-	private readonly IMongoCollection<ClubEvent> _events;
-	private readonly TenantMongoScope _tenant;
-	private readonly ITeamAccessContext _teamAccess;
+	private readonly IMongoCollection<ClubEvent> events;
+	private readonly TenantMongoScope tenant;
+	private readonly ITeamAccessContext teamAccess;
 
 	static ClubEventService()
 	{
@@ -29,17 +29,17 @@ public class ClubEventService : IClubEventService
 		TenantMongoScope tenant,
 		ITeamAccessContext teamAccess)
 	{
-		_events = context.Database.GetCollection<ClubEvent>("events");
-		_tenant = tenant;
-		_teamAccess = teamAccess;
+		events = context.Database.GetCollection<ClubEvent>("events");
+		this.tenant = tenant;
+		this.teamAccess = teamAccess;
 	}
 
 	public async Task<IReadOnlyList<ClubEvent>> GetAllAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
-		var events = await _events
-			.Find(_tenant.Filter<ClubEvent>())
+		var events = await this.events
+			.Find(tenant.Filter<ClubEvent>())
 			.SortBy(clubEvent => clubEvent.StartDateTime)
 			.ToListAsync(cancellationToken);
 
@@ -54,8 +54,8 @@ public class ClubEventService : IClubEventService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var clubEvent = await _events
-			.Find(_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id))
+		var clubEvent = await events
+			.Find(tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		if (clubEvent is null) return null;
@@ -75,9 +75,9 @@ public class ClubEventService : IClubEventService
 
 		clubEvent.Id = clubEvent.Id == Guid.Empty ? Guid.NewGuid() : clubEvent.Id;
 		PrepareForSave(clubEvent, true);
-		_tenant.Assign(clubEvent);
+		tenant.Assign(clubEvent);
 
-		await _events.InsertOneAsync(clubEvent, cancellationToken: cancellationToken);
+		await events.InsertOneAsync(clubEvent, cancellationToken: cancellationToken);
 
 		return clubEvent;
 	}
@@ -90,10 +90,10 @@ public class ClubEventService : IClubEventService
 		if (!CanAccessEvent(clubEvent)) return null;
 
 		PrepareForSave(clubEvent, false);
-		_tenant.Assign(clubEvent);
+		tenant.Assign(clubEvent);
 
-		var result = await _events.ReplaceOneAsync(
-			_tenant.Filter<ClubEvent>(existingEvent => existingEvent.Id == clubEvent.Id),
+		var result = await events.ReplaceOneAsync(
+			tenant.Filter<ClubEvent>(existingEvent => existingEvent.Id == clubEvent.Id),
 			clubEvent,
 			cancellationToken: cancellationToken
 		);
@@ -113,8 +113,8 @@ public class ClubEventService : IClubEventService
 	{
 		if (await GetByIdAsync(id, cancellationToken) is null) return false;
 
-		var result = await _events.DeleteOneAsync(
-			_tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id),
+		var result = await events.DeleteOneAsync(
+			tenant.Filter<ClubEvent>(clubEvent => clubEvent.Id == id),
 			cancellationToken
 		);
 
@@ -255,13 +255,13 @@ public class ClubEventService : IClubEventService
 	private bool CanAccessEvent(ClubEvent clubEvent)
 	{
 		if (clubEvent.TeamIds.Count > 0)
-			return _teamAccess.CanAccessAnyTeam(clubEvent.TeamIds);
+			return teamAccess.CanAccessAnyTeam(clubEvent.TeamIds);
 
 		return clubEvent.TeamScope switch
 		{
-			ClubEventTeamScope.First => _teamAccess.CanAccessTeam(DefaultClubTeams.FirstTeamId),
-			ClubEventTeamScope.Second => _teamAccess.CanAccessTeam(DefaultClubTeams.SecondTeamId),
-			_ => _teamAccess.CanAccessAnyTeam(
+			ClubEventTeamScope.First => teamAccess.CanAccessTeam(DefaultClubTeams.FirstTeamId),
+			ClubEventTeamScope.Second => teamAccess.CanAccessTeam(DefaultClubTeams.SecondTeamId),
+			_ => teamAccess.CanAccessAnyTeam(
 				[DefaultClubTeams.FirstTeamId, DefaultClubTeams.SecondTeamId])
 		};
 	}

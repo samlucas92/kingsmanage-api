@@ -7,13 +7,13 @@ public class FinanceService : IFinanceService
 {
 	private const string SeasonChargeNote = "Season amount owed";
 
-	private readonly IMongoCollection<FinanceTransaction> _transactions;
-	private readonly TenantMongoScope _tenant;
+	private readonly IMongoCollection<FinanceTransaction> transactions;
+	private readonly TenantMongoScope tenant;
 
 	public FinanceService(MongoContext context, TenantMongoScope tenant)
 	{
-		_transactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
-		_tenant = tenant;
+		transactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<FinanceTransaction>> GetSeasonTransactionsAsync(
@@ -21,8 +21,8 @@ public class FinanceService : IFinanceService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _transactions
-			.Find(_tenant.Filter<FinanceTransaction>(transaction => transaction.SeasonId == seasonId))
+		return await transactions
+			.Find(tenant.Filter<FinanceTransaction>(transaction => transaction.SeasonId == seasonId))
 			.SortByDescending(transaction => transaction.TransactionDate)
 			.ToListAsync(cancellationToken);
 	}
@@ -46,8 +46,8 @@ public class FinanceService : IFinanceService
 			);
 		}
 
-		return await _transactions
-			.Find(_tenant.Filter<FinanceTransaction>() & filter)
+		return await transactions
+			.Find(tenant.Filter<FinanceTransaction>() & filter)
 			.SortByDescending(transaction => transaction.TransactionDate)
 			.ToListAsync(cancellationToken);
 	}
@@ -64,9 +64,9 @@ public class FinanceService : IFinanceService
 			: transaction.TransactionDate;
 		transaction.CreatedAt = DateTime.UtcNow;
 		transaction.UpdatedAt = DateTime.UtcNow;
-		_tenant.Assign(transaction);
+		tenant.Assign(transaction);
 
-		await _transactions.InsertOneAsync(
+		await transactions.InsertOneAsync(
 			transaction,
 			cancellationToken: cancellationToken
 		);
@@ -79,8 +79,8 @@ public class FinanceService : IFinanceService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var result = await _transactions.DeleteOneAsync(
-			_tenant.Filter<FinanceTransaction>(transaction => transaction.Id == id),
+		var result = await transactions.DeleteOneAsync(
+			tenant.Filter<FinanceTransaction>(transaction => transaction.Id == id),
 			cancellationToken
 		);
 
@@ -95,8 +95,8 @@ public class FinanceService : IFinanceService
 	)
 	{
 		var safeAmount = decimal.Round(Math.Max(0, amount), 2);
-		var existingCharge = await _transactions
-			.Find(_tenant.Filter<FinanceTransaction>(transaction =>
+		var existingCharge = await transactions
+			.Find(tenant.Filter<FinanceTransaction>(transaction =>
 				transaction.PlayerId == playerId &&
 				transaction.SeasonId == seasonId &&
 				transaction.Type == FinanceTransactionType.Charge &&
@@ -122,8 +122,8 @@ public class FinanceService : IFinanceService
 		existingCharge.Amount = safeAmount;
 		existingCharge.UpdatedAt = DateTime.UtcNow;
 
-		await _transactions.ReplaceOneAsync(
-			_tenant.Filter<FinanceTransaction>(transaction => transaction.Id == existingCharge.Id),
+		await transactions.ReplaceOneAsync(
+			tenant.Filter<FinanceTransaction>(transaction => transaction.Id == existingCharge.Id),
 			existingCharge,
 			cancellationToken: cancellationToken
 		);

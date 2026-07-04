@@ -12,10 +12,10 @@ namespace KingsManage.Web.Controllers;
 [Route("api/club-access")]
 public sealed class ClubAccessController : ControllerBase
 {
-	private readonly IUserService _userService;
-	private readonly ISportsClubService _clubService;
-	private readonly IJwtTokenService _jwtTokenService;
-	private readonly ITenantContext _tenant;
+	private readonly IUserService userService;
+	private readonly ISportsClubService clubService;
+	private readonly IJwtTokenService jwtTokenService;
+	private readonly ITenantContext tenant;
 
 	public ClubAccessController(
 		IUserService userService,
@@ -23,10 +23,10 @@ public sealed class ClubAccessController : ControllerBase
 		IJwtTokenService jwtTokenService,
 		ITenantContext tenant)
 	{
-		_userService = userService;
-		_clubService = clubService;
-		_jwtTokenService = jwtTokenService;
-		_tenant = tenant;
+		this.userService = userService;
+		this.clubService = clubService;
+		this.jwtTokenService = jwtTokenService;
+		this.tenant = tenant;
 	}
 
 	[HttpGet]
@@ -36,14 +36,14 @@ public sealed class ClubAccessController : ControllerBase
 		var user = await GetCurrentUserAsync(cancellationToken);
 		if (user is null) return Unauthorized();
 
-		var clubs = await _clubService.GetAllAsync(cancellationToken);
+		var clubs = await clubService.GetAllAsync(cancellationToken);
 		var accessibleClubIds = user.Memberships
-			.Where(membership => membership.OrganizationId == _tenant.OrganizationId)
+			.Where(membership => membership.OrganizationId == tenant.OrganizationId)
 			.Where(membership => membership.ClubId.HasValue)
 			.Select(membership => membership.ClubId!.Value)
 			.ToHashSet();
 		var hasOrganizationAccess = user.IsPlatformAdmin || user.Memberships.Any(membership =>
-			membership.OrganizationId == _tenant.OrganizationId &&
+			membership.OrganizationId == tenant.OrganizationId &&
 			membership.ClubId == null &&
 			membership.Role == TenantRole.OrganizationAdmin);
 
@@ -55,7 +55,7 @@ public sealed class ClubAccessController : ControllerBase
 				Name = club.Name,
 				SportKey = club.SportKey,
 				CustomFormations = club.CustomFormations,
-				IsCurrent = club.Id == _tenant.ClubId
+				IsCurrent = club.Id == tenant.ClubId
 			})
 			.ToList());
 	}
@@ -67,23 +67,23 @@ public sealed class ClubAccessController : ControllerBase
 	{
 		if (request.ClubId == Guid.Empty) return BadRequest("Club is required.");
 
-		var club = await _clubService.GetByIdAsync(request.ClubId, cancellationToken);
+		var club = await clubService.GetByIdAsync(request.ClubId, cancellationToken);
 		if (club is null || !club.IsActive) return NotFound("Club was not found or is inactive.");
 
 		var userId = GetCurrentUserId();
 		if (!userId.HasValue) return Unauthorized();
 
-		var user = await _userService.SetDefaultClubAsync(userId.Value, club.Id, cancellationToken);
+		var user = await userService.SetDefaultClubAsync(userId.Value, club.Id, cancellationToken);
 		if (user is null) return Forbid();
 
-		return Ok(_jwtTokenService.CreateLoginResponse(user));
+		return Ok(jwtTokenService.CreateLoginResponse(user));
 	}
 
 	private async Task<AppUser?> GetCurrentUserAsync(CancellationToken cancellationToken)
 	{
 		var userId = GetCurrentUserId();
 		return userId.HasValue
-			? await _userService.GetByIdAsync(userId.Value, cancellationToken)
+			? await userService.GetByIdAsync(userId.Value, cancellationToken)
 			: null;
 	}
 

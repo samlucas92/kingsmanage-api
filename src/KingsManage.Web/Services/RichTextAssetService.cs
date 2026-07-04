@@ -7,16 +7,16 @@ namespace KingsManage.Web.Services;
 public sealed class RichTextAssetService
 {
 	private const string Prefix = "yepset-richtext:v1:";
-	private readonly IClubFileService _files;
-	private readonly IStoredFileObjectService _storedObjects;
+	private readonly IClubFileService files;
+	private readonly IStoredFileObjectService storedObjects;
 
 	public RichTextAssetService(
 		IClubFileService files,
 		IStoredFileObjectService storedObjects
 	)
 	{
-		_files = files;
-		_storedObjects = storedObjects;
+		this.files = files;
+		this.storedObjects = storedObjects;
 	}
 
 	public async Task<string> SynchronizeAsync(
@@ -51,7 +51,7 @@ public sealed class RichTextAssetService
 				continue;
 			}
 
-			var source = await _files.GetByIdAsync(sourceId, cancellationToken);
+			var source = await files.GetByIdAsync(sourceId, cancellationToken);
 			if (source is null || source.Status != ClubFileStatus.Uploaded)
 			{
 				throw new InvalidOperationException("An embedded image is unavailable.");
@@ -71,12 +71,12 @@ public sealed class RichTextAssetService
 				throw new InvalidOperationException("An embedded image is not managed by file storage.");
 			}
 
-			if (!await _storedObjects.IncrementReferenceCountAsync(storedObjectId, cancellationToken))
+			if (!await storedObjects.IncrementReferenceCountAsync(storedObjectId, cancellationToken))
 			{
 				throw new InvalidOperationException("An embedded image is currently unavailable.");
 			}
 
-			var clone = await _files.CreateAsync(
+			var clone = await files.CreateAsync(
 				new ClubFile
 				{
 					Id = Guid.NewGuid(),
@@ -130,7 +130,7 @@ public sealed class RichTextAssetService
 		var fileIds = GetImageFileIds(body);
 		foreach (var fileId in fileIds)
 		{
-			var file = await _files.GetByIdAsync(fileId, cancellationToken);
+			var file = await files.GetByIdAsync(fileId, cancellationToken);
 			if (
 				file is not null &&
 				file.LinkedEntityType == targetType &&
@@ -154,7 +154,7 @@ public sealed class RichTextAssetService
 		var currentIds = GetImageFileIds(currentBody);
 		foreach (var previousId in GetImageFileIds(previousBody).Except(currentIds))
 		{
-			var previous = await _files.GetByIdAsync(previousId, cancellationToken);
+			var previous = await files.GetByIdAsync(previousId, cancellationToken);
 			if (
 				previous is not null &&
 				previous.LinkedEntityType == targetType &&
@@ -172,14 +172,14 @@ public sealed class RichTextAssetService
 		CancellationToken cancellationToken
 	)
 	{
-		if (!await _files.SoftDeleteAsync(file.Id, userId, cancellationToken))
+		if (!await files.SoftDeleteAsync(file.Id, userId, cancellationToken))
 		{
 			return;
 		}
 
 		if (file.StoredObjectId is Guid storedObjectId)
 		{
-			await _storedObjects.DecrementReferenceCountAsync(
+			await storedObjects.DecrementReferenceCountAsync(
 				storedObjectId,
 				cancellationToken
 			);

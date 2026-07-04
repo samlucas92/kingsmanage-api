@@ -9,18 +9,18 @@ namespace KingsManage.Web.Controllers;
 [Route("api/organization/dashboard")]
 public sealed class OrganizationDashboardController : ControllerBase
 {
-	private readonly IOrganizationDashboardService _dashboard;
+	private readonly IOrganizationDashboardService dashboard;
 
 	public OrganizationDashboardController(IOrganizationDashboardService dashboard)
 	{
-		_dashboard = dashboard;
+		this.dashboard = dashboard;
 	}
 
 	[HttpGet]
 	public async Task<ActionResult<OrganizationDashboard>> Get(
 		[FromQuery] Guid? clubId,
 		CancellationToken cancellationToken) =>
-		await _dashboard.GetAsync(clubId, cancellationToken) is { } dashboard
-			? Ok(dashboard)
+		await dashboard.GetAsync(clubId, cancellationToken) is { } dashboardResult
+			? Ok(dashboardResult)
 			: NotFound("Club was not found in this organization.");
 }

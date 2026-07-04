@@ -13,11 +13,11 @@ namespace KingsManage.Web.Controllers;
 [Route("api/posts")]
 public class PostsController : ControllerBase
 {
-	private readonly IClubPostService _postService;
-	private readonly IClubNotificationService _notificationService;
-	private readonly IUserService _userService;
-	private readonly IRealtimeNotifier _realtimeNotifier;
-	private readonly RichTextAssetService _richTextAssets;
+	private readonly IClubPostService postService;
+	private readonly IClubNotificationService notificationService;
+	private readonly IUserService userService;
+	private readonly IRealtimeNotifier realtimeNotifier;
+	private readonly RichTextAssetService richTextAssets;
 
 	public PostsController(
 		IClubPostService postService,
@@ -27,11 +27,11 @@ public class PostsController : ControllerBase
 		RichTextAssetService? richTextAssets = null
 	)
 	{
-		_postService = postService;
-		_notificationService = notificationService;
-		_userService = userService;
-		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
-		_richTextAssets = richTextAssets ?? throw new ArgumentNullException(nameof(richTextAssets));
+		this.postService = postService;
+		this.notificationService = notificationService;
+		this.userService = userService;
+		this.realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
+		this.richTextAssets = richTextAssets ?? throw new ArgumentNullException(nameof(richTextAssets));
 	}
 
 	[HttpGet]
@@ -39,7 +39,7 @@ public class PostsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var posts = await _postService.GetAllAsync(cancellationToken);
+		var posts = await postService.GetAllAsync(cancellationToken);
 
 		return Ok(posts);
 	}
@@ -55,7 +55,7 @@ public class PostsController : ControllerBase
 			return errorResult!;
 		}
 
-		var post = await _postService.GetByIdAsync(postId, cancellationToken);
+		var post = await postService.GetByIdAsync(postId, cancellationToken);
 
 		if (post is null)
 		{
@@ -93,7 +93,7 @@ public class PostsController : ControllerBase
 		post.Id = Guid.NewGuid();
 		try
 		{
-			post.Body = await _richTextAssets.SynchronizeAsync(
+			post.Body = await richTextAssets.SynchronizeAsync(
 				post.Body,
 				null,
 				ClubFileLinkedEntityType.Post,
@@ -108,7 +108,7 @@ public class PostsController : ControllerBase
 			return BadRequest(exception.Message);
 		}
 
-		var createdPost = await _postService.CreateAsync(
+		var createdPost = await postService.CreateAsync(
 			post,
 			cancellationToken
 		);
@@ -146,7 +146,7 @@ public class PostsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingPost = await _postService.GetByIdAsync(postId, cancellationToken);
+		var existingPost = await postService.GetByIdAsync(postId, cancellationToken);
 
 		if (existingPost is null)
 		{
@@ -157,7 +157,7 @@ public class PostsController : ControllerBase
 		var updated = model.ToClubPost(existingPost);
 		try
 		{
-			updated.Body = await _richTextAssets.SynchronizeAsync(
+			updated.Body = await richTextAssets.SynchronizeAsync(
 				updated.Body,
 				previousBody,
 				ClubFileLinkedEntityType.Post,
@@ -172,7 +172,7 @@ public class PostsController : ControllerBase
 			return BadRequest(exception.Message);
 		}
 
-		var updatedPost = await _postService.UpdateAsync(
+		var updatedPost = await postService.UpdateAsync(
 			updated,
 			cancellationToken
 		);
@@ -197,7 +197,7 @@ public class PostsController : ControllerBase
 			return errorResult!;
 		}
 
-		var existingPost = await _postService.GetByIdAsync(postId, cancellationToken);
+		var existingPost = await postService.GetByIdAsync(postId, cancellationToken);
 		if (existingPost is null)
 		{
 			return NotFound();
@@ -209,14 +209,14 @@ public class PostsController : ControllerBase
 			return BadRequest(userIdResult.ErrorMessage);
 		}
 
-		var deleted = await _postService.DeleteAsync(postId, cancellationToken);
+		var deleted = await postService.DeleteAsync(postId, cancellationToken);
 
 		if (!deleted)
 		{
 			return NotFound();
 		}
 
-		await _richTextAssets.DeleteAllAsync(
+		await richTextAssets.DeleteAllAsync(
 			existingPost.Body,
 			ClubFileLinkedEntityType.Post,
 			postId,
@@ -243,7 +243,7 @@ public class PostsController : ControllerBase
 			return;
 		}
 
-		var notification = await _notificationService.CreateAsync(
+		var notification = await notificationService.CreateAsync(
 			new ClubNotification
 			{
 				Type = NotificationType.NewPost,
@@ -261,7 +261,7 @@ public class PostsController : ControllerBase
 			cancellationToken
 		);
 
-		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
+		await realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private async Task<List<AppUser>> GetActiveUsersExceptAsync(
@@ -269,7 +269,7 @@ public class PostsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var users = await _userService.GetAllAsync(cancellationToken);
+		var users = await userService.GetAllAsync(cancellationToken);
 
 		return users
 			.Where(user => user.IsActive)

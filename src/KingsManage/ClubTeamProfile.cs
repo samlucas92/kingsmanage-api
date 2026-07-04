@@ -8,6 +8,7 @@ public class ClubTeamProfile : ITenantOwned
 	public string DisplayName { get; set; } = string.Empty;
 	public string ShortName { get; set; } = string.Empty;
 	public bool IsActive { get; set; } = true;
+	public bool IsDeleted { get; set; }
 	public int SortOrder { get; set; }
 	public List<string> Competitions { get; set; } = [];
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 
 namespace KingsManage.Tests.Unit.Architecture;
@@ -116,6 +117,36 @@ public class ArchitectureBoundaryTests
 			.ToArray();
 
 		Assert.That(violations, Is.Empty, string.Join(Environment.NewLine, violations));
+	}
+
+	[Test]
+	public void PrivateFields_ShouldUseCamelCaseWithoutAnUnderscorePrefix()
+	{
+		var fieldPattern = new Regex(
+			@"^\s*private\s+(?:static\s+)?(?:readonly\s+)?[^\r\n=;]+\s+_[A-Za-z][A-Za-z0-9_]*",
+			RegexOptions.Multiline);
+		var violations = FindSourceFiles("src")
+			.Concat(FindSourceFiles("tests"))
+			.Where(file => fieldPattern.IsMatch(File.ReadAllText(file)))
+			.Select(NormalisePath)
+			.ToArray();
+
+		Assert.That(violations, Is.Empty, string.Join(Environment.NewLine, violations));
+	}
+
+	[Test]
+	public void Program_ShouldRegisterMongoServicesWithoutAliases()
+	{
+		var programPath = Path.Combine(
+			RepositoryRoot,
+			"src",
+			"KingsManage.Web",
+			"Program.cs");
+		var program = File.ReadAllText(programPath);
+
+		Assert.That(
+			Regex.IsMatch(program, @"^using\s+Mongo[A-Za-z0-9_]*\s*=", RegexOptions.Multiline),
+			Is.False);
 	}
 
 	private static void AssertProjectReferences(string projectFilePath, params string[] expectedReferencedProjectFileNames)

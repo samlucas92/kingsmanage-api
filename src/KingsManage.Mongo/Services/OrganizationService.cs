@@ -5,32 +5,32 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class OrganizationService : IOrganizationService
 {
-	private readonly IMongoCollection<Organization> _organizations;
-	private readonly IMongoCollection<SportsClub> _clubs;
-	private readonly IMongoCollection<OrganizationSubscription> _subscriptions;
-	private readonly IMongoCollection<BillingInvoice> _invoices;
-	private readonly ITenantContext _tenant;
+	private readonly IMongoCollection<Organization> organizations;
+	private readonly IMongoCollection<SportsClub> clubs;
+	private readonly IMongoCollection<OrganizationSubscription> subscriptions;
+	private readonly IMongoCollection<BillingInvoice> invoices;
+	private readonly ITenantContext tenant;
 
 	public OrganizationService(MongoContext context, ITenantContext tenant)
 	{
-		_organizations = context.Database.GetCollection<Organization>("organizations");
-		_clubs = context.Database.GetCollection<SportsClub>("clubs");
-		_subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
-		_invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
-		_tenant = tenant;
+		organizations = context.Database.GetCollection<Organization>("organizations");
+		clubs = context.Database.GetCollection<SportsClub>("clubs");
+		subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
+		invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) =>
-		await _organizations.Find(_ => true)
+		await organizations.Find(_ => true)
 			.SortBy(organization => organization.Name)
 			.ToListAsync(cancellationToken);
 
 	public async Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-		await _organizations.Find(organization => organization.Id == id)
+		await organizations.Find(organization => organization.Id == id)
 			.FirstOrDefaultAsync(cancellationToken);
 
 	public async Task<Organization?> GetCurrentAsync(CancellationToken cancellationToken = default) =>
-		await GetByIdAsync(_tenant.OrganizationId, cancellationToken);
+		await GetByIdAsync(tenant.OrganizationId, cancellationToken);
 
 	public async Task<Organization?> CreateAsync(
 		Organization organization,
@@ -44,7 +44,7 @@ public sealed class OrganizationService : IOrganizationService
 		organization.IsActive = true;
 		organization.CreatedAt = now;
 		organization.UpdatedAt = now;
-		await _organizations.InsertOneAsync(organization, cancellationToken: cancellationToken);
+		await organizations.InsertOneAsync(organization, cancellationToken: cancellationToken);
 		return organization;
 	}
 
@@ -62,7 +62,7 @@ public sealed class OrganizationService : IOrganizationService
 		existing.Name = organization.Name;
 		existing.Slug = organization.Slug;
 		existing.UpdatedAt = DateTime.UtcNow;
-		var result = await _organizations.ReplaceOneAsync(
+		var result = await organizations.ReplaceOneAsync(
 			current => current.Id == id,
 			existing,
 			cancellationToken: cancellationToken);
@@ -70,14 +70,14 @@ public sealed class OrganizationService : IOrganizationService
 	}
 
 	public async Task<Organization?> UpdateCurrentAsync(Organization organization, CancellationToken cancellationToken = default)
-		=> await UpdateAsync(_tenant.OrganizationId, organization, cancellationToken);
+		=> await UpdateAsync(tenant.OrganizationId, organization, cancellationToken);
 
 	public async Task<Organization?> SetActiveAsync(
 		Guid id,
 		bool isActive,
 		CancellationToken cancellationToken = default)
 	{
-		return await _organizations.FindOneAndUpdateAsync(
+		return await organizations.FindOneAndUpdateAsync(
 			organization => organization.Id == id,
 			Builders<Organization>.Update
 				.Set(organization => organization.IsActive, isActive)
@@ -95,16 +95,16 @@ public sealed class OrganizationService : IOrganizationService
 	{
 		var organization = await GetByIdAsync(id, cancellationToken);
 		if (organization is null) return OrganizationDeleteResult.NotFound;
-		if (await _clubs.Find(club => club.OrganizationId == id).AnyAsync(cancellationToken))
+		if (await clubs.Find(club => club.OrganizationId == id).AnyAsync(cancellationToken))
 			return OrganizationDeleteResult.HasClubs;
 
-		await _subscriptions.DeleteManyAsync(
+		await subscriptions.DeleteManyAsync(
 			subscription => subscription.OrganizationId == id,
 			cancellationToken);
-		await _invoices.DeleteManyAsync(
+		await invoices.DeleteManyAsync(
 			invoice => invoice.OrganizationId == id,
 			cancellationToken);
-		var result = await _organizations.DeleteOneAsync(
+		var result = await organizations.DeleteOneAsync(
 			item => item.Id == id,
 			cancellationToken);
 		return result.DeletedCount > 0
@@ -120,7 +120,7 @@ public sealed class OrganizationService : IOrganizationService
 		var filter = Builders<Organization>.Filter.Eq(organization => organization.Slug, slug);
 		if (exceptId.HasValue)
 			filter &= Builders<Organization>.Filter.Ne(organization => organization.Id, exceptId.Value);
-		return await _organizations.Find(filter).AnyAsync(cancellationToken);
+		return await organizations.Find(filter).AnyAsync(cancellationToken);
 	}
 
 	private static void Normalise(Organization organization)

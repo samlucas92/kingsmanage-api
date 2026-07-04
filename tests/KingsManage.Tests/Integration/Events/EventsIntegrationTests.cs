@@ -14,25 +14,25 @@ namespace KingsManage.Tests.Integration.Events;
 [TestFixture]
 public sealed class EventsIntegrationTests
 {
-	private AuthIntegrationTestFactory _factory = null!;
+	private AuthIntegrationTestFactory factory = null!;
 
 	[SetUp]
 	public void SetUp()
 	{
-		_factory = new AuthIntegrationTestFactory();
-		_factory.SeedDefaultUsers();
+		factory = new AuthIntegrationTestFactory();
+		factory.SeedDefaultUsers();
 	}
 
 	[TearDown]
 	public void TearDown()
 	{
-		_factory.Dispose();
+		factory.Dispose();
 	}
 
 	[Test]
 	public async Task GetEvents_WithoutToken_ReturnsUnauthorized()
 	{
-		var client = _factory.CreateClient();
+		var client = factory.CreateClient();
 
 		var response = await client.GetAsync("/api/events");
 
@@ -42,7 +42,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateTrainingEvent_AsAdmin_CreatesEvent()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -77,7 +77,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateSocialEvent_AsCoach_CreatesEvent()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -104,7 +104,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateSocialEvent_AsPlayer_ReturnsForbidden()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -133,7 +133,7 @@ public sealed class EventsIntegrationTests
 	{
 		var meetingEventId = Guid.Parse("30000000-0000-0000-0000-000000000001");
 
-		_factory.ClubEventService.Events.AddRange(
+		factory.ClubEventService.Events.AddRange(
 			new[]
 			{
 				new ClubEvent
@@ -157,7 +157,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -179,7 +179,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task GetEvents_AsCoach_IncludesMeetingEvents()
 	{
-		_factory.ClubEventService.Events.Add(
+		factory.ClubEventService.Events.Add(
 			new ClubEvent
 			{
 				Id = Guid.Parse("30000000-0000-0000-0000-000000000003"),
@@ -191,7 +191,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.CoachEmail,
 			TestUsers.CoachPassword
 		);
@@ -205,7 +205,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateMatchEvent_EventOnly_CreatesEventWithoutCreatingMatches()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -227,7 +227,7 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		Assert.That(_factory.MatchService.Matches, Is.Empty);
+		Assert.That(factory.MatchService.Matches, Is.Empty);
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
@@ -241,7 +241,7 @@ public sealed class EventsIntegrationTests
 	{
 		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000001");
 
-		_factory.MatchService.Matches.Add(
+		factory.MatchService.Matches.Add(
 			new Match
 			{
 				Id = matchId,
@@ -252,7 +252,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -286,7 +286,7 @@ public sealed class EventsIntegrationTests
 
 		var matchLinks = document.RootElement.GetProperty("matchLinks");
 		var eventId = document.RootElement.GetProperty("id").GetGuid();
-		var linkedMatch = _factory.MatchService.Matches.Single(match => match.Id == matchId);
+		var linkedMatch = factory.MatchService.Matches.Single(match => match.Id == matchId);
 
 		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(1));
 		Assert.That(matchLinks[0].GetProperty("team").GetString(), Is.EqualTo("First"));
@@ -299,7 +299,7 @@ public sealed class EventsIntegrationTests
 	{
 		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000101");
 
-		_factory.MatchService.Matches.Add(
+		factory.MatchService.Matches.Add(
 			new Match
 			{
 				Id = matchId,
@@ -310,7 +310,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -343,7 +343,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateMatchEvent_WithMissingExistingMatch_ReturnsBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -379,7 +379,7 @@ public sealed class EventsIntegrationTests
 	{
 		var eventStartDate = DateTime.UtcNow.AddDays(14);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -412,9 +412,9 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		Assert.That(_factory.MatchService.Matches, Has.Count.EqualTo(1));
+		Assert.That(factory.MatchService.Matches, Has.Count.EqualTo(1));
 
-		var createdMatch = _factory.MatchService.Matches.Single();
+		var createdMatch = factory.MatchService.Matches.Single();
 
 		Assert.That(createdMatch.Team, Is.EqualTo(ClubTeam.First));
 		Assert.That(createdMatch.Opponent, Is.EqualTo("Loughor"));
@@ -439,9 +439,9 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateMatchEvent_WithExplicitMatchCreationAndNoActiveSeason_ReturnsBadRequest()
 	{
-		_factory.SeasonService.Seasons.ForEach(season => season.IsActive = false);
+		factory.SeasonService.Seasons.ForEach(season => season.IsActive = false);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -474,7 +474,7 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-		Assert.That(_factory.MatchService.Matches, Is.Empty);
+		Assert.That(factory.MatchService.Matches, Is.Empty);
 	}
 
 	[Test]
@@ -482,7 +482,7 @@ public sealed class EventsIntegrationTests
 	{
 		var eventStartDate = DateTime.UtcNow.AddDays(14);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -524,14 +524,14 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-		Assert.That(_factory.MatchService.Matches, Has.Count.EqualTo(2));
+		Assert.That(factory.MatchService.Matches, Has.Count.EqualTo(2));
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
 		var matchLinks = document.RootElement.GetProperty("matchLinks");
 		var eventId = document.RootElement.GetProperty("id").GetGuid();
-		var firstTeamMatch = _factory.MatchService.Matches.Single(match => match.Team == ClubTeam.First);
-		var secondTeamMatch = _factory.MatchService.Matches.Single(match => match.Team == ClubTeam.Second);
+		var firstTeamMatch = factory.MatchService.Matches.Single(match => match.Team == ClubTeam.First);
+		var secondTeamMatch = factory.MatchService.Matches.Single(match => match.Team == ClubTeam.Second);
 
 		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(2));
 		Assert.That(matchLinks.EnumerateArray().Any(matchLink => matchLink.GetProperty("team").GetString() == "First"), Is.True);
@@ -551,7 +551,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateMatchEvent_WithBothTeamCreationMissingOneTeam_ReturnsBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -580,13 +580,13 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-		Assert.That(_factory.MatchService.Matches, Is.Empty);
+		Assert.That(factory.MatchService.Matches, Is.Empty);
 	}
 
 	[Test]
 	public async Task CreateMatchEvent_WithCreateMatchesButExplicitCreationFalse_ReturnsBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -615,7 +615,7 @@ public sealed class EventsIntegrationTests
 		);
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-		Assert.That(_factory.MatchService.Matches, Is.Empty);
+		Assert.That(factory.MatchService.Matches, Is.Empty);
 	}
 
 	[Test]
@@ -623,7 +623,7 @@ public sealed class EventsIntegrationTests
 	{
 		var matchId = Guid.Parse("40000000-0000-0000-0000-000000000003");
 
-		_factory.MatchService.Matches.Add(
+		factory.MatchService.Matches.Add(
 			new Match
 			{
 				Id = matchId,
@@ -634,7 +634,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -675,7 +675,7 @@ public sealed class EventsIntegrationTests
 	[Test]
 	public async Task CreateTrainingEvent_WithMatchCreationFields_ReturnsBadRequest()
 	{
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -714,7 +714,7 @@ public sealed class EventsIntegrationTests
 		var secondMatchId = Guid.Parse("50000000-0000-0000-0000-000000000102");
 		var unrelatedMatchId = Guid.Parse("50000000-0000-0000-0000-000000000103");
 
-		_factory.ClubEventService.Events.Add(
+		factory.ClubEventService.Events.Add(
 			new ClubEvent
 			{
 				Id = eventId,
@@ -739,7 +739,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		_factory.MatchService.Matches.AddRange(
+		factory.MatchService.Matches.AddRange(
 			new[]
 			{
 				new Match
@@ -771,7 +771,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
@@ -779,10 +779,10 @@ public sealed class EventsIntegrationTests
 		var response = await client.DeleteAsync($"/api/events/{eventId}");
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
-		Assert.That(_factory.ClubEventService.Events.Any(clubEvent => clubEvent.Id == eventId), Is.False);
-		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == firstMatchId), Is.False);
-		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == secondMatchId), Is.False);
-		Assert.That(_factory.MatchService.Matches.Any(match => match.Id == unrelatedMatchId), Is.True);
+		Assert.That(factory.ClubEventService.Events.Any(clubEvent => clubEvent.Id == eventId), Is.False);
+		Assert.That(factory.MatchService.Matches.Any(match => match.Id == firstMatchId), Is.False);
+		Assert.That(factory.MatchService.Matches.Any(match => match.Id == secondMatchId), Is.False);
+		Assert.That(factory.MatchService.Matches.Any(match => match.Id == unrelatedMatchId), Is.True);
 	}
 
 	[Test]
@@ -790,7 +790,7 @@ public sealed class EventsIntegrationTests
 	{
 		var eventId = Guid.Parse("60000000-0000-0000-0000-000000000001");
 
-		_factory.ClubEventService.Events.Add(
+		factory.ClubEventService.Events.Add(
 			new ClubEvent
 			{
 				Id = eventId,
@@ -802,7 +802,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -824,7 +824,7 @@ public sealed class EventsIntegrationTests
 	{
 		var eventId = Guid.Parse("60000000-0000-0000-0000-000000000002");
 
-		_factory.ClubEventService.Events.Add(
+		factory.ClubEventService.Events.Add(
 			new ClubEvent
 			{
 				Id = eventId,
@@ -836,7 +836,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);
@@ -869,7 +869,7 @@ public sealed class EventsIntegrationTests
 	{
 		var eventId = Guid.Parse("60000000-0000-0000-0000-000000000003");
 
-		_factory.ClubEventService.Events.Add(
+		factory.ClubEventService.Events.Add(
 			new ClubEvent
 			{
 				Id = eventId,
@@ -881,7 +881,7 @@ public sealed class EventsIntegrationTests
 			}
 		);
 
-		var client = await _factory.CreateAuthenticatedClientAsync(
+		var client = await factory.CreateAuthenticatedClientAsync(
 			TestUsers.PlayerEmail,
 			TestUsers.PlayerPassword
 		);

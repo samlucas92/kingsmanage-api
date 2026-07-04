@@ -11,16 +11,16 @@ namespace KingsManage.Web.Controllers;
 [Route("api/finance")]
 public class FinanceController : ControllerBase
 {
-	private readonly IFinanceService _financeService;
-	private readonly IPlayerService _playerService;
+	private readonly IFinanceService financeService;
+	private readonly IPlayerService playerService;
 
 	public FinanceController(
 		IFinanceService financeService,
 		IPlayerService playerService
 	)
 	{
-		_financeService = financeService;
-		_playerService = playerService;
+		this.financeService = financeService;
+		this.playerService = playerService;
 	}
 
 	[HttpGet]
@@ -35,8 +35,8 @@ public class FinanceController : ControllerBase
 			return errorResult!;
 		}
 
-		var players = await _playerService.GetAllAsync(cancellationToken);
-		var transactions = await _financeService.GetSeasonTransactionsAsync(
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var transactions = await financeService.GetSeasonTransactionsAsync(
 			parsedSeasonId,
 			cancellationToken
 		);
@@ -71,14 +71,14 @@ public class FinanceController : ControllerBase
 			return errorResult!;
 		}
 
-		var player = await _playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
 
 		if (player is null)
 		{
 			return NotFound();
 		}
 
-		var transactions = await _financeService.GetPlayerTransactionsAsync(
+		var transactions = await financeService.GetPlayerTransactionsAsync(
 			parsedPlayerId,
 			parsedSeasonId,
 			cancellationToken
@@ -109,14 +109,14 @@ public class FinanceController : ControllerBase
 			return BadRequest("This account is not linked to a player.");
 		}
 
-		var player = await _playerService.GetByIdAsync(playerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(playerId, cancellationToken);
 
 		if (player is null)
 		{
 			return NotFound("The linked player was not found.");
 		}
 
-		var transactions = await _financeService.GetPlayerTransactionsAsync(
+		var transactions = await financeService.GetPlayerTransactionsAsync(
 			playerId,
 			parsedSeasonId,
 			cancellationToken
@@ -139,7 +139,7 @@ public class FinanceController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var player = await _playerService.GetByIdAsync(request.PlayerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(request.PlayerId, cancellationToken);
 
 		if (player is null)
 		{
@@ -150,7 +150,7 @@ public class FinanceController : ControllerBase
 
 		if (request.Type == FinanceTransactionType.Payment)
 		{
-			transaction = await _financeService.AddPaymentAsync(
+			transaction = await financeService.AddPaymentAsync(
 				request.PlayerId,
 				request.SeasonId,
 				request.Amount,
@@ -160,7 +160,7 @@ public class FinanceController : ControllerBase
 		}
 		else if (request.Type == FinanceTransactionType.Adjustment)
 		{
-			transaction = await _financeService.AddAdjustmentAsync(
+			transaction = await financeService.AddAdjustmentAsync(
 				request.PlayerId,
 				request.SeasonId,
 				request.Amount,
@@ -170,7 +170,7 @@ public class FinanceController : ControllerBase
 		}
 		else
 		{
-			transaction = await _financeService.AddTransactionAsync(
+			transaction = await financeService.AddTransactionAsync(
 				new FinanceTransaction
 				{
 					PlayerId = request.PlayerId,
@@ -210,14 +210,14 @@ public class FinanceController : ControllerBase
 			return BadRequest("Amount owed must be 0 or above.");
 		}
 
-		var player = await _playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
+		var player = await playerService.GetByIdAsync(parsedPlayerId, cancellationToken);
 
 		if (player is null)
 		{
 			return NotFound();
 		}
 
-		var transaction = await _financeService.SetPlayerAmountOwedAsync(
+		var transaction = await financeService.SetPlayerAmountOwedAsync(
 			parsedPlayerId,
 			parsedSeasonId,
 			model.Amount,
@@ -239,7 +239,7 @@ public class FinanceController : ControllerBase
 			return errorResult!;
 		}
 
-		var deleted = await _financeService.DeleteTransactionAsync(
+		var deleted = await financeService.DeleteTransactionAsync(
 			parsedTransactionId,
 			cancellationToken
 		);

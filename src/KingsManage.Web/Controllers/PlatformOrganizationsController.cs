@@ -9,17 +9,17 @@ namespace KingsManage.Web.Controllers;
 [Route("api/platform/organizations")]
 public sealed class PlatformOrganizationsController : ControllerBase
 {
-	private readonly IOrganizationService _organizations;
+	private readonly IOrganizationService organizations;
 
 	public PlatformOrganizationsController(IOrganizationService organizations)
 	{
-		_organizations = organizations;
+		this.organizations = organizations;
 	}
 
 	[HttpGet]
 	public async Task<ActionResult<IReadOnlyList<Organization>>> GetAll(
 		CancellationToken cancellationToken) =>
-		Ok(await _organizations.GetAllAsync(cancellationToken));
+		Ok(await organizations.GetAllAsync(cancellationToken));
 
 	[HttpPost]
 	public async Task<ActionResult<Organization>> Create(
@@ -28,7 +28,7 @@ public sealed class PlatformOrganizationsController : ControllerBase
 	{
 		var error = Validate(organization);
 		if (error is not null) return BadRequest(error);
-		var created = await _organizations.CreateAsync(organization, cancellationToken);
+		var created = await organizations.CreateAsync(organization, cancellationToken);
 		return created is null
 			? Conflict("An organization with this slug already exists.")
 			: Created($"/api/platform/organizations/{created.Id}", created);
@@ -42,7 +42,7 @@ public sealed class PlatformOrganizationsController : ControllerBase
 	{
 		var error = Validate(organization);
 		if (error is not null) return BadRequest(error);
-		var updated = await _organizations.UpdateAsync(id, organization, cancellationToken);
+		var updated = await organizations.UpdateAsync(id, organization, cancellationToken);
 		return updated is null
 			? NotFound("Organization was not found or its slug is already in use.")
 			: Ok(updated);
@@ -53,7 +53,7 @@ public sealed class PlatformOrganizationsController : ControllerBase
 		Guid id,
 		SetActiveRequest request,
 		CancellationToken cancellationToken) =>
-		await _organizations.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated
+		await organizations.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated
 			? Ok(updated)
 			: NotFound();
 
@@ -62,7 +62,7 @@ public sealed class PlatformOrganizationsController : ControllerBase
 		Guid id,
 		CancellationToken cancellationToken)
 	{
-		var result = await _organizations.DeleteAsync(id, cancellationToken);
+		var result = await organizations.DeleteAsync(id, cancellationToken);
 		return result switch
 		{
 			OrganizationDeleteResult.Deleted => NoContent(),

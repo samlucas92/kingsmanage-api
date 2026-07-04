@@ -6,8 +6,8 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class StoredFileObjectService : IStoredFileObjectService
 {
-	private readonly IMongoCollection<StoredFileObject> _objects;
-	private readonly ITenantContext _tenant;
+	private readonly IMongoCollection<StoredFileObject> objects;
+	private readonly ITenantContext tenant;
 
 	static StoredFileObjectService()
 	{
@@ -23,8 +23,8 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 
 	public StoredFileObjectService(MongoContext context, ITenantContext tenant)
 	{
-		_objects = context.Database.GetCollection<StoredFileObject>("storedFileObjects");
-		_tenant = tenant;
+		objects = context.Database.GetCollection<StoredFileObject>("storedFileObjects");
+		this.tenant = tenant;
 	}
 
 	public async Task<StoredFileObjectResolution> ResolveAsync(
@@ -42,7 +42,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		}
 
 		candidate.Id = candidate.Id == Guid.Empty ? Guid.NewGuid() : candidate.Id;
-		candidate.OrganizationId = _tenant.OrganizationId;
+		candidate.OrganizationId = tenant.OrganizationId;
 		candidate.ContentHash = contentHash;
 		candidate.StorageKey = candidate.StorageKey.Trim();
 		candidate.StorageProvider = candidate.StorageProvider.Trim();
@@ -52,7 +52,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 
 		try
 		{
-			await _objects.InsertOneAsync(candidate, cancellationToken: cancellationToken);
+			await objects.InsertOneAsync(candidate, cancellationToken: cancellationToken);
 			return new StoredFileObjectResolution(candidate, true);
 		}
 		catch (MongoWriteException exception)
@@ -75,7 +75,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 	)
 	{
 		var now = DateTime.UtcNow;
-		return await _objects.FindOneAndUpdateAsync(
+		return await objects.FindOneAndUpdateAsync(
 			OrganizationFilter() & Builders<StoredFileObject>.Filter.Eq(item => item.Id, id),
 			Builders<StoredFileObject>.Update
 				.Set(item => item.Status, StoredFileObjectStatus.Uploaded)
@@ -97,7 +97,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 	)
 	{
 		var now = DateTime.UtcNow;
-		return await _objects.FindOneAndUpdateAsync(
+		return await objects.FindOneAndUpdateAsync(
 			OrganizationFilter() & Builders<StoredFileObject>.Filter.Eq(item => item.Id, id),
 			Builders<StoredFileObject>.Update
 				.Set(item => item.Status, StoredFileObjectStatus.Quarantined)
@@ -117,7 +117,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var result = await _objects.UpdateOneAsync(
+		var result = await objects.UpdateOneAsync(
 			OrganizationFilter()
 				& Builders<StoredFileObject>.Filter.Eq(item => item.Id, id)
 				& Builders<StoredFileObject>.Filter.In(
@@ -152,7 +152,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 			.Inc(item => item.ReferenceCount, -1)
 			.Set(item => item.UpdatedAt, now);
 
-		var storedObject = await _objects.FindOneAndUpdateAsync(
+		var storedObject = await objects.FindOneAndUpdateAsync(
 			filter,
 			update,
 			new FindOneAndUpdateOptions<StoredFileObject>
@@ -171,7 +171,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 			OrganizationFilter()
 			& Builders<StoredFileObject>.Filter.Eq(item => item.Id, id)
 			& Builders<StoredFileObject>.Filter.Eq(item => item.ReferenceCount, 0);
-		await _objects.UpdateOneAsync(
+		await objects.UpdateOneAsync(
 			orphanFilter,
 			Builders<StoredFileObject>.Update
 				.Set(item => item.OrphanedAt, now)
@@ -185,7 +185,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 		CancellationToken cancellationToken
 	)
 	{
-		return await _objects
+		return await objects
 			.Find(OrganizationFilter() &
 				Builders<StoredFileObject>.Filter.Eq(item => item.ContentHash, contentHash) &
 				Builders<StoredFileObject>.Filter.In(
@@ -203,7 +203,7 @@ public sealed class StoredFileObjectService : IStoredFileObjectService
 	{
 		return Builders<StoredFileObject>.Filter.Eq(
 			item => item.OrganizationId,
-			_tenant.OrganizationId
+			tenant.OrganizationId
 		);
 	}
 

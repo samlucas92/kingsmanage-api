@@ -46,7 +46,10 @@ public static class SportCatalog
 
 	private static SportDefinition Create(string key, string name, string surface, int players, string[] positions, string[] formations) => new()
 	{
-		Key = key, Name = name, Surface = surface, PlayersPerSide = players,
+		Key = key,
+		Name = name,
+		Surface = surface,
+		PlayersPerSide = players,
 		Positions = positions.Select(value => value.Split('|')).Select(parts => new SportPositionDefinition { Key = parts[0], Label = parts[1], Group = parts[2] }).ToList(),
 		Formations = formations.Select(value => new SportFormationDefinition { Key = value, Name = value }).ToList()
 	};

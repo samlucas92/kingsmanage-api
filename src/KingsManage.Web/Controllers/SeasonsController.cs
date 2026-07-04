@@ -10,11 +10,11 @@ namespace KingsManage.Web.Controllers;
 [Route("api/seasons")]
 public class SeasonsController : ControllerBase
 {
-	private readonly ISeasonService _seasonService;
+	private readonly ISeasonService seasonService;
 
 	public SeasonsController(ISeasonService seasonService)
 	{
-		_seasonService = seasonService;
+		this.seasonService = seasonService;
 	}
 
 	[HttpGet]
@@ -22,7 +22,7 @@ public class SeasonsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var seasons = await _seasonService.GetAllAsync(cancellationToken);
+		var seasons = await seasonService.GetAllAsync(cancellationToken);
 		return Ok(seasons);
 	}
 
@@ -31,7 +31,7 @@ public class SeasonsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var season = await _seasonService.GetActiveAsync(cancellationToken);
+		var season = await seasonService.GetActiveAsync(cancellationToken);
 
 		if (season is null)
 		{
@@ -52,7 +52,7 @@ public class SeasonsController : ControllerBase
 			return errorResult!;
 		}
 
-		var season = await _seasonService.GetByIdAsync(seasonId, cancellationToken);
+		var season = await seasonService.GetByIdAsync(seasonId, cancellationToken);
 
 		if (season is null)
 		{
@@ -76,7 +76,7 @@ public class SeasonsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var createdSeason = await _seasonService.CreateAsync(
+		var createdSeason = await seasonService.CreateAsync(
 			season,
 			cancellationToken
 		);
@@ -117,7 +117,7 @@ public class SeasonsController : ControllerBase
 			return BadRequest("Starting finance amount must be 0 or above.");
 		}
 
-		var existingSeasons = await _seasonService.GetAllAsync(cancellationToken);
+		var existingSeasons = await seasonService.GetAllAsync(cancellationToken);
 		var existingSeason = existingSeasons.FirstOrDefault(existing => string.Equals(
 			existing.Name.Trim(),
 			request.Name.Trim(),
@@ -128,7 +128,7 @@ public class SeasonsController : ControllerBase
 
 		if (existingSeason is null)
 		{
-			season = await _seasonService.CreateAsync(season, cancellationToken);
+			season = await seasonService.CreateAsync(season, cancellationToken);
 			createdSeason = true;
 		}
 		else
@@ -137,7 +137,7 @@ public class SeasonsController : ControllerBase
 
 			if (request.MakeActive && !season.IsActive)
 			{
-				season = await _seasonService.SetActiveAsync(
+				season = await seasonService.SetActiveAsync(
 					season.Id,
 					cancellationToken
 				) ?? season;
@@ -192,7 +192,7 @@ public class SeasonsController : ControllerBase
 			return BadRequest(validationError);
 		}
 
-		var existingSeason = await _seasonService.GetByIdAsync(
+		var existingSeason = await seasonService.GetByIdAsync(
 			seasonId,
 			cancellationToken
 		);
@@ -205,7 +205,7 @@ public class SeasonsController : ControllerBase
 		season.Id = seasonId;
 		season.CreatedAt = existingSeason.CreatedAt;
 
-		var updatedSeason = await _seasonService.UpdateAsync(
+		var updatedSeason = await seasonService.UpdateAsync(
 			season,
 			cancellationToken
 		);
@@ -230,7 +230,7 @@ public class SeasonsController : ControllerBase
 			return errorResult!;
 		}
 
-		var updatedSeason = await _seasonService.SetActiveAsync(
+		var updatedSeason = await seasonService.SetActiveAsync(
 			seasonId,
 			cancellationToken
 		);

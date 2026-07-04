@@ -5,11 +5,11 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class FileLifecycleService : IFileLifecycleService
 {
-	private readonly IMongoCollection<StoredFileObject> _objects;
-	private readonly IMongoCollection<ClubFile> _files;
-	private readonly IMongoCollection<FileLifecycleAudit> _audit;
-	private readonly IFileStorageService _storage;
-	private readonly FileLifecycleSettings _settings;
+	private readonly IMongoCollection<StoredFileObject> objects;
+	private readonly IMongoCollection<ClubFile> files;
+	private readonly IMongoCollection<FileLifecycleAudit> audit;
+	private readonly IFileStorageService storage;
+	private readonly FileLifecycleSettings settings;
 
 	public FileLifecycleService(
 		MongoContext context,
@@ -17,11 +17,11 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		FileLifecycleSettings settings
 	)
 	{
-		_objects = context.Database.GetCollection<StoredFileObject>("storedFileObjects");
-		_files = context.Database.GetCollection<ClubFile>("files");
-		_audit = context.Database.GetCollection<FileLifecycleAudit>("fileLifecycleAudit");
-		_storage = storage;
-		_settings = settings;
+		objects = context.Database.GetCollection<StoredFileObject>("storedFileObjects");
+		files = context.Database.GetCollection<ClubFile>("files");
+		audit = context.Database.GetCollection<FileLifecycleAudit>("fileLifecycleAudit");
+		this.storage = storage;
+		this.settings = settings;
 	}
 
 	public async Task<FileStorageUsage> GetUsageAsync(
@@ -29,13 +29,13 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var objects = await _objects
+		var objects = await this.objects
 			.Find(item =>
 				item.OrganizationId == organizationId &&
 				item.Status != StoredFileObjectStatus.Deleted)
 			.ToListAsync(cancellationToken);
 		var usedBytes = objects.Sum(item => item.SizeBytes);
-		var quotaBytes = Math.Max(0, _settings.DefaultOrganizationQuotaBytes);
+		var quotaBytes = Math.Max(0, settings.DefaultOrganizationQuotaBytes);
 		var usedPercent = quotaBytes == 0
 			? 100
 			: Math.Round((double)usedBytes / quotaBytes * 100, 2);
@@ -47,7 +47,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 			QuotaBytes = quotaBytes,
 			RemainingBytes = Math.Max(0, quotaBytes - usedBytes),
 			UsedPercent = usedPercent,
-			IsNearLimit = usedPercent >= Math.Clamp(_settings.QuotaWarningPercent, 1, 100),
+			IsNearLimit = usedPercent >= Math.Clamp(settings.QuotaWarningPercent, 1, 100),
 			IsAtLimit = quotaBytes == 0 || usedBytes >= quotaBytes,
 			StoredObjectCount = objects.Count(item => item.Status == StoredFileObjectStatus.Uploaded),
 			PendingObjectCount = objects.Count(item =>
@@ -66,7 +66,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		var normalizedHash = contentHash.Trim().ToLowerInvariant();
 		var reusesExistingObject =
 			!string.IsNullOrWhiteSpace(normalizedHash) &&
-			await _objects.Find(item =>
+			await objects.Find(item =>
 					item.OrganizationId == organizationId &&
 					item.ContentHash == normalizedHash &&
 					item.Status != StoredFileObjectStatus.Deleted &&
@@ -79,7 +79,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 			? 100
 			: Math.Round((double)projectedBytes / usage.QuotaBytes * 100, 2);
 		usage.IsNearLimit = usage.UsedPercent >=
-			Math.Clamp(_settings.QuotaWarningPercent, 1, 100);
+			Math.Clamp(settings.QuotaWarningPercent, 1, 100);
 		usage.IsAtLimit = usage.QuotaBytes == 0 || projectedBytes >= usage.QuotaBytes;
 
 		return new FileUploadCapacityResult
@@ -99,7 +99,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		audit.Id = audit.Id == Guid.Empty ? Guid.NewGuid() : audit.Id;
 		audit.CreatedAt = audit.CreatedAt == default ? DateTime.UtcNow : audit.CreatedAt;
 		audit.Detail = audit.Detail.Trim();
-		await _audit.InsertOneAsync(audit, cancellationToken: cancellationToken);
+		await this.audit.InsertOneAsync(audit, cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<FileLifecycleAudit>> GetAuditAsync(
@@ -108,7 +108,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _audit
+		return await audit
 			.Find(item => item.OrganizationId == organizationId)
 			.SortByDescending(item => item.CreatedAt)
 			.Limit(Math.Clamp(limit, 1, 500))
@@ -132,8 +132,8 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		CancellationToken cancellationToken
 	)
 	{
-		var pendingCutoff = utcNow.AddHours(-Math.Max(1, _settings.PendingUploadRetentionHours));
-		var quarantineCutoff = utcNow.AddHours(-Math.Max(1, _settings.QuarantineRetentionHours));
+		var pendingCutoff = utcNow.AddHours(-Math.Max(1, settings.PendingUploadRetentionHours));
+		var quarantineCutoff = utcNow.AddHours(-Math.Max(1, settings.QuarantineRetentionHours));
 		var expiredFilter =
 			Builders<ClubFile>.Filter.And(
 				Builders<ClubFile>.Filter.Eq(item => item.Status, ClubFileStatus.PendingUpload),
@@ -151,7 +151,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 				Builders<ClubFile>.Filter.Eq(item => item.Status, ClubFileStatus.Quarantined),
 				Builders<ClubFile>.Filter.Lte(item => item.QuarantinedAt, quarantineCutoff)
 			);
-		var expired = await _files.Find(expiredFilter).ToListAsync(cancellationToken);
+		var expired = await files.Find(expiredFilter).ToListAsync(cancellationToken);
 
 		foreach (var file in expired)
 		{
@@ -159,7 +159,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 				.Set(item => item.Status, ClubFileStatus.Deleted)
 				.Set(item => item.DeletedAt, utcNow)
 				.Set(item => item.UpdatedAt, utcNow);
-			var updated = await _files.UpdateOneAsync(
+			var updated = await files.UpdateOneAsync(
 				item => item.Id == file.Id && item.Status != ClubFileStatus.Deleted,
 				update,
 				cancellationToken: cancellationToken
@@ -193,14 +193,14 @@ public sealed class FileLifecycleService : IFileLifecycleService
 		CancellationToken cancellationToken
 	)
 	{
-		var activeReferences = await _files
+		var activeReferences = await files
 			.Find(item =>
 				item.StoredObjectId != null &&
 				item.Status != ClubFileStatus.Deleted)
 			.Project(item => item.StoredObjectId)
 			.ToListAsync(cancellationToken);
 		var referenceCounts = FileLifecyclePolicy.CountActiveReferences(activeReferences);
-		var objects = await _objects
+		var objects = await this.objects
 			.Find(item => item.Status != StoredFileObjectStatus.Deleted)
 			.ToListAsync(cancellationToken);
 
@@ -216,7 +216,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 				storedObject.OrphanedAt != orphanedAt
 			)
 			{
-				await _objects.UpdateOneAsync(
+				await this.objects.UpdateOneAsync(
 					item => item.Id == storedObject.Id,
 					Builders<StoredFileObject>.Update
 						.Set(item => item.ReferenceCount, referenceCount)
@@ -238,13 +238,13 @@ public sealed class FileLifecycleService : IFileLifecycleService
 				);
 			}
 
-			var orphanCutoff = utcNow.AddHours(-Math.Max(1, _settings.OrphanRetentionHours));
+			var orphanCutoff = utcNow.AddHours(-Math.Max(1, settings.OrphanRetentionHours));
 			if (referenceCount != 0 || orphanedAt is null || orphanedAt > orphanCutoff)
 			{
 				continue;
 			}
 
-			var claim = await _objects.UpdateOneAsync(
+			var claim = await this.objects.UpdateOneAsync(
 				item =>
 					item.Id == storedObject.Id &&
 					item.ReferenceCount == 0 &&
@@ -263,7 +263,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 			var deleted = false;
 			try
 			{
-				deleted = await _storage.DeleteObjectAsync(
+				deleted = await storage.DeleteObjectAsync(
 					storedObject.StorageKey,
 					cancellationToken
 				);
@@ -275,7 +275,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 
 			if (!deleted)
 			{
-				await _objects.UpdateOneAsync(
+				await this.objects.UpdateOneAsync(
 					item =>
 						item.Id == storedObject.Id &&
 						item.Status == StoredFileObjectStatus.Deleting,
@@ -299,7 +299,7 @@ public sealed class FileLifecycleService : IFileLifecycleService
 				continue;
 			}
 
-			var metadataDeletion = await _objects.DeleteOneAsync(
+			var metadataDeletion = await this.objects.DeleteOneAsync(
 				item =>
 					item.Id == storedObject.Id &&
 					item.ReferenceCount == 0 &&

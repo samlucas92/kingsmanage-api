@@ -5,33 +5,33 @@ namespace KingsManage.Mongo.Services;
 
 public sealed class SportsClubService : ISportsClubService
 {
-	private readonly IMongoCollection<SportsClub> _clubs;
-	private readonly ITenantContext _tenant;
+	private readonly IMongoCollection<SportsClub> clubs;
+	private readonly ITenantContext tenant;
 
 	public SportsClubService(MongoContext context, ITenantContext tenant)
 	{
-		_clubs = context.Database.GetCollection<SportsClub>("clubs");
-		_tenant = tenant;
+		clubs = context.Database.GetCollection<SportsClub>("clubs");
+		this.tenant = tenant;
 	}
 
 	public async Task<IReadOnlyList<SportsClub>> GetAllAsync(CancellationToken cancellationToken = default) =>
-		await _clubs.Find(club => club.OrganizationId == _tenant.OrganizationId)
+		await clubs.Find(club => club.OrganizationId == tenant.OrganizationId)
 			.SortBy(club => club.Name)
 			.ToListAsync(cancellationToken);
 
 	public async Task<SportsClub?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-		await _clubs.Find(club => club.Id == id && club.OrganizationId == _tenant.OrganizationId)
+		await clubs.Find(club => club.Id == id && club.OrganizationId == tenant.OrganizationId)
 			.FirstOrDefaultAsync(cancellationToken);
 
 	public async Task<SportsClub> CreateAsync(SportsClub club, CancellationToken cancellationToken = default)
 	{
 		var now = DateTime.UtcNow;
 		club.Id = Guid.NewGuid();
-		club.OrganizationId = _tenant.OrganizationId;
+		club.OrganizationId = tenant.OrganizationId;
 		Normalise(club);
 		club.CreatedAt = now;
 		club.UpdatedAt = now;
-		await _clubs.InsertOneAsync(club, cancellationToken: cancellationToken);
+		await clubs.InsertOneAsync(club, cancellationToken: cancellationToken);
 		return club;
 	}
 
@@ -56,8 +56,8 @@ public sealed class SportsClubService : ISportsClubService
 		Normalise(existing);
 		existing.UpdatedAt = DateTime.UtcNow;
 
-		var result = await _clubs.ReplaceOneAsync(
-			current => current.Id == id && current.OrganizationId == _tenant.OrganizationId,
+		var result = await clubs.ReplaceOneAsync(
+			current => current.Id == id && current.OrganizationId == tenant.OrganizationId,
 			existing,
 			cancellationToken: cancellationToken);
 		return result.MatchedCount == 0 ? null : existing;
@@ -69,8 +69,8 @@ public sealed class SportsClubService : ISportsClubService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _clubs.FindOneAndUpdateAsync(
-			club => club.Id == id && club.OrganizationId == _tenant.OrganizationId,
+		return await clubs.FindOneAndUpdateAsync(
+			club => club.Id == id && club.OrganizationId == tenant.OrganizationId,
 			Builders<SportsClub>.Update
 				.Set(club => club.LogoFileId, logoFileId)
 				.Set(club => club.UpdatedAt, DateTime.UtcNow),
@@ -88,8 +88,8 @@ public sealed class SportsClubService : ISportsClubService
 			.Set(club => club.IsActive, isActive)
 			.Set(club => club.UpdatedAt, DateTime.UtcNow);
 
-		return await _clubs.FindOneAndUpdateAsync(
-			club => club.Id == id && club.OrganizationId == _tenant.OrganizationId,
+		return await clubs.FindOneAndUpdateAsync(
+			club => club.Id == id && club.OrganizationId == tenant.OrganizationId,
 			update,
 			new FindOneAndUpdateOptions<SportsClub> { ReturnDocument = ReturnDocument.After },
 			cancellationToken);

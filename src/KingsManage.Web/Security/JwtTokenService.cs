@@ -15,11 +15,11 @@ public interface IJwtTokenService
 
 public sealed class JwtTokenService : IJwtTokenService
 {
-	private readonly JwtSettings _jwtSettings;
+	private readonly JwtSettings jwtSettings;
 
 	public JwtTokenService(IOptions<JwtSettings> jwtSettings)
 	{
-		_jwtSettings = jwtSettings.Value;
+		this.jwtSettings = jwtSettings.Value;
 	}
 
 	public LoginResponse CreateLoginResponse(AppUser user)
@@ -34,8 +34,8 @@ public sealed class JwtTokenService : IJwtTokenService
 		organizationId = organizationId == Guid.Empty ? DefaultTenant.OrganizationId : organizationId;
 		clubId = !clubId.HasValue || clubId.Value == Guid.Empty ? DefaultTenant.ClubId : clubId;
 
-		var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes);
-		var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
+		var expiresAt = DateTime.UtcNow.AddMinutes(jwtSettings.ExpiryMinutes);
+		var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 		var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 		TenantRole? tenantRole = user.Memberships
 			.Where(membership => membership.OrganizationId == organizationId)
@@ -102,8 +102,8 @@ public sealed class JwtTokenService : IJwtTokenService
 		}
 
 		var token = new JwtSecurityToken(
-			issuer: _jwtSettings.Issuer,
-			audience: _jwtSettings.Audience,
+			issuer: jwtSettings.Issuer,
+			audience: jwtSettings.Audience,
 			claims: claims,
 			expires: expiresAt,
 			signingCredentials: credentials

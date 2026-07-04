@@ -10,23 +10,23 @@ namespace KingsManage.Web.Controllers;
 [Route("api/organization")]
 public sealed class OrganizationController : ControllerBase
 {
-	private readonly IOrganizationService _organizations;
-	private readonly ISportsClubService _clubs;
-	private readonly IBillingService? _billing;
+	private readonly IOrganizationService organizations;
+	private readonly ISportsClubService clubs;
+	private readonly IBillingService? billing;
 
 	public OrganizationController(
 		IOrganizationService organizations,
 		ISportsClubService clubs,
 		IBillingService? billing = null)
 	{
-		_organizations = organizations;
-		_clubs = clubs;
-		_billing = billing;
+		this.organizations = organizations;
+		this.clubs = clubs;
+		this.billing = billing;
 	}
 
 	[HttpGet]
 	public async Task<ActionResult<Organization>> Get(CancellationToken cancellationToken) =>
-		await _organizations.GetCurrentAsync(cancellationToken) is { } organization
+		await organizations.GetCurrentAsync(cancellationToken) is { } organization
 			? Ok(organization)
 			: NotFound();
 
@@ -36,7 +36,7 @@ public sealed class OrganizationController : ControllerBase
 	{
 		var error = ValidateNameAndSlug(organization.Name, organization.Slug);
 		if (error is not null) return BadRequest(error);
-		return await _organizations.UpdateCurrentAsync(organization, cancellationToken) is { } updated
+		return await organizations.UpdateCurrentAsync(organization, cancellationToken) is { } updated
 			? Ok(updated)
 			: NotFound();
 	}
@@ -44,7 +44,7 @@ public sealed class OrganizationController : ControllerBase
 	[HttpGet("clubs")]
 	public async Task<ActionResult<IReadOnlyList<SportsClub>>> GetClubs(CancellationToken cancellationToken)
 	{
-		var clubs = await _clubs.GetAllAsync(cancellationToken);
+		var clubs = await this.clubs.GetAllAsync(cancellationToken);
 		if (HasOrganizationAccess()) return Ok(clubs);
 		return TryGetCurrentClubId(out var clubId)
 			? Ok(clubs.Where(club => club.Id == clubId).ToList())
@@ -57,11 +57,11 @@ public sealed class OrganizationController : ControllerBase
 	{
 		var error = ValidateClub(club);
 		if (error is not null) return BadRequest(error);
-		if (_billing is not null && !await _billing.CanAddClubAsync(cancellationToken))
+		if (billing is not null && !await billing.CanAddClubAsync(cancellationToken))
 			return StatusCode(
 				StatusCodes.Status402PaymentRequired,
 				"Your subscription does not currently allow another club.");
-		var created = await _clubs.CreateAsync(club, cancellationToken);
+		var created = await clubs.CreateAsync(club, cancellationToken);
 		return Created($"/api/organization/clubs/{created.Id}", created);
 	}
 
@@ -73,22 +73,22 @@ public sealed class OrganizationController : ControllerBase
 			return Forbid();
 		var error = ValidateClub(club);
 		if (error is not null) return BadRequest(error);
-		return await _clubs.UpdateAsync(id, club, cancellationToken) is { } updated ? Ok(updated) : NotFound();
+		return await clubs.UpdateAsync(id, club, cancellationToken) is { } updated ? Ok(updated) : NotFound();
 	}
 
 	[HttpPatch("clubs/{id:guid}/active")]
 	[Authorize(Policy = "OrganizationAdmin")]
 	public async Task<ActionResult<SportsClub>> SetClubActive(Guid id, [FromBody] SetActiveRequest request, CancellationToken cancellationToken)
 	{
-		var existing = await _clubs.GetByIdAsync(id, cancellationToken);
+		var existing = await clubs.GetByIdAsync(id, cancellationToken);
 		if (existing is null) return NotFound();
 		if (request.IsActive && !existing.IsActive &&
-			_billing is not null &&
-			!await _billing.CanAddClubAsync(cancellationToken))
+			billing is not null &&
+			!await billing.CanAddClubAsync(cancellationToken))
 			return StatusCode(
 				StatusCodes.Status402PaymentRequired,
 				"Increase the club allowance before restoring this club.");
-		return await _clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated
+		return await clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated
 			? Ok(updated)
 			: NotFound();
 	}

@@ -14,10 +14,10 @@ namespace KingsManage.Web.Controllers;
 public class MessagesController : ControllerBase
 {
 	private const int MaximumMessageLength = 4000;
-	private readonly IMessageService _messageService;
-	private readonly IUserService _userService;
-	private readonly IClubNotificationService _notificationService;
-	private readonly IRealtimeNotifier _realtimeNotifier;
+	private readonly IMessageService messageService;
+	private readonly IUserService userService;
+	private readonly IClubNotificationService notificationService;
+	private readonly IRealtimeNotifier realtimeNotifier;
 
 	public MessagesController(
 		IMessageService messageService,
@@ -26,10 +26,10 @@ public class MessagesController : ControllerBase
 		IRealtimeNotifier? realtimeNotifier = null
 	)
 	{
-		_messageService = messageService;
-		_userService = userService;
-		_notificationService = notificationService;
-		_realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
+		this.messageService = messageService;
+		this.userService = userService;
+		this.notificationService = notificationService;
+		this.realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
 
 	[HttpGet("users")]
@@ -41,7 +41,7 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var users = await _userService.GetAllAsync(cancellationToken);
+		var users = await userService.GetAllAsync(cancellationToken);
 		return Ok(users
 			.Where(user => user.IsActive && user.Id != currentUserId.Value)
 			.Select(user => new { user.Id, user.Email, user.Role, user.PlayerId })
@@ -57,12 +57,12 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var threads = await _messageService.GetThreadsForUserAsync(currentUserId.Value, cancellationToken);
+		var threads = await messageService.GetThreadsForUserAsync(currentUserId.Value, cancellationToken);
 		var results = new List<object>();
 
 		foreach (var thread in threads)
 		{
-			var messages = await _messageService.GetMessagesAsync(thread.Id, cancellationToken);
+			var messages = await messageService.GetMessagesAsync(thread.Id, cancellationToken);
 			var participant = thread.Participants.First(item => item.UserId == currentUserId.Value);
 			var lastMessage = messages.LastOrDefault();
 			var unreadCount = messages.Count(message =>
@@ -93,13 +93,13 @@ public class MessagesController : ControllerBase
 			return BadRequest("A different target user is required.");
 		}
 
-		var targetUser = await _userService.GetByIdAsync(model.UserId, cancellationToken);
+		var targetUser = await userService.GetByIdAsync(model.UserId, cancellationToken);
 		if (targetUser is null || !targetUser.IsActive)
 		{
 			return BadRequest("The target user is not active.");
 		}
 
-		var thread = await _messageService.GetOrCreateDirectThreadAsync(
+		var thread = await messageService.GetOrCreateDirectThreadAsync(
 			currentUserId.Value,
 			model.UserId,
 			cancellationToken
@@ -122,13 +122,13 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var thread = await _messageService.GetThreadForUserAsync(parsedThreadId, currentUserId.Value, cancellationToken);
+		var thread = await messageService.GetThreadForUserAsync(parsedThreadId, currentUserId.Value, cancellationToken);
 		if (thread is null)
 		{
 			return NotFound();
 		}
 
-		var messages = await _messageService.GetMessagesAsync(parsedThreadId, cancellationToken);
+		var messages = await messageService.GetMessagesAsync(parsedThreadId, cancellationToken);
 		return Ok(new { Thread = thread, Messages = messages });
 	}
 
@@ -161,19 +161,19 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var thread = await _messageService.GetThreadForUserAsync(parsedThreadId, currentUserId.Value, cancellationToken);
+		var thread = await messageService.GetThreadForUserAsync(parsedThreadId, currentUserId.Value, cancellationToken);
 		if (thread is null)
 		{
 			return NotFound();
 		}
 
-		var currentUser = await _userService.GetByIdAsync(currentUserId.Value, cancellationToken);
+		var currentUser = await userService.GetByIdAsync(currentUserId.Value, cancellationToken);
 		if (currentUser is null || !currentUser.IsActive)
 		{
 			return Forbid();
 		}
 
-		var message = await _messageService.CreateMessageAsync(new Message
+		var message = await messageService.CreateMessageAsync(new Message
 		{
 			ThreadId = parsedThreadId,
 			SenderUserId = currentUser.Id,
@@ -182,7 +182,7 @@ public class MessagesController : ControllerBase
 		}, cancellationToken);
 
 		await CreateMessageNotificationAsync(thread, message, currentUser, cancellationToken);
-		await _realtimeNotifier.MessageCreatedAsync(thread, message, cancellationToken);
+		await realtimeNotifier.MessageCreatedAsync(thread, message, cancellationToken);
 		return CreatedAtAction(nameof(GetThread), new { threadId = parsedThreadId }, message);
 	}
 
@@ -200,13 +200,13 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var thread = await _messageService.MarkReadAsync(parsedThreadId, currentUserId.Value, cancellationToken);
+		var thread = await messageService.MarkReadAsync(parsedThreadId, currentUserId.Value, cancellationToken);
 		if (thread is null)
 		{
 			return NotFound();
 		}
 
-		await _realtimeNotifier.ThreadChangedAsync(thread, cancellationToken);
+		await realtimeNotifier.ThreadChangedAsync(thread, cancellationToken);
 		return Ok(thread);
 	}
 
@@ -224,13 +224,13 @@ public class MessagesController : ControllerBase
 			return BadRequest("Current user id was not found in the auth token.");
 		}
 
-		var message = await _messageService.DeleteOwnMessageAsync(parsedMessageId, currentUserId.Value, cancellationToken);
+		var message = await messageService.DeleteOwnMessageAsync(parsedMessageId, currentUserId.Value, cancellationToken);
 		if (message is null)
 		{
 			return NotFound();
 		}
 
-		var thread = await _messageService.GetThreadForUserAsync(
+		var thread = await messageService.GetThreadForUserAsync(
 			message.ThreadId,
 			currentUserId.Value,
 			cancellationToken
@@ -238,7 +238,7 @@ public class MessagesController : ControllerBase
 
 		if (thread is not null)
 		{
-			await _realtimeNotifier.MessageDeletedAsync(thread, message, cancellationToken);
+			await realtimeNotifier.MessageDeletedAsync(thread, message, cancellationToken);
 		}
 
 		return NoContent();
@@ -251,7 +251,7 @@ public class MessagesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		var users = await _userService.GetAllAsync(cancellationToken);
+		var users = await userService.GetAllAsync(cancellationToken);
 		var activeUserIds = users.Where(user => user.IsActive).Select(user => user.Id).ToHashSet();
 		var recipients = thread.Participants
 			.Where(participant => participant.UserId != sender.Id && activeUserIds.Contains(participant.UserId))
@@ -263,7 +263,7 @@ public class MessagesController : ControllerBase
 			return;
 		}
 
-		var notification = await _notificationService.CreateAsync(new ClubNotification
+		var notification = await notificationService.CreateAsync(new ClubNotification
 		{
 			Type = NotificationType.NewDirectMessage,
 			SourceType = NotificationSourceType.Message,
@@ -278,7 +278,7 @@ public class MessagesController : ControllerBase
 			Recipients = recipients
 		}, cancellationToken);
 
-		await _realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
+		await realtimeNotifier.NotificationCreatedAsync(notification, cancellationToken);
 	}
 
 	private Guid? GetCurrentUserId()

@@ -5,25 +5,25 @@ namespace KingsManage.Mongo.Services;
 
 public class MatchService : IMatchService
 {
-	private readonly IMongoCollection<Match> _matches;
-	private readonly TenantMongoScope _tenant;
-	private readonly ITeamAccessContext _teamAccess;
+	private readonly IMongoCollection<Match> matches;
+	private readonly TenantMongoScope tenant;
+	private readonly ITeamAccessContext teamAccess;
 
 	public MatchService(
 		MongoContext context,
 		TenantMongoScope tenant,
 		ITeamAccessContext teamAccess)
 	{
-		_matches = context.Database.GetCollection<Match>("matches");
-		_tenant = tenant;
-		_teamAccess = teamAccess;
+		matches = context.Database.GetCollection<Match>("matches");
+		this.tenant = tenant;
+		this.teamAccess = teamAccess;
 	}
 
 	public async Task<IReadOnlyList<Match>> GetAllAsync(
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _matches
+		return await matches
 			.Find(AccessFilter())
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
@@ -34,7 +34,7 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _matches
+		return await matches
 			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.SeasonId, seasonId))
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
@@ -45,7 +45,7 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
-		return await _matches
+		return await matches
 			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
@@ -76,9 +76,9 @@ public class MatchService : IMatchService
 		match.PlayerStats ??= [];
 		match.CreatedAt = DateTime.UtcNow;
 		match.UpdatedAt = DateTime.UtcNow;
-		_tenant.Assign(match);
+		tenant.Assign(match);
 
-		await _matches.InsertOneAsync(match, cancellationToken: cancellationToken);
+		await matches.InsertOneAsync(match, cancellationToken: cancellationToken);
 
 		return match;
 	}
@@ -94,9 +94,9 @@ public class MatchService : IMatchService
 		match.Competition = (match.Competition ?? string.Empty).Trim();
 		match.Location = (match.Location ?? string.Empty).Trim();
 		match.UpdatedAt = DateTime.UtcNow;
-		_tenant.Assign(match);
+		tenant.Assign(match);
 
-		var result = await _matches.ReplaceOneAsync(
+		var result = await matches.ReplaceOneAsync(
 			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
@@ -115,7 +115,7 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var result = await _matches.DeleteOneAsync(
+		var result = await matches.DeleteOneAsync(
 			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			cancellationToken
 		);
@@ -304,8 +304,8 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken
 	)
 	{
-		_tenant.Assign(match);
-		var result = await _matches.ReplaceOneAsync(
+		tenant.Assign(match);
+		var result = await matches.ReplaceOneAsync(
 			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
@@ -325,7 +325,7 @@ public class MatchService : IMatchService
 		CancellationToken cancellationToken
 	)
 	{
-		return await _matches.FindOneAndUpdateAsync(
+		return await matches.FindOneAndUpdateAsync(
 			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			update,
 			new FindOneAndUpdateOptions<Match>
@@ -338,10 +338,10 @@ public class MatchService : IMatchService
 
 	private FilterDefinition<Match> AccessFilter()
 	{
-		var filter = _tenant.Filter<Match>();
-		if (_teamAccess.HasClubWideAccess) return filter;
+		var filter = tenant.Filter<Match>();
+		if (teamAccess.HasClubWideAccess) return filter;
 
-		var teamIds = _teamAccess.TeamIds.ToList();
+		var teamIds = teamAccess.TeamIds.ToList();
 		var access = Builders<Match>.Filter.In(
 			match => match.TeamId,
 			teamIds.Select(id => (Guid?)id));
@@ -361,7 +361,7 @@ public class MatchService : IMatchService
 	}
 
 	private bool CanAccessMatch(Match match) =>
-		_teamAccess.CanAccessTeam(
+		teamAccess.CanAccessTeam(
 			match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team));
 
 	private static MatchState GetResultState(MatchVenue venue, MatchResult result)

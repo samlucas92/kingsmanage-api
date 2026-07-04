@@ -7,18 +7,18 @@ public sealed class HttpTeamAccessContext : ITeamAccessContext
 	public const string TeamAccessClaim = "teamAccess";
 	public const string ClubWideAccessValue = "*";
 
-	private readonly IHttpContextAccessor _httpContextAccessor;
+	private readonly IHttpContextAccessor httpContextAccessor;
 
 	public HttpTeamAccessContext(IHttpContextAccessor httpContextAccessor)
 	{
-		_httpContextAccessor = httpContextAccessor;
+		this.httpContextAccessor = httpContextAccessor;
 	}
 
 	public bool HasClubWideAccess
 	{
 		get
 		{
-			var user = _httpContextAccessor.HttpContext?.User;
+			var user = httpContextAccessor.HttpContext?.User;
 			return user is not null &&
 				(user.HasClaim(HttpTenantContext.PlatformAdminClaim, "true") ||
 				 user.HasClaim(TeamAccessClaim, ClubWideAccessValue));
@@ -26,7 +26,7 @@ public sealed class HttpTeamAccessContext : ITeamAccessContext
 	}
 
 	public IReadOnlySet<Guid> TeamIds =>
-		(_httpContextAccessor.HttpContext?.User.FindAll(TeamAccessClaim) ?? [])
+		(httpContextAccessor.HttpContext?.User.FindAll(TeamAccessClaim) ?? [])
 			.Select(claim => Guid.TryParse(claim.Value, out var id) ? id : Guid.Empty)
 			.Where(id => id != Guid.Empty)
 			.ToHashSet();
