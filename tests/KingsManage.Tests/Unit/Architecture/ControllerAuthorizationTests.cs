@@ -35,6 +35,24 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
+	public void ClubSetupController_ShouldBeOrganizationAdminOnly()
+	{
+		AssertControllerHasPolicy(typeof(ClubSetupController), "OrganizationAdmin");
+	}
+
+	[Test]
+	public void BillingController_ShouldBeOrganizationAdminOnly()
+	{
+		AssertControllerHasPolicy(typeof(BillingController), "OrganizationAdmin");
+	}
+
+	[Test]
+	public void PlatformBillingController_ShouldBeSiteAdminOnly()
+	{
+		AssertControllerHasPolicy(typeof(PlatformBillingController), "SiteAdmin");
+	}
+
+	[Test]
 	public void FinanceController_ShouldRequireAuthorization()
 	{
 		var authorizeAttributes = GetAuthorizeAttributes(typeof(FinanceController));

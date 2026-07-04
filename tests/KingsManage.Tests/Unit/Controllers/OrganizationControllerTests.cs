@@ -34,6 +34,26 @@ public sealed class OrganizationControllerTests
 	}
 
 	[Test]
+	public async Task CreateClub_WhenSubscriptionHasNoCapacity_ReturnsPaymentRequired()
+	{
+		var controller = new OrganizationController(
+			new StubOrganizationService(),
+			new StubClubService(),
+			new StubBillingService(canAddClub: false));
+
+		var result = await controller.CreateClub(
+			new SportsClub
+			{
+				Name = "Another Club",
+				Slug = "another-club",
+				SportKey = "football"
+			},
+			CancellationToken.None);
+
+		Assert.That((result.Result as ObjectResult)?.StatusCode, Is.EqualTo(402));
+	}
+
+	[Test]
 	public async Task UpdateClub_AcceptsACompleteCustomFormation()
 	{
 		var club = new SportsClub
@@ -89,6 +109,58 @@ public sealed class OrganizationControllerTests
 		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
 	}
 
+	[Test]
+	public async Task UpdateClub_AcceptsOnboardingContactColoursAndDefaultVenue()
+	{
+		var club = new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			PrimaryColor = "#123456",
+			SecondaryColor = "#abcdef",
+			ContactEmail = "hello@example.com",
+			WebsiteUrl = "https://example.com",
+			SetupStep = 2,
+			Venues =
+			[
+				new ClubVenue
+				{
+					Name = "The Rec",
+					Address = "Kingsbridge",
+					MapUrl = "https://maps.example.com/the-rec",
+					IsDefault = true
+				}
+			]
+		};
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var result = await controller.UpdateClub(Guid.NewGuid(), club, CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+	}
+
+	[Test]
+	public async Task UpdateClub_RejectsMultipleDefaultVenues()
+	{
+		var club = new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			Venues =
+			[
+				new ClubVenue { Name = "One", Address = "One", IsDefault = true },
+				new ClubVenue { Name = "Two", Address = "Two", IsDefault = true }
+			]
+		};
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var result = await controller.UpdateClub(Guid.NewGuid(), club, CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
 	private sealed class StubOrganizationService : IOrganizationService
 	{
 		public Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Organization>>([]);
@@ -109,5 +181,17 @@ public sealed class OrganizationControllerTests
 		public Task<SportsClub?> UpdateAsync(Guid id, SportsClub club, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(club);
 		public Task<SportsClub?> SetLogoFileAsync(Guid id, Guid? logoFileId, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
 		public Task<SportsClub?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult<SportsClub?>(null);
+	}
+
+	private sealed class StubBillingService(bool canAddClub) : IBillingService
+	{
+		private readonly OrganizationSubscription _subscription = new();
+		public Task<OrganizationSubscription> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
+		public Task<OrganizationSubscription> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
+		public Task<OrganizationSubscription> UpdateCurrentAsync(SubscriptionUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
+		public Task<OrganizationSubscription> SetStatusAsync(Guid organizationId, SubscriptionStatusUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(_subscription);
+		public Task<IReadOnlyList<BillingInvoice>> GetInvoicesAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<BillingInvoice>>([]);
+		public Task<BillingInvoice> AddInvoiceAsync(BillingInvoice invoice, CancellationToken cancellationToken = default) => Task.FromResult(invoice);
+		public Task<bool> CanAddClubAsync(CancellationToken cancellationToken = default) => Task.FromResult(canAddClub);
 	}
 }

@@ -34,6 +34,25 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
+		await EnsureBillingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureBillingIndexesAsync(CancellationToken cancellationToken)
+	{
+		var subscriptions = _database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
+		await subscriptions.Indexes.CreateOneAsync(
+			new CreateIndexModel<OrganizationSubscription>(
+				Builders<OrganizationSubscription>.IndexKeys.Ascending(item => item.OrganizationId),
+				new CreateIndexOptions { Name = "OrganizationId_1", Unique = true }),
+			cancellationToken: cancellationToken);
+		var invoices = _database.GetCollection<BillingInvoice>("billingInvoices");
+		await invoices.Indexes.CreateOneAsync(
+			new CreateIndexModel<BillingInvoice>(
+				Builders<BillingInvoice>.IndexKeys
+					.Ascending(item => item.OrganizationId)
+					.Descending(item => item.IssuedAt),
+				new CreateIndexOptions { Name = "OrganizationIssuedAt_1" }),
+			cancellationToken: cancellationToken);
 	}
 
 	private async Task EnsureFileLifecycleIndexesAsync(CancellationToken cancellationToken)

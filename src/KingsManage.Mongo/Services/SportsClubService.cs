@@ -43,6 +43,14 @@ public sealed class SportsClubService : ISportsClubService
 		existing.Name = club.Name;
 		existing.Slug = club.Slug;
 		existing.SportKey = club.SportKey;
+		existing.PrimaryColor = club.PrimaryColor;
+		existing.SecondaryColor = club.SecondaryColor;
+		existing.ContactEmail = club.ContactEmail;
+		existing.ContactPhone = club.ContactPhone;
+		existing.WebsiteUrl = club.WebsiteUrl;
+		existing.Venues = club.Venues;
+		existing.SetupStep = club.SetupStep;
+		existing.SetupCompletedAt = club.SetupCompletedAt;
 		existing.CustomFormations = club.CustomFormations;
 		existing.LogoFileId = club.LogoFileId;
 		Normalise(existing);
@@ -92,6 +100,31 @@ public sealed class SportsClubService : ISportsClubService
 		club.Name = club.Name.Trim();
 		club.Slug = club.Slug.Trim().ToLowerInvariant();
 		club.SportKey = club.SportKey.Trim().ToLowerInvariant();
+		club.PrimaryColor = NormaliseColor(club.PrimaryColor, "#0f766e");
+		club.SecondaryColor = NormaliseColor(club.SecondaryColor, "#d9f99d");
+		club.ContactEmail = club.ContactEmail.Trim().ToLowerInvariant();
+		club.ContactPhone = club.ContactPhone.Trim();
+		club.WebsiteUrl = club.WebsiteUrl.Trim();
+		club.Venues ??= [];
+		foreach (var venue in club.Venues)
+		{
+			venue.Id = venue.Id == Guid.Empty ? Guid.NewGuid() : venue.Id;
+			venue.Name = venue.Name?.Trim() ?? string.Empty;
+			venue.Address = venue.Address?.Trim() ?? string.Empty;
+			venue.MapUrl = venue.MapUrl?.Trim() ?? string.Empty;
+		}
+		if (club.Venues.Count > 0 && club.Venues.All(venue => !venue.IsDefault))
+		{
+			club.Venues[0].IsDefault = true;
+		}
+		var defaultVenueSeen = false;
+		foreach (var venue in club.Venues)
+		{
+			if (!venue.IsDefault) continue;
+			if (!defaultVenueSeen) defaultVenueSeen = true;
+			else venue.IsDefault = false;
+		}
+		club.SetupStep = Math.Clamp(club.SetupStep, 0, 4);
 		club.CustomFormations ??= [];
 		foreach (var formation in club.CustomFormations)
 		{
@@ -105,4 +138,7 @@ public sealed class SportsClubService : ISportsClubService
 			}
 		}
 	}
+
+	private static string NormaliseColor(string? value, string fallback) =>
+		string.IsNullOrWhiteSpace(value) ? fallback : value.Trim().ToLowerInvariant();
 }

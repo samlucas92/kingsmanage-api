@@ -12,11 +12,16 @@ public sealed class OrganizationController : ControllerBase
 {
 	private readonly IOrganizationService _organizations;
 	private readonly ISportsClubService _clubs;
+	private readonly IBillingService? _billing;
 
-	public OrganizationController(IOrganizationService organizations, ISportsClubService clubs)
+	public OrganizationController(
+		IOrganizationService organizations,
+		ISportsClubService clubs,
+		IBillingService? billing = null)
 	{
 		_organizations = organizations;
 		_clubs = clubs;
+		_billing = billing;
 	}
 
 	[HttpGet]
@@ -52,6 +57,10 @@ public sealed class OrganizationController : ControllerBase
 	{
 		var error = ValidateClub(club);
 		if (error is not null) return BadRequest(error);
+		if (_billing is not null && !await _billing.CanAddClubAsync(cancellationToken))
+			return StatusCode(
+				StatusCodes.Status402PaymentRequired,
+				"Your subscription does not currently allow another club.");
 		var created = await _clubs.CreateAsync(club, cancellationToken);
 		return Created($"/api/organization/clubs/{created.Id}", created);
 	}
@@ -69,8 +78,20 @@ public sealed class OrganizationController : ControllerBase
 
 	[HttpPatch("clubs/{id:guid}/active")]
 	[Authorize(Policy = "OrganizationAdmin")]
-	public async Task<ActionResult<SportsClub>> SetClubActive(Guid id, [FromBody] SetActiveRequest request, CancellationToken cancellationToken) =>
-		await _clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated ? Ok(updated) : NotFound();
+	public async Task<ActionResult<SportsClub>> SetClubActive(Guid id, [FromBody] SetActiveRequest request, CancellationToken cancellationToken)
+	{
+		var existing = await _clubs.GetByIdAsync(id, cancellationToken);
+		if (existing is null) return NotFound();
+		if (request.IsActive && !existing.IsActive &&
+			_billing is not null &&
+			!await _billing.CanAddClubAsync(cancellationToken))
+			return StatusCode(
+				StatusCodes.Status402PaymentRequired,
+				"Increase the club allowance before restoring this club.");
+		return await _clubs.SetActiveAsync(id, request.IsActive, cancellationToken) is { } updated
+			? Ok(updated)
+			: NotFound();
+	}
 
 	private static string? ValidateClub(SportsClub club)
 	{
@@ -80,6 +101,27 @@ public sealed class OrganizationController : ControllerBase
 
 		var sport = SportCatalog.Find(club.SportKey);
 		if (sport is null) return "Sport is not supported.";
+		if (!IsHexColor(club.PrimaryColor) || !IsHexColor(club.SecondaryColor))
+			return "Club colours must use six-digit hex values.";
+		if (!string.IsNullOrWhiteSpace(club.ContactEmail) &&
+			!System.Net.Mail.MailAddress.TryCreate(club.ContactEmail.Trim(), out _))
+			return "Contact email is invalid.";
+		if (!IsOptionalWebUrl(club.WebsiteUrl))
+			return "Website URL must be a valid HTTP or HTTPS address.";
+		if (club.ContactPhone?.Trim().Length > 40)
+			return "Contact phone must be 40 characters or fewer.";
+		if (club.SetupStep is < 0 or > 4)
+			return "Setup step is invalid.";
+		if ((club.Venues ?? []).Count > 20)
+			return "A club can have no more than 20 venues.";
+		if ((club.Venues ?? []).Any(venue =>
+			string.IsNullOrWhiteSpace(venue.Name) ||
+			venue.Name.Trim().Length > 100 ||
+			(venue.Address?.Trim().Length ?? 0) > 300 ||
+			!IsOptionalWebUrl(venue.MapUrl)))
+			return "Each venue needs a valid name, address and optional map URL.";
+		if ((club.Venues ?? []).Count(venue => venue.IsDefault) > 1)
+			return "Only one venue can be the default.";
 
 		club.CustomFormations ??= [];
 		var builtInKeys = sport.Formations.Select(formation => formation.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -111,6 +153,16 @@ public sealed class OrganizationController : ControllerBase
 
 		return null;
 	}
+
+	private static bool IsHexColor(string? value) =>
+		System.Text.RegularExpressions.Regex.IsMatch(
+			value?.Trim() ?? string.Empty,
+			"^#[0-9a-fA-F]{6}$");
+
+	private static bool IsOptionalWebUrl(string? value) =>
+		string.IsNullOrWhiteSpace(value) ||
+		(Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) &&
+			uri.Scheme is "http" or "https");
 
 	private bool HasOrganizationAccess() =>
 		HttpContext is null ||

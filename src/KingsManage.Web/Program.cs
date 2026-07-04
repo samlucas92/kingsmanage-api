@@ -28,6 +28,7 @@ using MongoUserService = KingsManage.Mongo.Services.UserService;
 using MongoOrganizationService = KingsManage.Mongo.Services.OrganizationService;
 using MongoOrganizationDashboardService = KingsManage.Mongo.Services.OrganizationDashboardService;
 using MongoSportsClubService = KingsManage.Mongo.Services.SportsClubService;
+using MongoBillingService = KingsManage.Mongo.Services.BillingService;
 using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +59,9 @@ var r2StorageSettings = builder.Configuration
 var fileLifecycleSettings = builder.Configuration
 	.GetSection("FileLifecycle")
 	.Get<FileLifecycleSettings>() ?? new FileLifecycleSettings();
+var billingSettings = builder.Configuration
+	.GetSection("Billing")
+	.Get<BillingSettings>() ?? new BillingSettings();
 
 r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
 r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
@@ -75,6 +79,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 builder.Services.AddSingleton(mongoDbSettings);
 builder.Services.AddSingleton(r2StorageSettings);
 builder.Services.AddSingleton(fileLifecycleSettings);
+builder.Services.AddSingleton(billingSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -114,6 +119,7 @@ builder.Services.AddScoped<IOrganizationService, MongoOrganizationService>();
 builder.Services.AddScoped<IOrganizationDashboardService, MongoOrganizationDashboardService>();
 builder.Services.AddScoped<ISportsClubService, MongoSportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, MongoUserMembershipService>();
+builder.Services.AddScoped<IBillingService, MongoBillingService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 
 if (fileLifecycleSettings.Enabled)
