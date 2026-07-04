@@ -170,6 +170,7 @@ public sealed class OrganizationControllerTests
 		public Task<Organization?> UpdateAsync(Guid id, Organization organization, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(organization);
 		public Task<Organization?> UpdateCurrentAsync(Organization organization, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(organization);
 		public Task<Organization?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult<Organization?>(null);
+		public Task<OrganizationDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(OrganizationDeleteResult.NotFound);
 	}
 
 	private sealed class StubClubService : ISportsClubService

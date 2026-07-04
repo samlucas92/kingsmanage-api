@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KingsManage.Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d3d46fd4ce58d77f84426843a5cdf758288e52d8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8837c185abbbfeb3ea236f1859da33cabec9cdd3")]
 [assembly: System.Reflection.AssemblyProductAttribute("KingsManage.Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KingsManage.Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

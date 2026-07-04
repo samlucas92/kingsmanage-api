@@ -6,11 +6,17 @@ namespace KingsManage.Mongo.Services;
 public sealed class OrganizationService : IOrganizationService
 {
 	private readonly IMongoCollection<Organization> _organizations;
+	private readonly IMongoCollection<SportsClub> _clubs;
+	private readonly IMongoCollection<OrganizationSubscription> _subscriptions;
+	private readonly IMongoCollection<BillingInvoice> _invoices;
 	private readonly ITenantContext _tenant;
 
 	public OrganizationService(MongoContext context, ITenantContext tenant)
 	{
 		_organizations = context.Database.GetCollection<Organization>("organizations");
+		_clubs = context.Database.GetCollection<SportsClub>("clubs");
+		_subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
+		_invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
 		_tenant = tenant;
 	}
 
@@ -81,6 +87,29 @@ public sealed class OrganizationService : IOrganizationService
 				ReturnDocument = ReturnDocument.After
 			},
 			cancellationToken);
+	}
+
+	public async Task<OrganizationDeleteResult> DeleteAsync(
+		Guid id,
+		CancellationToken cancellationToken = default)
+	{
+		var organization = await GetByIdAsync(id, cancellationToken);
+		if (organization is null) return OrganizationDeleteResult.NotFound;
+		if (await _clubs.Find(club => club.OrganizationId == id).AnyAsync(cancellationToken))
+			return OrganizationDeleteResult.HasClubs;
+
+		await _subscriptions.DeleteManyAsync(
+			subscription => subscription.OrganizationId == id,
+			cancellationToken);
+		await _invoices.DeleteManyAsync(
+			invoice => invoice.OrganizationId == id,
+			cancellationToken);
+		var result = await _organizations.DeleteOneAsync(
+			item => item.Id == id,
+			cancellationToken);
+		return result.DeletedCount > 0
+			? OrganizationDeleteResult.Deleted
+			: OrganizationDeleteResult.NotFound;
 	}
 
 	private async Task<bool> SlugExistsAsync(

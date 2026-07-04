@@ -214,6 +214,13 @@ public sealed class TestOrganizationService : IOrganizationService
 		if (organization is not null) organization.IsActive = isActive;
 		return Task.FromResult<Organization?>(organization);
 	}
+	public Task<OrganizationDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var removed = Organizations.RemoveAll(item => item.Id == id);
+		return Task.FromResult(removed > 0
+			? OrganizationDeleteResult.Deleted
+			: OrganizationDeleteResult.NotFound);
+	}
 }
 
 public static class TestUsers

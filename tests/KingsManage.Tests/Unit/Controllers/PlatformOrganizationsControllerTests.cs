@@ -38,6 +38,22 @@ public sealed class PlatformOrganizationsControllerTests
 		Assert.That(service.Organizations.Single().IsActive, Is.False);
 	}
 
+	[Test]
+	public async Task Delete_RemovesAnOrganization()
+	{
+		var service = new StubOrganizationService();
+		var organization = await service.CreateAsync(
+			new Organization { Name = "Unused", Slug = "unused" });
+		var controller = new PlatformOrganizationsController(service);
+
+		var result = await controller.Delete(
+			organization!.Id,
+			CancellationToken.None);
+
+		Assert.That(result, Is.TypeOf<NoContentResult>());
+		Assert.That(service.Organizations, Is.Empty);
+	}
+
 	private sealed class StubOrganizationService : IOrganizationService
 	{
 		public List<Organization> Organizations { get; } = [];
@@ -64,6 +80,13 @@ public sealed class PlatformOrganizationsControllerTests
 			var organization = Organizations.FirstOrDefault(item => item.Id == id);
 			if (organization is not null) organization.IsActive = isActive;
 			return Task.FromResult<Organization?>(organization);
+		}
+		public Task<OrganizationDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+		{
+			var removed = Organizations.RemoveAll(item => item.Id == id);
+			return Task.FromResult(removed > 0
+				? OrganizationDeleteResult.Deleted
+				: OrganizationDeleteResult.NotFound);
 		}
 	}
 }

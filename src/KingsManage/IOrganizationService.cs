@@ -15,4 +15,12 @@ public interface IOrganizationService
 	Task<Organization?> UpdateCurrentAsync(Organization organization, CancellationToken cancellationToken = default);
 
 	Task<Organization?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
+	Task<OrganizationDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
+public enum OrganizationDeleteResult
+{
+	Deleted,
+	NotFound,
+	HasClubs
 }

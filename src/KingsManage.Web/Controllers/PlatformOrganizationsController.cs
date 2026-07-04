@@ -57,6 +57,22 @@ public sealed class PlatformOrganizationsController : ControllerBase
 			? Ok(updated)
 			: NotFound();
 
+	[HttpDelete("{id:guid}")]
+	public async Task<IActionResult> Delete(
+		Guid id,
+		CancellationToken cancellationToken)
+	{
+		var result = await _organizations.DeleteAsync(id, cancellationToken);
+		return result switch
+		{
+			OrganizationDeleteResult.Deleted => NoContent(),
+			OrganizationDeleteResult.NotFound => NotFound(),
+			OrganizationDeleteResult.HasClubs => Conflict(
+				"Archive the organization instead. Permanent deletion is only available before clubs have been created."),
+			_ => StatusCode(StatusCodes.Status500InternalServerError)
+		};
+	}
+
 	private static string? Validate(Organization organization)
 	{
 		if (string.IsNullOrWhiteSpace(organization.Name)) return "Name is required.";
