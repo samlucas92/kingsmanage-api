@@ -24,7 +24,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await matches
-			.Find(AccessFilter())
+			.Find(ReadFilter())
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -35,7 +35,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await matches
-			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.SeasonId, seasonId))
+			.Find(ReadFilter() & Builders<Match>.Filter.Eq(match => match.SeasonId, seasonId))
 			.SortBy(match => match.Date)
 			.ToListAsync(cancellationToken);
 	}
@@ -46,7 +46,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await matches
-			.Find(AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id))
+			.Find(ReadFilter() & Builders<Match>.Filter.Eq(match => match.Id, id))
 			.FirstOrDefaultAsync(cancellationToken);
 	}
 
@@ -97,7 +97,7 @@ public class MatchService : IMatchService
 		tenant.Assign(match);
 
 		var result = await matches.ReplaceOneAsync(
-			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
+			ManagementFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -116,7 +116,7 @@ public class MatchService : IMatchService
 	)
 	{
 		var result = await matches.DeleteOneAsync(
-			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
+			ManagementFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			cancellationToken
 		);
 
@@ -306,7 +306,7 @@ public class MatchService : IMatchService
 	{
 		tenant.Assign(match);
 		var result = await matches.ReplaceOneAsync(
-			AccessFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
+			ManagementFilter() & Builders<Match>.Filter.Eq(existingMatch => existingMatch.Id, match.Id),
 			match,
 			cancellationToken: cancellationToken
 		);
@@ -326,7 +326,7 @@ public class MatchService : IMatchService
 	)
 	{
 		return await matches.FindOneAndUpdateAsync(
-			AccessFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
+			ManagementFilter() & Builders<Match>.Filter.Eq(match => match.Id, id),
 			update,
 			new FindOneAndUpdateOptions<Match>
 			{
@@ -336,7 +336,9 @@ public class MatchService : IMatchService
 		);
 	}
 
-	private FilterDefinition<Match> AccessFilter()
+	private FilterDefinition<Match> ReadFilter() => tenant.Filter<Match>();
+
+	private FilterDefinition<Match> ManagementFilter()
 	{
 		var filter = tenant.Filter<Match>();
 		if (teamAccess.HasClubWideAccess) return filter;
