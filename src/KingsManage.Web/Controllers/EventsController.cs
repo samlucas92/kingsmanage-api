@@ -78,6 +78,11 @@ public class EventsController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
+		if (model.Type == ClubEventType.Training)
+		{
+			model.Title = BuildTrainingTitle(model.StartDateTime);
+		}
+
 		var validationError = await ValidateCreateEventModelAsync(
 			model,
 			cancellationToken
@@ -716,6 +721,13 @@ public class EventsController : ControllerBase
 		return null;
 	}
 
+	private static string BuildTrainingTitle(DateTime startDateTime)
+	{
+		return startDateTime == default
+			? "Training"
+			: $"Training {startDateTime:dd/MM/yyyy}";
+	}
+
 	private static List<ClubEvent> BuildEventOccurrences(
 		ClubEvent sourceEvent,
 		CreateEventRecurrenceModel? recurrence
@@ -746,7 +758,9 @@ public class EventsController : ControllerBase
 					Type = sourceEvent.Type,
 					TeamScope = sourceEvent.TeamScope,
 					TeamIds = [..sourceEvent.TeamIds],
-					Title = sourceEvent.Title,
+					Title = sourceEvent.Type == ClubEventType.Training
+						? BuildTrainingTitle(startDateTime)
+						: sourceEvent.Title,
 					Description = sourceEvent.Description,
 					StartDateTime = startDateTime,
 					EndDateTime = duration.HasValue ? startDateTime + duration.Value : null,

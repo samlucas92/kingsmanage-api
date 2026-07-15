@@ -46,6 +46,7 @@ public sealed class EventsIntegrationTests
 			TestUsers.AdminEmail,
 			TestUsers.AdminPassword
 		);
+		var start = DateTime.UtcNow.AddDays(3);
 
 		var response = await client.PostAsJsonAsync(
 			"/api/events",
@@ -55,8 +56,8 @@ public sealed class EventsIntegrationTests
 				TeamScope = "Both",
 				Title = "First team training",
 				Description = "Bring boots and water.",
-				StartDateTime = DateTime.UtcNow.AddDays(3),
-				EndDateTime = DateTime.UtcNow.AddDays(3).AddHours(1),
+				StartDateTime = start,
+				EndDateTime = start.AddHours(1),
 				Location = "Garden Village Recreation Ground",
 				MatchLinks = Array.Empty<object>(),
 				CreateLinkedMatches = false,
@@ -68,7 +69,7 @@ public sealed class EventsIntegrationTests
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-		Assert.That(document.RootElement.GetProperty("title").GetString(), Is.EqualTo("First team training"));
+		Assert.That(document.RootElement.GetProperty("title").GetString(), Is.EqualTo($"Training {start:dd/MM/yyyy}"));
 		Assert.That(document.RootElement.GetProperty("type").GetString(), Is.EqualTo("Training"));
 		Assert.That(document.RootElement.GetProperty("teamScope").GetString(), Is.EqualTo("Both"));
 		Assert.That(document.RootElement.GetProperty("matchLinks").GetArrayLength(), Is.EqualTo(0));
@@ -109,6 +110,17 @@ public sealed class EventsIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
 		Assert.That(factory.ClubEventService.Events, Has.Count.EqualTo(3));
+		Assert.That(
+			factory.ClubEventService.Events.Select(clubEvent => clubEvent.Title).ToArray(),
+			Is.EqualTo(
+				new[]
+				{
+					"Training 03/08/2026",
+					"Training 10/08/2026",
+					"Training 17/08/2026"
+				}
+			)
+		);
 		Assert.That(
 			factory.ClubEventService.Events.Select(clubEvent => clubEvent.StartDateTime).ToArray(),
 			Is.EqualTo(new[] { start, start.AddDays(7), start.AddDays(14) })
