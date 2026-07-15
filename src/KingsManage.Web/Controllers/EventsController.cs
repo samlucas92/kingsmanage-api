@@ -12,6 +12,7 @@ namespace KingsManage.Web.Controllers;
 [Route("api/events")]
 public class EventsController : ControllerBase
 {
+	private const int MaxRecurringOccurrences = 80;
 	private readonly IClubEventService eventService;
 	private readonly IMatchService matchService;
 	private readonly IClubNotificationService notificationService;
@@ -132,27 +133,38 @@ public class EventsController : ControllerBase
 			}
 		}
 
-		var createdEvent = await eventService.CreateAsync(
-			clubEvent,
-			cancellationToken
-		);
+		var eventsToCreate = BuildEventOccurrences(clubEvent, model.Recurrence);
+		var createdEvents = new List<ClubEvent>();
 
-		await SynchroniseMatchEventLinksAsync(
-			null,
-			createdEvent,
-			cancellationToken
-		);
+		foreach (var eventToCreate in eventsToCreate)
+		{
+			var createdEvent = await eventService.CreateAsync(
+				eventToCreate,
+				cancellationToken
+			);
+
+			createdEvents.Add(createdEvent);
+
+			await SynchroniseMatchEventLinksAsync(
+				null,
+				createdEvent,
+				cancellationToken
+			);
+		}
+
+		var primaryEvent = createdEvents[0];
 
 		await CreateEventNotificationAsync(
-			createdEvent,
+			primaryEvent,
 			userIdResult.UserId,
+			createdEvents.Count,
 			cancellationToken
 		);
 
 		return CreatedAtAction(
 			nameof(GetById),
-			new { id = createdEvent.Id },
-			createdEvent
+			new { id = primaryEvent.Id },
+			primaryEvent
 		);
 	}
 
@@ -397,15 +409,23 @@ public class EventsController : ControllerBase
 	private async Task CreateEventNotificationAsync(
 		ClubEvent clubEvent,
 		Guid createdByUserId,
+		int occurrenceCount,
 		CancellationToken cancellationToken
 	)
 	{
+		var title = occurrenceCount > 1
+			? $"New event series: {clubEvent.Title}"
+			: $"New event: {clubEvent.Title}";
+		var message = occurrenceCount > 1
+			? $"{occurrenceCount} {FormatEventType(clubEvent.Type)} events have been created."
+			: $"A new {FormatEventType(clubEvent.Type)} event has been created.";
+
 		await CreateEventNotificationAsync(
 			clubEvent,
 			createdByUserId,
 			NotificationType.NewEvent,
-			$"New event: {clubEvent.Title}",
-			$"A new {FormatEventType(clubEvent.Type)} event has been created.",
+			title,
+			message,
 			cancellationToken
 		);
 	}
@@ -576,7 +596,12 @@ public class EventsController : ControllerBase
 				return "Only match events can create linked matches.";
 			}
 
-			return null;
+			return ValidateRecurrence(model.Type, model.StartDateTime, model.Recurrence);
+		}
+
+		if (model.Recurrence?.IsRecurring == true)
+		{
+			return "Recurring match events are not supported yet. Create recurring training, social or meeting events first.";
 		}
 
 		if (model.CreateLinkedMatches && model.MatchLinks.Count > 0)
@@ -638,6 +663,134 @@ public class EventsController : ControllerBase
 			null,
 			cancellationToken
 		);
+	}
+
+	private static string? ValidateRecurrence(
+		ClubEventType type,
+		DateTime startDateTime,
+		CreateEventRecurrenceModel? recurrence
+	)
+	{
+		if (recurrence?.IsRecurring != true)
+		{
+			return null;
+		}
+
+		if (type == ClubEventType.Match)
+		{
+			return "Recurring match events are not supported yet.";
+		}
+
+		if (recurrence.Interval < 1)
+		{
+			return "Recurring interval must be at least 1.";
+		}
+
+		if (recurrence.Unit is not RecurrenceIntervalUnit.Days and not RecurrenceIntervalUnit.Weeks)
+		{
+			return "Recurring interval unit must be days or weeks.";
+		}
+
+		if (recurrence.EndDate == default)
+		{
+			return "Recurring events need an end date.";
+		}
+
+		if (recurrence.EndDate.Date < startDateTime.Date)
+		{
+			return "Recurring end date cannot be before the event start date.";
+		}
+
+		var occurrences = BuildOccurrenceStartDates(
+			startDateTime,
+			recurrence.EndDate,
+			recurrence.Interval,
+			recurrence.Unit
+		);
+
+		if (occurrences.Count > MaxRecurringOccurrences)
+		{
+			return $"Recurring events are limited to {MaxRecurringOccurrences} occurrences.";
+		}
+
+		return null;
+	}
+
+	private static List<ClubEvent> BuildEventOccurrences(
+		ClubEvent sourceEvent,
+		CreateEventRecurrenceModel? recurrence
+	)
+	{
+		if (recurrence?.IsRecurring != true)
+		{
+			return [sourceEvent];
+		}
+
+		var occurrenceStartDates = BuildOccurrenceStartDates(
+			sourceEvent.StartDateTime,
+			recurrence.EndDate,
+			recurrence.Interval,
+			recurrence.Unit
+		);
+		var seriesId = Guid.NewGuid();
+		var duration = sourceEvent.EndDateTime.HasValue
+			? sourceEvent.EndDateTime.Value - sourceEvent.StartDateTime
+			: (TimeSpan?)null;
+
+		return occurrenceStartDates
+			.Select((startDateTime, index) =>
+			{
+				var occurrence = new ClubEvent
+				{
+					Id = index == 0 && sourceEvent.Id != Guid.Empty ? sourceEvent.Id : Guid.NewGuid(),
+					Type = sourceEvent.Type,
+					TeamScope = sourceEvent.TeamScope,
+					TeamIds = [..sourceEvent.TeamIds],
+					Title = sourceEvent.Title,
+					Description = sourceEvent.Description,
+					StartDateTime = startDateTime,
+					EndDateTime = duration.HasValue ? startDateTime + duration.Value : null,
+					Location = sourceEvent.Location,
+					RecurrenceSeriesId = seriesId,
+					Recurrence = new ClubEventRecurrence
+					{
+						SeriesId = seriesId,
+						OccurrenceNumber = index + 1,
+						TotalOccurrences = occurrenceStartDates.Count,
+						Interval = recurrence.Interval,
+						Unit = recurrence.Unit,
+						SeriesStartDateTime = sourceEvent.StartDateTime,
+						SeriesEndDate = recurrence.EndDate.Date
+					},
+					MatchLinks = [],
+					AvailabilityResponses = [],
+					SeenBy = []
+				};
+
+				return occurrence;
+			})
+			.ToList();
+	}
+
+	private static List<DateTime> BuildOccurrenceStartDates(
+		DateTime startDateTime,
+		DateTime endDate,
+		int interval,
+		RecurrenceIntervalUnit unit
+	)
+	{
+		var dates = new List<DateTime>();
+		var current = startDateTime;
+
+		while (current.Date <= endDate.Date && dates.Count <= MaxRecurringOccurrences)
+		{
+			dates.Add(current);
+			current = unit == RecurrenceIntervalUnit.Weeks
+				? current.AddDays(interval * 7)
+				: current.AddDays(interval);
+		}
+
+		return dates;
 	}
 
 	private async Task<string?> ValidateUpdateEventModelAsync(

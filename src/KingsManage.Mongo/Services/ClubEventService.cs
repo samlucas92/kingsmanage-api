@@ -218,6 +218,10 @@ public class ClubEventService : IClubEventService
 		clubEvent.Title ??= string.Empty;
 		clubEvent.Description ??= string.Empty;
 		clubEvent.Location ??= string.Empty;
+		if (clubEvent.Recurrence is not null)
+		{
+			clubEvent.RecurrenceSeriesId ??= clubEvent.Recurrence.SeriesId;
+		}
 		clubEvent.MatchLinks ??= [];
 		clubEvent.AvailabilityResponses ??= [];
 		clubEvent.SeenBy ??= [];
@@ -240,6 +244,10 @@ public class ClubEventService : IClubEventService
 		clubEvent.Title = clubEvent.Title.Trim();
 		clubEvent.Description = clubEvent.Description.Trim();
 		clubEvent.Location = clubEvent.Location.Trim();
+		if (clubEvent.Recurrence is not null)
+		{
+			clubEvent.RecurrenceSeriesId ??= clubEvent.Recurrence.SeriesId;
+		}
 		clubEvent.MatchLinks ??= [];
 		clubEvent.AvailabilityResponses ??= [];
 		clubEvent.SeenBy ??= [];

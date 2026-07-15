@@ -75,6 +75,55 @@ public sealed class EventsIntegrationTests
 	}
 
 	[Test]
+	public async Task CreateTrainingEvent_WithWeeklyRecurrence_CreatesSeries()
+	{
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+		var start = new DateTime(2026, 8, 3, 19, 0, 0, DateTimeKind.Utc);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Training",
+				TeamScope = "Both",
+				Title = "Weekly training",
+				Description = "Bring boots and water.",
+				StartDateTime = start,
+				EndDateTime = start.AddHours(1),
+				Location = "Garden Village Recreation Ground",
+				MatchLinks = Array.Empty<object>(),
+				CreateLinkedMatches = false,
+				CreateMatches = Array.Empty<object>(),
+				Recurrence = new
+				{
+					IsRecurring = true,
+					Interval = 1,
+					Unit = "Weeks",
+					EndDate = start.AddDays(14).Date
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+		Assert.That(factory.ClubEventService.Events, Has.Count.EqualTo(3));
+		Assert.That(
+			factory.ClubEventService.Events.Select(clubEvent => clubEvent.StartDateTime).ToArray(),
+			Is.EqualTo(new[] { start, start.AddDays(7), start.AddDays(14) })
+		);
+		Assert.That(
+			factory.ClubEventService.Events.Select(clubEvent => clubEvent.RecurrenceSeriesId).Distinct().Count(),
+			Is.EqualTo(1)
+		);
+		Assert.That(
+			factory.ClubEventService.Events.All(clubEvent => clubEvent.Recurrence?.TotalOccurrences == 3),
+			Is.True
+		);
+	}
+
+	[Test]
 	public async Task CreateSocialEvent_AsCoach_CreatesEvent()
 	{
 		var client = await factory.CreateAuthenticatedClientAsync(

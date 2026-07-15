@@ -14,6 +14,7 @@ public class CreateClubEventModel
 	public List<ClubEventMatchLinkModel> MatchLinks { get; set; } = [];
 	public bool CreateLinkedMatches { get; set; }
 	public List<CreateMatchForEventModel> CreateMatches { get; set; } = [];
+	public CreateEventRecurrenceModel? Recurrence { get; set; }
 
 	public ClubEvent ToClubEvent()
 	{

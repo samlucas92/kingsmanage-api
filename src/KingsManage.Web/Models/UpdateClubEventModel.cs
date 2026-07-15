@@ -25,6 +25,8 @@ public class UpdateClubEventModel
 			StartDateTime = StartDateTime,
 			EndDateTime = EndDateTime,
 			Location = Location,
+			RecurrenceSeriesId = existingEvent.RecurrenceSeriesId,
+			Recurrence = existingEvent.Recurrence,
 			MatchLinks = MatchLinks.Select(matchLink => matchLink.ToMatchLink()).ToList(),
 			AvailabilityResponses = existingEvent.AvailabilityResponses,
 			SeenBy = existingEvent.SeenBy,
