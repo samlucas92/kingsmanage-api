@@ -624,19 +624,23 @@ public class ReportsController : ControllerBase
 		Season season)
 	{
 		var expected = rows.Sum(row => row.AmountOwed);
-		var collected = rows.Sum(row => row.TotalPaid);
 		var outstanding = rows.Sum(row => row.Balance);
 		var now = DateTime.UtcNow;
 		var seasonLength = Math.Max(1, (season.EndDate - season.StartDate).TotalDays);
 		var elapsedDays = Math.Clamp((now - season.StartDate).TotalDays, 0, seasonLength);
 		var remainingDays = Math.Max(1, (season.EndDate - now).TotalDays);
 		var elapsedRatio = elapsedDays / seasonLength;
-		var projectedCollected = elapsedRatio > 0
-			? Math.Min(expected, collected / (decimal)elapsedRatio)
-			: collected;
 		var paymentTransactions = transactions
 			.Where(transaction => transaction.Type == FinanceTransactionType.Payment)
 			.ToList();
+		var adjustmentTransactions = transactions
+			.Where(transaction => transaction.Type == FinanceTransactionType.Adjustment)
+			.ToList();
+		var collected = paymentTransactions.Sum(transaction => transaction.Amount);
+		var adjustments = adjustmentTransactions.Sum(transaction => transaction.Amount);
+		var projectedCollected = elapsedRatio > 0
+			? Math.Min(expected, collected / (decimal)elapsedRatio)
+			: collected;
 		var last30DaysCollected = SumPaymentsSince(paymentTransactions, now.AddDays(-30));
 		var last90DaysCollected = SumPaymentsSince(paymentTransactions, now.AddDays(-90));
 		var dailyPace = elapsedDays > 0 ? collected / (decimal)Math.Max(1, elapsedDays) : collected;
@@ -658,6 +662,7 @@ public class ReportsController : ControllerBase
 			Expected = expected,
 			Collected = collected,
 			Outstanding = outstanding,
+			Adjustments = adjustments,
 			PaidPercentage = expected > 0 ? (int)Math.Round(collected / expected * 100) : 0,
 			PlayersOwing = rows.Count(row => row.Balance > 0),
 			ProjectedCollected = projectedCollected,
@@ -691,6 +696,9 @@ public class ReportsController : ControllerBase
 						.Sum(transaction => transaction.Amount),
 					Charged = group
 						.Where(transaction => transaction.Type == FinanceTransactionType.Charge)
+						.Sum(transaction => transaction.Amount),
+					Adjustments = group
+						.Where(transaction => transaction.Type == FinanceTransactionType.Adjustment)
 						.Sum(transaction => transaction.Amount)
 				})
 				.ToList()

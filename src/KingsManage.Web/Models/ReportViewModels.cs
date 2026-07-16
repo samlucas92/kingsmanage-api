@@ -73,6 +73,7 @@ public sealed class FinanceReportViewModel
 	public decimal Expected { get; set; }
 	public decimal Collected { get; set; }
 	public decimal Outstanding { get; set; }
+	public decimal Adjustments { get; set; }
 	public int PaidPercentage { get; set; }
 	public int PlayersOwing { get; set; }
 	public decimal ProjectedCollected { get; set; }
@@ -106,4 +107,5 @@ public sealed class MonthlyFinanceBreakdownViewModel
 	public DateTime MonthStart { get; set; }
 	public decimal Collected { get; set; }
 	public decimal Charged { get; set; }
+	public decimal Adjustments { get; set; }
 }
