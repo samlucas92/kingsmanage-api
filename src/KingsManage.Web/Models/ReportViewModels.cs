@@ -80,7 +80,24 @@ public sealed class FinanceReportViewModel
 	public decimal DailyPace { get; set; }
 	public decimal RequiredDailyPace { get; set; }
 	public int ElapsedPercentage { get; set; }
+	public string ForecastStatus { get; set; } = "No target";
+	public decimal Last30DaysCollected { get; set; }
+	public decimal Last90DaysCollected { get; set; }
+	public decimal Last30DaysPace { get; set; }
+	public decimal Last90DaysPace { get; set; }
+	public int DaysRemaining { get; set; }
+	public List<FinanceForecastScenarioViewModel> ForecastScenarios { get; set; } = [];
 	public List<MonthlyFinanceBreakdownViewModel> Months { get; set; } = [];
+}
+
+public sealed class FinanceForecastScenarioViewModel
+{
+	public string Label { get; set; } = string.Empty;
+	public string Description { get; set; } = string.Empty;
+	public decimal DailyPace { get; set; }
+	public decimal ProjectedCollected { get; set; }
+	public decimal ProjectedShortfall { get; set; }
+	public int CompletionPercentage { get; set; }
 }
 
 public sealed class MonthlyFinanceBreakdownViewModel
