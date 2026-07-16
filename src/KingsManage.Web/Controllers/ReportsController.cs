@@ -19,17 +19,26 @@ public class ReportsController : ControllerBase
 	];
 
 	private readonly IClubEventService eventService;
+	private readonly IFinanceService financeService;
 	private readonly IMatchService matchService;
+	private readonly IPlayerService playerService;
 	private readonly ISeasonService seasonService;
+	private readonly IStatsService statsService;
 
 	public ReportsController(
 		IClubEventService eventService,
+		IFinanceService financeService,
 		IMatchService matchService,
-		ISeasonService seasonService)
+		IPlayerService playerService,
+		ISeasonService seasonService,
+		IStatsService statsService)
 	{
 		this.eventService = eventService;
+		this.financeService = financeService;
 		this.matchService = matchService;
+		this.playerService = playerService;
 		this.seasonService = seasonService;
+		this.statsService = statsService;
 	}
 
 	[HttpGet("availability")]
@@ -107,6 +116,128 @@ public class ReportsController : ControllerBase
 			.ToList();
 
 		return Ok(BuildTeamPerformanceReport(completedMatches));
+	}
+
+	[HttpGet("overview")]
+	public async Task<ActionResult<OverviewReportViewModel>> GetOverview(
+		[FromQuery] string seasonId,
+		[FromQuery] string? teamId,
+		[FromQuery] string? competition,
+		[FromQuery] MatchVenue? venue,
+		[FromQuery] DateTime? dateFrom,
+		[FromQuery] DateTime? dateTo,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var season = await seasonService.GetByIdAsync(parsedSeasonId, cancellationToken);
+
+		if (season is null)
+		{
+			return NotFound("Season not found.");
+		}
+
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var statsRows = await BuildPlayerStatsRows(parsedSeasonId, cancellationToken);
+		var matches = await GetFilteredCompletedMatches(
+			parsedSeasonId,
+			teamId,
+			competition,
+			venue,
+			dateFrom,
+			dateTo,
+			cancellationToken);
+		var events = await eventService.GetAllAsync(cancellationToken);
+		var completedEvents = events
+			.Where(clubEvent =>
+				clubEvent.StartDateTime <= DateTime.UtcNow &&
+				clubEvent.StartDateTime >= season.StartDate &&
+				clubEvent.StartDateTime <= season.EndDate)
+			.ToList();
+
+		return Ok(new OverviewReportViewModel
+		{
+			TeamPerformance = BuildTeamPerformanceReport(matches),
+			Availability = BuildAvailabilityReport(completedEvents),
+			ActivePlayers = players.Count(player => player.IsActive),
+			TopContributors = BuildTopContributors(statsRows, 5)
+		});
+	}
+
+	[HttpGet("players")]
+	public async Task<ActionResult<PlayerReportsViewModel>> GetPlayerReports(
+		[FromQuery] string seasonId,
+		[FromQuery] string? teamId,
+		[FromQuery] string? playerId,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		Guid? parsedTeamId = ParseOptionalGuid(teamId);
+		Guid? parsedPlayerId = ParseOptionalGuid(playerId);
+		var rows = await BuildPlayerStatsRows(parsedSeasonId, cancellationToken);
+
+		rows = rows
+			.Where(row => parsedPlayerId is null || row.PlayerId == parsedPlayerId.Value)
+			.Where(row =>
+				parsedTeamId is null ||
+				row.TeamStats.Any(stats => stats.TeamId == parsedTeamId.Value))
+			.ToList();
+
+		var activeRows = rows.Where(row => row.IsActive).ToList();
+
+		return Ok(new PlayerReportsViewModel
+		{
+			Summary = new PlayerStatsSummaryViewModel
+			{
+				ActivePlayers = activeRows.Count,
+				Appearances = activeRows.Sum(row => row.SeasonApps),
+				Goals = activeRows.Sum(row => row.SeasonGoals),
+				Assists = activeRows.Sum(row => row.Assists),
+				Contributions = activeRows.Sum(row => row.SeasonGoals + row.Assists),
+				Minutes = activeRows.Sum(row => row.Minutes)
+			},
+			Players = rows,
+			TopContributors = BuildTopContributors(activeRows, 10),
+			SquadUsage = BuildSquadUsage(activeRows, parsedTeamId),
+			Discipline = BuildDisciplineReport(rows)
+		});
+	}
+
+	[Authorize(Policy = "ClubAdmin")]
+	[HttpGet("finance")]
+	public async Task<ActionResult<FinanceReportViewModel>> GetFinance(
+		[FromQuery] string seasonId,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var season = await seasonService.GetByIdAsync(parsedSeasonId, cancellationToken);
+
+		if (season is null)
+		{
+			return NotFound("Season not found.");
+		}
+
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var transactions = await financeService.GetSeasonTransactionsAsync(
+			parsedSeasonId,
+			cancellationToken);
+		var activePlayers = players.Where(player => player.IsActive).ToList();
+		var financeRows = activePlayers
+			.Select(player => PlayerFinanceViewModel.FromPlayer(player, parsedSeasonId, transactions))
+			.ToList();
+
+		return Ok(BuildFinanceReport(financeRows, transactions, season));
 	}
 
 	private static AvailabilityReportViewModel BuildAvailabilityReport(
@@ -307,6 +438,207 @@ public class ReportsController : ControllerBase
 		return match.Venue == MatchVenue.Home
 			? (match.Result.HomeGoals, match.Result.AwayGoals)
 			: (match.Result.AwayGoals, match.Result.HomeGoals);
+	}
+
+	private async Task<List<Match>> GetFilteredCompletedMatches(
+		Guid seasonId,
+		string? teamId,
+		string? competition,
+		MatchVenue? venue,
+		DateTime? dateFrom,
+		DateTime? dateTo,
+		CancellationToken cancellationToken)
+	{
+		var parsedTeamId = ParseOptionalGuid(teamId);
+		var matches = await matchService.GetBySeasonAsync(seasonId, cancellationToken);
+
+		return matches
+			.Where(match =>
+				match.IsCompleted &&
+				match.State != MatchState.Postponed &&
+				match.Result is not null &&
+				(parsedTeamId is null || (match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team)) == parsedTeamId.Value) &&
+				(string.IsNullOrWhiteSpace(competition) ||
+					competition.Equals("all", StringComparison.OrdinalIgnoreCase) ||
+					(match.Competition.Trim().Length == 0
+						? "No competition"
+						: match.Competition.Trim()).Equals(competition, StringComparison.OrdinalIgnoreCase)) &&
+				(venue is null || match.Venue == venue.Value) &&
+				(dateFrom is null || match.Date >= dateFrom.Value.Date) &&
+				(dateTo is null || match.Date <= dateTo.Value.Date.AddDays(1).AddTicks(-1)))
+			.OrderBy(match => match.Date)
+			.ToList();
+	}
+
+	private async Task<List<PlayerStatsViewModel>> BuildPlayerStatsRows(
+		Guid seasonId,
+		CancellationToken cancellationToken)
+	{
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var selectedSeasonStats = await statsService.GetSeasonStatsAsync(
+			seasonId,
+			cancellationToken);
+		var allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
+		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
+
+		return players
+			.OrderBy(player => player.Name)
+			.Select(player => PlayerStatsViewModel.FromStats(
+				player,
+				selectedSeasonStats,
+				allSeasonStats,
+				historicalStats.FirstOrDefault(stats => stats.PlayerId == player.Id)))
+			.ToList();
+	}
+
+	private static List<PlayerContributionViewModel> BuildTopContributors(
+		IEnumerable<PlayerStatsViewModel> rows,
+		int limit)
+	{
+		return rows
+			.Where(row => row.IsActive)
+			.Select(row => new PlayerContributionViewModel
+			{
+				PlayerId = row.PlayerId,
+				PlayerName = row.PlayerName,
+				Goals = row.SeasonGoals,
+				Assists = row.Assists,
+				Contributions = row.SeasonGoals + row.Assists,
+				Appearances = row.SeasonApps
+			})
+			.Where(row => row.Contributions > 0 || row.Appearances > 0)
+			.OrderByDescending(row => row.Contributions)
+			.ThenByDescending(row => row.Appearances)
+			.ThenBy(row => row.PlayerName)
+			.Take(limit)
+			.ToList();
+	}
+
+	private static List<PlayerUsageViewModel> BuildSquadUsage(
+		IEnumerable<PlayerStatsViewModel> rows,
+		Guid? teamId)
+	{
+		return rows
+			.Select(row =>
+			{
+				var teamStats = teamId is null
+					? null
+					: row.TeamStats.FirstOrDefault(stats => stats.TeamId == teamId.Value);
+
+				return new PlayerUsageViewModel
+				{
+					PlayerId = row.PlayerId,
+					PlayerName = row.PlayerName,
+					Appearances = teamStats?.Appearances ?? row.SeasonApps,
+					Starts = row.Starts,
+					Bench = row.Bench,
+					UnusedSubstitutes = row.UnusedSubstitutes,
+					Minutes = teamStats?.Minutes ?? row.Minutes,
+					Goals = teamStats?.Goals ?? row.SeasonGoals,
+					Assists = teamStats?.Assists ?? row.Assists
+				};
+			})
+			.Where(row =>
+				row.Appearances > 0 ||
+				row.Starts > 0 ||
+				row.Bench > 0 ||
+				row.UnusedSubstitutes > 0 ||
+				row.Minutes > 0)
+			.OrderByDescending(row => row.Minutes)
+			.ThenByDescending(row => row.Appearances)
+			.ThenBy(row => row.PlayerName)
+			.ToList();
+	}
+
+	private static DisciplineReportViewModel BuildDisciplineReport(
+		IEnumerable<PlayerStatsViewModel> rows)
+	{
+		var playerRows = rows
+			.Select(row => new PlayerDisciplineViewModel
+			{
+				PlayerId = row.PlayerId,
+				PlayerName = row.PlayerName,
+				YellowCards = row.YellowCards,
+				RedCards = row.RedCards,
+				TotalCards = row.YellowCards + row.RedCards
+			})
+			.Where(row => row.TotalCards > 0)
+			.OrderByDescending(row => row.TotalCards)
+			.ThenByDescending(row => row.RedCards)
+			.ThenBy(row => row.PlayerName)
+			.ToList();
+
+		return new DisciplineReportViewModel
+		{
+			YellowCards = playerRows.Sum(row => row.YellowCards),
+			RedCards = playerRows.Sum(row => row.RedCards),
+			TotalCards = playerRows.Sum(row => row.TotalCards),
+			Players = playerRows
+		};
+	}
+
+	private static FinanceReportViewModel BuildFinanceReport(
+		IReadOnlyList<PlayerFinanceViewModel> rows,
+		IReadOnlyList<FinanceTransaction> transactions,
+		Season season)
+	{
+		var expected = rows.Sum(row => row.AmountOwed);
+		var collected = rows.Sum(row => row.TotalPaid);
+		var outstanding = rows.Sum(row => row.Balance);
+		var now = DateTime.UtcNow;
+		var seasonLength = Math.Max(1, (season.EndDate - season.StartDate).TotalDays);
+		var elapsedDays = Math.Clamp((now - season.StartDate).TotalDays, 0, seasonLength);
+		var remainingDays = Math.Max(1, (season.EndDate - now).TotalDays);
+		var elapsedRatio = elapsedDays / seasonLength;
+		var projectedCollected = elapsedRatio > 0
+			? Math.Min(expected, collected / (decimal)elapsedRatio)
+			: collected;
+
+		return new FinanceReportViewModel
+		{
+			Expected = expected,
+			Collected = collected,
+			Outstanding = outstanding,
+			PaidPercentage = expected > 0 ? (int)Math.Round(collected / expected * 100) : 0,
+			PlayersOwing = rows.Count(row => row.Balance > 0),
+			ProjectedCollected = projectedCollected,
+			ProjectedShortfall = Math.Max(0, expected - projectedCollected),
+			DailyPace = elapsedDays > 0 ? collected / (decimal)Math.Max(1, elapsedDays) : collected,
+			RequiredDailyPace = outstanding / (decimal)remainingDays,
+			ElapsedPercentage = (int)Math.Round(elapsedRatio * 100),
+			Months = transactions
+				.GroupBy(transaction => new DateTime(
+					transaction.TransactionDate.Year,
+					transaction.TransactionDate.Month,
+					1,
+					0,
+					0,
+					0,
+					DateTimeKind.Utc))
+				.OrderBy(group => group.Key)
+				.Select(group => new MonthlyFinanceBreakdownViewModel
+				{
+					Label = group.Key.ToString("MMM"),
+					MonthStart = group.Key,
+					Collected = group
+						.Where(transaction => transaction.Type == FinanceTransactionType.Payment)
+						.Sum(transaction => transaction.Amount),
+					Charged = group
+						.Where(transaction => transaction.Type == FinanceTransactionType.Charge)
+						.Sum(transaction => transaction.Amount)
+				})
+				.ToList()
+		};
+	}
+
+	private static Guid? ParseOptionalGuid(string? id)
+	{
+		if (string.IsNullOrWhiteSpace(id) || id.Equals("all", StringComparison.OrdinalIgnoreCase))
+		{
+			return null;
+		}
+
+		return Guid.TryParse(id, out var parsedId) ? parsedId : null;
 	}
 
 	private bool TryParseGuid(
