@@ -378,7 +378,48 @@ public class ReportsController : ControllerBase
 					if (goals.For > goals.Against) return "W";
 					return goals.For == goals.Against ? "D" : "L";
 				})
+				.ToList(),
+			CleanSheets = completedMatches.Count(match => GetClubGoals(match).Against == 0),
+			FailedToScore = completedMatches.Count(match => GetClubGoals(match).For == 0),
+			BiggestWin = completedMatches
+				.Select(match => BuildMatchHighlight(match))
+				.Where(match => match.Margin > 0)
+				.OrderByDescending(match => match.Margin)
+				.ThenByDescending(match => match.GoalsFor)
+				.FirstOrDefault(),
+			BiggestLoss = completedMatches
+				.Select(match => BuildMatchHighlight(match))
+				.Where(match => match.Margin < 0)
+				.OrderBy(match => match.Margin)
+				.ThenByDescending(match => match.GoalsAgainst)
+				.FirstOrDefault(),
+			Competitions = completedMatches
+				.GroupBy(match => string.IsNullOrWhiteSpace(match.Competition)
+					? "No competition"
+					: match.Competition.Trim())
+				.Select(group => new CompetitionBreakdownViewModel
+				{
+					Competition = group.Key,
+					Summary = BuildResultBreakdown(group)
+				})
+				.OrderByDescending(item => item.Summary.Played)
+				.ThenBy(item => item.Competition)
 				.ToList()
+		};
+	}
+
+	private static MatchHighlightViewModel BuildMatchHighlight(Match match)
+	{
+		var goals = GetClubGoals(match);
+
+		return new MatchHighlightViewModel
+		{
+			MatchId = match.Id,
+			Opponent = match.Opponent,
+			Date = match.Date,
+			GoalsFor = goals.For,
+			GoalsAgainst = goals.Against,
+			Margin = goals.For - goals.Against
 		};
 	}
 

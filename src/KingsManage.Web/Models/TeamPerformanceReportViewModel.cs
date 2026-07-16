@@ -6,6 +6,11 @@ public sealed class TeamPerformanceReportViewModel
 	public HomeAwayBreakdownViewModel HomeAway { get; set; } = new();
 	public List<MonthlyResultBreakdownViewModel> Months { get; set; } = [];
 	public List<string> RecentForm { get; set; } = [];
+	public int CleanSheets { get; set; }
+	public int FailedToScore { get; set; }
+	public MatchHighlightViewModel? BiggestWin { get; set; }
+	public MatchHighlightViewModel? BiggestLoss { get; set; }
+	public List<CompetitionBreakdownViewModel> Competitions { get; set; } = [];
 }
 
 public sealed class ResultBreakdownViewModel
@@ -37,4 +42,20 @@ public sealed class MonthlyResultBreakdownViewModel
 	public int Losses { get; set; }
 	public int GoalsFor { get; set; }
 	public int GoalsAgainst { get; set; }
+}
+
+public sealed class MatchHighlightViewModel
+{
+	public Guid MatchId { get; set; }
+	public string Opponent { get; set; } = string.Empty;
+	public DateTime Date { get; set; }
+	public int GoalsFor { get; set; }
+	public int GoalsAgainst { get; set; }
+	public int Margin { get; set; }
+}
+
+public sealed class CompetitionBreakdownViewModel
+{
+	public string Competition { get; set; } = string.Empty;
+	public ResultBreakdownViewModel Summary { get; set; } = new();
 }
