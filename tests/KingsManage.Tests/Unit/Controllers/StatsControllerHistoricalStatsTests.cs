@@ -38,6 +38,32 @@ public class StatsControllerHistoricalStatsTests
 	}
 
 	[Test]
+	public async Task GetSeasonStats_ShouldExcludeFriendlyMatchesFromOverallStatsTable()
+	{
+		var seasonId = Guid.NewGuid();
+		var player = CreatePlayer("Player One");
+		var controller = CreateController(
+			[player],
+			[],
+			[
+				CreateCompletedMatch(seasonId, player.Id, "League"),
+				CreateCompletedMatch(seasonId, player.Id, "Friendly")
+			]
+		);
+
+		var result = await controller.GetSeasonStats(
+			seasonId.ToString(),
+			CancellationToken.None);
+
+		var okResult = result.Result as OkObjectResult;
+		Assert.That(okResult, Is.Not.Null);
+		var stats = okResult!.Value as List<PlayerStatsViewModel>;
+		Assert.That(stats, Is.Not.Null);
+		Assert.That(stats, Has.Count.EqualTo(1));
+		Assert.That(stats![0].SeasonApps, Is.EqualTo(1));
+	}
+
+	[Test]
 	public async Task UpdateHistoricalStats_WhenPlayerIdIsInvalid_ShouldReturnBadRequest()
 	{
 		var controller = CreateController([], []);
@@ -98,6 +124,7 @@ public class StatsControllerHistoricalStatsTests
 		var player = CreatePlayer("Player One");
 		var statsService = new FakeStatsService([]);
 		var controller = new StatsController(
+			new FakeMatchService([]),
 			new FakePlayerService([player]),
 			statsService
 		);
@@ -145,6 +172,7 @@ public class StatsControllerHistoricalStatsTests
 		};
 		var statsService = new FakeStatsService([existingStats]);
 		var controller = new StatsController(
+			new FakeMatchService([]),
 			new FakePlayerService([player]),
 			statsService
 		);
@@ -171,13 +199,43 @@ public class StatsControllerHistoricalStatsTests
 
 	private static StatsController CreateController(
 		List<Player> players,
-		List<PlayerHistoricalStats> historicalStats
+		List<PlayerHistoricalStats> historicalStats,
+		List<Match>? matches = null
 	)
 	{
 		return new StatsController(
+			new FakeMatchService(matches ?? []),
 			new FakePlayerService(players),
 			new FakeStatsService(historicalStats)
 		);
+	}
+
+	private static Match CreateCompletedMatch(
+		Guid seasonId,
+		Guid playerId,
+		string competition)
+	{
+		return new Match
+		{
+			Id = Guid.NewGuid(),
+			SeasonId = seasonId,
+			Team = ClubTeam.First,
+			Opponent = "Rovers",
+			Competition = competition,
+			Date = DateTime.UtcNow.AddDays(-1),
+			Venue = MatchVenue.Home,
+			IsCompleted = true,
+			State = MatchState.Won,
+			Result = new MatchResult { HomeGoals = 1, AwayGoals = 0 },
+			SelectedPlayers =
+			[
+				new SelectedPlayer
+				{
+					PlayerId = playerId,
+					Area = "pitch"
+				}
+			]
+		};
 	}
 
 	private static Player CreatePlayer(string name)
@@ -242,6 +300,90 @@ public class StatsControllerHistoricalStatsTests
 			player.IsActive = isActive;
 			return Task.FromResult<Player?>(player);
 		}
+	}
+
+	private sealed class FakeMatchService : IMatchService
+	{
+		private readonly List<Match> matches;
+
+		public FakeMatchService(List<Match> matches)
+		{
+			this.matches = matches;
+		}
+
+		public Task<IReadOnlyList<Match>> GetAllAsync(CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult<IReadOnlyList<Match>>(matches);
+		}
+
+		public Task<IReadOnlyList<Match>> GetBySeasonAsync(
+			Guid seasonId,
+			CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult<IReadOnlyList<Match>>(
+				matches.Where(match => match.SeasonId == seasonId).ToList());
+		}
+
+		public Task<Match?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+			Task.FromResult(matches.FirstOrDefault(match => match.Id == id));
+
+		public Task<Match> CreateAsync(Match match, CancellationToken cancellationToken = default)
+		{
+			matches.Add(match);
+			return Task.FromResult(match);
+		}
+
+		public Task<Match?> UpdateAsync(Match match, CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(match);
+
+		public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+			Task.FromResult(true);
+
+		public Task<Match?> SetResultAsync(
+			Guid id,
+			MatchResult result,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> ClearResultAsync(Guid id, CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> SetSelectedPlayersAsync(
+			Guid id,
+			List<SelectedPlayer> selectedPlayers,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> SetLineupFormationAsync(
+			Guid id,
+			LineupFormation formation,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> ToggleLineupLockedAsync(Guid id, CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> UpdateNotesAsync(
+			Guid id,
+			MatchNotes notes,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> UpdatePlayerStatsAsync(
+			Guid id,
+			List<MatchPlayerStats> playerStats,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> PostponeAsync(
+			Guid id,
+			DateTime newDate,
+			string? reason,
+			CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
+
+		public Task<Match?> RestoreAsync(Guid id, CancellationToken cancellationToken = default) =>
+			Task.FromResult<Match?>(null);
 	}
 
 	private sealed class FakeStatsService : IStatsService

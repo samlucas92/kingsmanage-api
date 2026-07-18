@@ -10,14 +10,17 @@ namespace KingsManage.Web.Controllers;
 [Route("api/stats")]
 public class StatsController : ControllerBase
 {
+	private readonly IMatchService matchService;
 	private readonly IPlayerService playerService;
 	private readonly IStatsService statsService;
 
 	public StatsController(
+		IMatchService matchService,
 		IPlayerService playerService,
 		IStatsService statsService
 	)
 	{
+		this.matchService = matchService;
 		this.playerService = playerService;
 		this.statsService = statsService;
 	}
@@ -34,11 +37,19 @@ public class StatsController : ControllerBase
 		}
 
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var selectedSeasonStats = await statsService.GetSeasonStatsAsync(
+		var allMatches = await matchService.GetAllAsync(cancellationToken);
+		var competitiveMatches = allMatches
+			.Where(match => !MatchCompetition.IsFriendly(match.Competition))
+			.ToList();
+		var selectedSeasonStats = SeasonStatsCalculator.Calculate(
 			parsedSeasonId,
-			cancellationToken
-		);
-		var allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
+			competitiveMatches);
+		var allSeasonStats = competitiveMatches
+			.Where(match => match.SeasonId is not null)
+			.Select(match => match.SeasonId!.Value)
+			.Distinct()
+			.SelectMany(seasonId => SeasonStatsCalculator.Calculate(seasonId, competitiveMatches))
+			.ToList();
 		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
 
 		var viewModels = players
