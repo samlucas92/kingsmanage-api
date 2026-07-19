@@ -1,6 +1,7 @@
 using KingsManage;
 using KingsManage.Web.Controllers;
 using KingsManage.Web.Models;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using NUnit.Framework;
 
@@ -38,29 +39,27 @@ public class StatsControllerHistoricalStatsTests
 	}
 
 	[Test]
-	public async Task GetSeasonStats_ShouldExcludeFriendlyMatchesFromOverallStatsTable()
+	public async Task PlayerStatsQueryService_ShouldExcludeFriendlyMatchesWhenRequested()
 	{
 		var seasonId = Guid.NewGuid();
 		var player = CreatePlayer("Player One");
-		var controller = CreateController(
-			[player],
-			[],
+		var service = new PlayerStatsQueryService(
+			new FakeMatchService(
 			[
 				CreateCompletedMatch(seasonId, player.Id, "League"),
 				CreateCompletedMatch(seasonId, player.Id, "Friendly")
-			]
+			]),
+			new FakePlayerService([player]),
+			new FakeStatsService([])
 		);
 
-		var result = await controller.GetSeasonStats(
-			seasonId.ToString(),
+		var stats = await service.BuildRowsAsync(
+			seasonId,
+			includeFriendlies: false,
 			CancellationToken.None);
 
-		var okResult = result.Result as OkObjectResult;
-		Assert.That(okResult, Is.Not.Null);
-		var stats = okResult!.Value as List<PlayerStatsViewModel>;
-		Assert.That(stats, Is.Not.Null);
 		Assert.That(stats, Has.Count.EqualTo(1));
-		Assert.That(stats![0].SeasonApps, Is.EqualTo(1));
+		Assert.That(stats[0].SeasonApps, Is.EqualTo(1));
 	}
 
 	[Test]
@@ -124,7 +123,7 @@ public class StatsControllerHistoricalStatsTests
 		var player = CreatePlayer("Player One");
 		var statsService = new FakeStatsService([]);
 		var controller = new StatsController(
-			new FakeMatchService([]),
+			new FakePlayerStatsQueryService([]),
 			new FakePlayerService([player]),
 			statsService
 		);
@@ -172,7 +171,7 @@ public class StatsControllerHistoricalStatsTests
 		};
 		var statsService = new FakeStatsService([existingStats]);
 		var controller = new StatsController(
-			new FakeMatchService([]),
+			new FakePlayerStatsQueryService([]),
 			new FakePlayerService([player]),
 			statsService
 		);
@@ -199,12 +198,11 @@ public class StatsControllerHistoricalStatsTests
 
 	private static StatsController CreateController(
 		List<Player> players,
-		List<PlayerHistoricalStats> historicalStats,
-		List<Match>? matches = null
+		List<PlayerHistoricalStats> historicalStats
 	)
 	{
 		return new StatsController(
-			new FakeMatchService(matches ?? []),
+			new FakePlayerStatsQueryService([]),
 			new FakePlayerService(players),
 			new FakeStatsService(historicalStats)
 		);
@@ -384,6 +382,24 @@ public class StatsControllerHistoricalStatsTests
 
 		public Task<Match?> RestoreAsync(Guid id, CancellationToken cancellationToken = default) =>
 			Task.FromResult<Match?>(null);
+	}
+
+	private sealed class FakePlayerStatsQueryService : IPlayerStatsQueryService
+	{
+		private readonly List<PlayerStatsViewModel> rows;
+
+		public FakePlayerStatsQueryService(List<PlayerStatsViewModel> rows)
+		{
+			this.rows = rows;
+		}
+
+		public Task<List<PlayerStatsViewModel>> BuildRowsAsync(
+			Guid seasonId,
+			bool includeFriendlies = true,
+			CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(rows);
+		}
 	}
 
 	private sealed class FakeStatsService : IStatsService

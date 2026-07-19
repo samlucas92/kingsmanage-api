@@ -1,5 +1,6 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,17 +11,17 @@ namespace KingsManage.Web.Controllers;
 [Route("api/stats")]
 public class StatsController : ControllerBase
 {
-	private readonly IMatchService matchService;
+	private readonly IPlayerStatsQueryService playerStatsQueryService;
 	private readonly IPlayerService playerService;
 	private readonly IStatsService statsService;
 
 	public StatsController(
-		IMatchService matchService,
+		IPlayerStatsQueryService playerStatsQueryService,
 		IPlayerService playerService,
 		IStatsService statsService
 	)
 	{
-		this.matchService = matchService;
+		this.playerStatsQueryService = playerStatsQueryService;
 		this.playerService = playerService;
 		this.statsService = statsService;
 	}
@@ -36,31 +37,10 @@ public class StatsController : ControllerBase
 			return errorResult!;
 		}
 
-		var players = await playerService.GetAllAsync(cancellationToken);
-		var allMatches = await matchService.GetAllAsync(cancellationToken);
-		var competitiveMatches = allMatches
-			.Where(match => !MatchCompetition.IsFriendly(match.Competition))
-			.ToList();
-		var selectedSeasonStats = SeasonStatsCalculator.Calculate(
+		var viewModels = await playerStatsQueryService.BuildRowsAsync(
 			parsedSeasonId,
-			competitiveMatches);
-		var allSeasonStats = competitiveMatches
-			.Where(match => match.SeasonId is not null)
-			.Select(match => match.SeasonId!.Value)
-			.Distinct()
-			.SelectMany(seasonId => SeasonStatsCalculator.Calculate(seasonId, competitiveMatches))
-			.ToList();
-		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
-
-		var viewModels = players
-			.OrderBy(player => player.Name)
-			.Select(player => PlayerStatsViewModel.FromStats(
-				player,
-				selectedSeasonStats,
-				allSeasonStats,
-				historicalStats.FirstOrDefault(stats => stats.PlayerId == player.Id)
-			))
-			.ToList();
+			includeFriendlies: false,
+			cancellationToken);
 
 		return Ok(viewModels);
 	}

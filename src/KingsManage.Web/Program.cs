@@ -94,6 +94,8 @@ builder.Services.AddScoped<IStoredFileObjectService, StoredFileObjectService>();
 builder.Services.AddScoped<IFileLifecycleService, FileLifecycleService>();
 builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<RichTextAssetService>();
+builder.Services.AddScoped<IPlayerStatsQueryService, PlayerStatsQueryService>();
+builder.Services.AddScoped<IReportsQueryService, ReportsQueryService>();
 builder.Services.AddSingleton<IFileContentScanner, BasicFileContentScanner>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
