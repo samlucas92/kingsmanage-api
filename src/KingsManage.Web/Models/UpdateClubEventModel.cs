@@ -12,6 +12,7 @@ public class UpdateClubEventModel
 	public DateTime? EndDateTime { get; set; }
 	public string Location { get; set; } = string.Empty;
 	public List<ClubEventMatchLinkModel> MatchLinks { get; set; } = [];
+	public List<TrainingPlanDrillModel> TrainingPlanDrills { get; set; } = [];
 
 	public ClubEvent ToClubEvent(ClubEvent existingEvent)
 	{
@@ -27,6 +28,7 @@ public class UpdateClubEventModel
 			Location = Location,
 			RecurrenceSeriesId = existingEvent.RecurrenceSeriesId,
 			Recurrence = existingEvent.Recurrence,
+			TrainingPlanDrills = TrainingPlanDrills.Select(drill => drill.ToTrainingPlanDrill()).ToList(),
 			MatchLinks = MatchLinks.Select(matchLink => matchLink.ToMatchLink()).ToList(),
 			AvailabilityResponses = existingEvent.AvailabilityResponses,
 			SeenBy = existingEvent.SeenBy,

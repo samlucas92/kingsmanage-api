@@ -15,6 +15,7 @@ public class ClubEvent : ITenantOwned
 	public string Location { get; set; } = string.Empty;
 	public Guid? RecurrenceSeriesId { get; set; }
 	public ClubEventRecurrence? Recurrence { get; set; }
+	public List<TrainingPlanDrill> TrainingPlanDrills { get; set; } = [];
 	public List<ClubEventMatchLink> MatchLinks { get; set; } = [];
 	public List<ClubEventAvailabilityResponse> AvailabilityResponses { get; set; } = [];
 	public List<ClubEventSeenStatus> SeenBy { get; set; } = [];

@@ -107,6 +107,15 @@ public sealed class EventRecurrenceService : IEventRecurrenceService
 					SeriesEndDate = recurrence.EndDate.Date
 				},
 				MatchLinks = [],
+				TrainingPlanDrills = sourceEvent.TrainingPlanDrills
+					.Select(drill => new TrainingPlanDrill
+					{
+						Id = Guid.NewGuid(),
+						Title = drill.Title,
+						DurationMinutes = drill.DurationMinutes,
+						Content = drill.Content
+					})
+					.ToList(),
 				AvailabilityResponses = [],
 				SeenBy = []
 			})

@@ -15,6 +15,7 @@ public class CreateClubEventModel
 	public bool CreateLinkedMatches { get; set; }
 	public List<CreateMatchForEventModel> CreateMatches { get; set; } = [];
 	public CreateEventRecurrenceModel? Recurrence { get; set; }
+	public List<TrainingPlanDrillModel> TrainingPlanDrills { get; set; } = [];
 
 	public ClubEvent ToClubEvent()
 	{
@@ -27,7 +28,27 @@ public class CreateClubEventModel
 			StartDateTime = StartDateTime,
 			EndDateTime = EndDateTime,
 			Location = Location,
+			TrainingPlanDrills = TrainingPlanDrills.Select(drill => drill.ToTrainingPlanDrill()).ToList(),
 			MatchLinks = MatchLinks.Select(matchLink => matchLink.ToMatchLink()).ToList()
+		};
+	}
+}
+
+public class TrainingPlanDrillModel
+{
+	public Guid? Id { get; set; }
+	public string Title { get; set; } = string.Empty;
+	public int DurationMinutes { get; set; }
+	public string Content { get; set; } = string.Empty;
+
+	public TrainingPlanDrill ToTrainingPlanDrill()
+	{
+		return new TrainingPlanDrill
+		{
+			Id = Id.GetValueOrDefault(),
+			Title = Title,
+			DurationMinutes = DurationMinutes,
+			Content = Content
 		};
 	}
 }

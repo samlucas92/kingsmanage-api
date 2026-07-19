@@ -223,6 +223,7 @@ public class ClubEventService : IClubEventService
 			clubEvent.RecurrenceSeriesId ??= clubEvent.Recurrence.SeriesId;
 		}
 		clubEvent.MatchLinks ??= [];
+		clubEvent.TrainingPlanDrills = NormaliseTrainingPlanDrills(clubEvent.TrainingPlanDrills);
 		clubEvent.AvailabilityResponses ??= [];
 		clubEvent.SeenBy ??= [];
 
@@ -249,6 +250,7 @@ public class ClubEventService : IClubEventService
 			clubEvent.RecurrenceSeriesId ??= clubEvent.Recurrence.SeriesId;
 		}
 		clubEvent.MatchLinks ??= [];
+		clubEvent.TrainingPlanDrills = NormaliseTrainingPlanDrills(clubEvent.TrainingPlanDrills);
 		clubEvent.AvailabilityResponses ??= [];
 		clubEvent.SeenBy ??= [];
 
@@ -272,5 +274,22 @@ public class ClubEventService : IClubEventService
 			_ => teamAccess.CanAccessAnyTeam(
 				[DefaultClubTeams.FirstTeamId, DefaultClubTeams.SecondTeamId])
 		};
+	}
+
+	private static List<TrainingPlanDrill> NormaliseTrainingPlanDrills(List<TrainingPlanDrill>? drills)
+	{
+		return (drills ?? [])
+			.Where(drill =>
+				!string.IsNullOrWhiteSpace(drill.Title) ||
+				!string.IsNullOrWhiteSpace(drill.Content) ||
+				drill.DurationMinutes > 0)
+			.Select(drill => new TrainingPlanDrill
+			{
+				Id = drill.Id == Guid.Empty ? Guid.NewGuid() : drill.Id,
+				Title = drill.Title?.Trim() ?? string.Empty,
+				DurationMinutes = Math.Clamp(drill.DurationMinutes, 0, 180),
+				Content = drill.Content ?? string.Empty
+			})
+			.ToList();
 	}
 }
