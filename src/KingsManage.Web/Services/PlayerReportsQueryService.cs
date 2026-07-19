@@ -47,11 +47,12 @@ public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 	public async Task<List<PlayerContributionViewModel>> GetTopContributorsAsync(
 		Guid seasonId,
 		int limit,
+		bool includeFriendlies = true,
 		CancellationToken cancellationToken = default)
 	{
 		var rows = await playerStatsQueryService.BuildRowsAsync(
 			seasonId,
-			includeFriendlies: true,
+			includeFriendlies,
 			cancellationToken);
 
 		return BuildTopContributors(rows, limit);

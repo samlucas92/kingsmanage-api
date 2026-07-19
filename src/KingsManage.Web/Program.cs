@@ -91,6 +91,7 @@ builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
 builder.Services.AddScoped<IClubNotificationService, ClubNotificationService>();
 builder.Services.AddScoped<IClubFileService, ClubFileService>();
 builder.Services.AddScoped<IStoredFileObjectService, StoredFileObjectService>();
+builder.Services.AddScoped<ITrainingDevelopmentService, TrainingDevelopmentService>();
 builder.Services.AddScoped<IFileLifecycleService, FileLifecycleService>();
 builder.Services.AddScoped<IFileStorageService, R2FileStorageService>();
 builder.Services.AddScoped<RichTextAssetService>();

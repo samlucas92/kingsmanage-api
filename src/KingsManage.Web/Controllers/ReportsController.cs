@@ -47,7 +47,8 @@ public class ReportsController : ControllerBase
 		[FromQuery] MatchVenue? venue,
 		[FromQuery] DateTime? dateFrom,
 		[FromQuery] DateTime? dateTo,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		[FromQuery] bool includeFriendlies = true)
 	{
 		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
 		{
@@ -66,7 +67,8 @@ public class ReportsController : ControllerBase
 				competition,
 				venue,
 				dateFrom,
-				dateTo),
+				dateTo,
+				includeFriendlies),
 			cancellationToken);
 
 		return Ok(report);
@@ -80,7 +82,8 @@ public class ReportsController : ControllerBase
 		[FromQuery] MatchVenue? venue,
 		[FromQuery] DateTime? dateFrom,
 		[FromQuery] DateTime? dateTo,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		[FromQuery] bool includeFriendlies = true)
 	{
 		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
 		{
@@ -94,7 +97,8 @@ public class ReportsController : ControllerBase
 				competition,
 				venue,
 				dateFrom,
-				dateTo),
+				dateTo,
+				includeFriendlies),
 			cancellationToken);
 
 		return report is null

@@ -35,6 +35,7 @@ public sealed class TeamPerformanceReportQueryService : ITeamPerformanceReportQu
 				match.IsCompleted &&
 				match.State != MatchState.Postponed &&
 				match.Result is not null &&
+				(filters.IncludeFriendlies || !MatchCompetition.IsFriendly(match.Competition)) &&
 				(filters.TeamId is null || (match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team)) == filters.TeamId.Value) &&
 				MatchesCompetition(match, filters.Competition) &&
 				(filters.Venue is null || match.Venue == filters.Venue.Value) &&

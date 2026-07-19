@@ -6,4 +6,5 @@ public sealed record ReportFilters(
 	string? Competition = null,
 	MatchVenue? Venue = null,
 	DateTime? DateFrom = null,
-	DateTime? DateTo = null);
+	DateTime? DateTo = null,
+	bool IncludeFriendlies = true);

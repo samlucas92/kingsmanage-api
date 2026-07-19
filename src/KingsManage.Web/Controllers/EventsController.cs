@@ -19,6 +19,7 @@ public class EventsController : ControllerBase
 	private readonly IClubNotificationService notificationService;
 	private readonly ISeasonService seasonService;
 	private readonly IStatsService statsService;
+	private readonly ITrainingDevelopmentService trainingDevelopmentService;
 	private readonly IUserService userService;
 	private readonly IRealtimeNotifier realtimeNotifier;
 
@@ -29,6 +30,7 @@ public class EventsController : ControllerBase
 		IClubNotificationService notificationService,
 		ISeasonService seasonService,
 		IStatsService statsService,
+		ITrainingDevelopmentService trainingDevelopmentService,
 		IUserService userService,
 		IRealtimeNotifier? realtimeNotifier = null
 	)
@@ -39,6 +41,7 @@ public class EventsController : ControllerBase
 		this.notificationService = notificationService;
 		this.seasonService = seasonService;
 		this.statsService = statsService;
+		this.trainingDevelopmentService = trainingDevelopmentService;
 		this.userService = userService;
 		this.realtimeNotifier = realtimeNotifier ?? NullRealtimeNotifier.Instance;
 	}
@@ -287,6 +290,8 @@ public class EventsController : ControllerBase
 		{
 			await matchService.DeleteAsync(match.Id, cancellationToken);
 		}
+
+		await trainingDevelopmentService.DeleteEventAssessmentsAsync(eventId, cancellationToken);
 
 		await RecalculateDeletedLinkedMatchesAsync(linkedMatches, cancellationToken);
 

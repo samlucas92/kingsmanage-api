@@ -29,6 +29,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<Message>("messages", cancellationToken);
 		await BackfillAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await BackfillAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
+		await BackfillAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
 
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
@@ -93,6 +94,27 @@ public sealed class TenantDataMigrator
 					.Ascending(stats => stats.SeasonId)
 					.Ascending(stats => stats.PlayerId),
 				new CreateIndexOptions { Name = "TenantSeasonPlayer_1" }),
+			cancellationToken: cancellationToken);
+
+		var trainingAssessments = database.GetCollection<TrainingAssessment>("trainingAssessments");
+		await trainingAssessments.Indexes.CreateOneAsync(
+			new CreateIndexModel<TrainingAssessment>(
+				Builders<TrainingAssessment>.IndexKeys
+					.Ascending(assessment => assessment.OrganizationId)
+					.Ascending(assessment => assessment.ClubId)
+					.Ascending(assessment => assessment.EventId)
+					.Ascending(assessment => assessment.PlayerId),
+				new CreateIndexOptions { Name = "TenantEventPlayer_1", Unique = true }),
+			cancellationToken: cancellationToken);
+
+		await trainingAssessments.Indexes.CreateOneAsync(
+			new CreateIndexModel<TrainingAssessment>(
+				Builders<TrainingAssessment>.IndexKeys
+					.Ascending(assessment => assessment.OrganizationId)
+					.Ascending(assessment => assessment.ClubId)
+					.Ascending(assessment => assessment.PlayerId)
+					.Descending(assessment => assessment.AssessedAt),
+				new CreateIndexOptions { Name = "TenantPlayerAssessedAt_1" }),
 			cancellationToken: cancellationToken);
 	}
 
@@ -281,6 +303,7 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<Message>("messages", cancellationToken);
 		await EnsureTenantIndexAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await EnsureTenantIndexAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
+		await EnsureTenantIndexAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
 	}
 
 	private async Task EnsureTenantIndexAsync<T>(string collectionName, CancellationToken cancellationToken)

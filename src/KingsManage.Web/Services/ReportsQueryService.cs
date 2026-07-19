@@ -71,6 +71,7 @@ public sealed class ReportsQueryService : IReportsQueryService
 		var topContributors = await playerReportsQueryService.GetTopContributorsAsync(
 			filters.SeasonId,
 			limit: 5,
+			includeFriendlies: filters.IncludeFriendlies,
 			cancellationToken);
 
 		return new OverviewReportViewModel

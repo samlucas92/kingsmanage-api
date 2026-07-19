@@ -14,5 +14,6 @@ public interface IPlayerReportsQueryService
 	Task<List<PlayerContributionViewModel>> GetTopContributorsAsync(
 		Guid seasonId,
 		int limit,
+		bool includeFriendlies = true,
 		CancellationToken cancellationToken = default);
 }
