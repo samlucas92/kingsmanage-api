@@ -18,6 +18,8 @@ public class MatchViewModel
 
 	public string Competition { get; set; } = string.Empty;
 
+	public MatchCompetitionType CompetitionType { get; set; }
+
 	public DateTime Date { get; set; }
 
 	public MatchVenue Venue { get; set; }
@@ -46,6 +48,7 @@ public class MatchViewModel
 			Team = match.Team,
 			Opponent = match.Opponent,
 			Competition = match.Competition,
+			CompetitionType = MatchCompetition.GetCompetitionType(match.Competition),
 			Date = match.Date,
 			Venue = match.Venue,
 			Location = match.Location,

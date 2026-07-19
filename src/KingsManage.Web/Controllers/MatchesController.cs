@@ -1,5 +1,6 @@
 using KingsManage;
 using KingsManage.Web.Models;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,14 +11,17 @@ namespace KingsManage.Web.Controllers;
 [Route("api/matches")]
 public class MatchesController : ControllerBase
 {
+	private readonly IMatchQueryService matchQueryService;
 	private readonly IMatchService matchService;
 	private readonly IStatsService statsService;
 
 	public MatchesController(
+		IMatchQueryService matchQueryService,
 		IMatchService matchService,
 		IStatsService statsService
 	)
 	{
+		this.matchQueryService = matchQueryService;
 		this.matchService = matchService;
 		this.statsService = statsService;
 	}
@@ -28,26 +32,14 @@ public class MatchesController : ControllerBase
 		CancellationToken cancellationToken
 	)
 	{
-		IReadOnlyList<Match> matches;
-
-		if (!string.IsNullOrWhiteSpace(seasonId))
+		if (!TryParseOptionalGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
 		{
-			if (!Guid.TryParse(seasonId, out var parsedSeasonId))
-			{
-				return BadRequest("Season id must be a valid GUID.");
-			}
-
-			matches = await matchService.GetBySeasonAsync(
-				parsedSeasonId,
-				cancellationToken
-			);
-		}
-		else
-		{
-			matches = await matchService.GetAllAsync(cancellationToken);
+			return errorResult!;
 		}
 
-		return Ok(matches.Select(MatchViewModel.FromMatch).ToList());
+		return Ok(await matchQueryService.GetMatchesAsync(
+			parsedSeasonId,
+			cancellationToken));
 	}
 
 	[HttpGet("player/{playerId}")]
@@ -62,35 +54,15 @@ public class MatchesController : ControllerBase
 			return playerErrorResult!;
 		}
 
-		IReadOnlyList<Match> matches;
-
-		if (!string.IsNullOrWhiteSpace(seasonId))
+		if (!TryParseOptionalGuid(seasonId, "Season", out var parsedSeasonId, out var seasonErrorResult))
 		{
-			if (!Guid.TryParse(seasonId, out var parsedSeasonId))
-			{
-				return BadRequest("Season id must be a valid GUID.");
-			}
-
-			matches = await matchService.GetBySeasonAsync(
-				parsedSeasonId,
-				cancellationToken
-			);
-		}
-		else
-		{
-			matches = await matchService.GetAllAsync(cancellationToken);
+			return seasonErrorResult!;
 		}
 
-		var playerMatches = matches
-			.Where(match =>
-				match.IsCompleted &&
-				match.SelectedPlayers.Any(selectedPlayer => selectedPlayer.PlayerId == parsedPlayerId)
-			)
-			.OrderByDescending(match => match.Date)
-			.Select(match => PlayerMatchViewModel.FromMatch(match, parsedPlayerId))
-			.ToList();
-
-		return Ok(playerMatches);
+		return Ok(await matchQueryService.GetPlayerMatchesAsync(
+			parsedPlayerId,
+			parsedSeasonId,
+			cancellationToken));
 	}
 
 	[HttpGet("{id}")]
@@ -104,7 +76,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		var match = await matchService.GetByIdAsync(matchId, cancellationToken);
+		var match = await matchQueryService.GetByIdAsync(matchId, cancellationToken);
 
 		if (match is null)
 		{
@@ -648,6 +620,31 @@ public class MatchesController : ControllerBase
 			return false;
 		}
 
+		return true;
+	}
+
+	private bool TryParseOptionalGuid(
+		string? id,
+		string entityName,
+		out Guid? parsedId,
+		out BadRequestObjectResult? errorResult
+	)
+	{
+		parsedId = null;
+		errorResult = null;
+
+		if (string.IsNullOrWhiteSpace(id))
+		{
+			return true;
+		}
+
+		if (!Guid.TryParse(id, out var value))
+		{
+			errorResult = BadRequest($"{entityName} id must be a valid GUID.");
+			return false;
+		}
+
+		parsedId = value;
 		return true;
 	}
 }

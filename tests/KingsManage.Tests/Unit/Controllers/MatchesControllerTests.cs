@@ -3,6 +3,7 @@ using KingsManage;
 using KingsManage.Tests.Fakes;
 using KingsManage.Web.Controllers;
 using KingsManage.Web.Models;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
@@ -470,7 +471,10 @@ public class MatchesControllerTests
 		FakeStatsService? statsService = null
 	)
 	{
-		return new MatchesController(matchService, statsService ?? new FakeStatsService());
+		return new MatchesController(
+			new MatchQueryService(matchService),
+			matchService,
+			statsService ?? new FakeStatsService());
 	}
 
 	private static List<object>? GetResultItems(OkObjectResult? okResult)

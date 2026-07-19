@@ -2,6 +2,7 @@ using KingsManage;
 using KingsManage.Tests.Fakes;
 using KingsManage.Web.Controllers;
 using KingsManage.Web.Models;
+using KingsManage.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
@@ -18,7 +19,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateMatch(MatchId, SeasonOneId));
 
 		await controller.SetResult(
@@ -35,7 +36,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.UpdatePlayerStats(
@@ -54,7 +55,7 @@ public class MatchStatsRecalculationTests
 	public async Task UpdatePlayerStats_WithMoreThanOneMotm_ShouldReturnBadRequest()
 	{
 		var matchService = new FakeMatchService();
-		var controller = new MatchesController(matchService, new FakeStatsService());
+		var controller = CreateController(matchService, new FakeStatsService());
 		var match = CreateCompletedMatch(MatchId, SeasonOneId);
 		var playerTwoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 		match.SelectedPlayers.Add(new SelectedPlayer { PlayerId = playerTwoId, Area = "bench" });
@@ -77,7 +78,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.SetLineup(
@@ -97,7 +98,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.ClearResult(MatchId.ToString(), CancellationToken.None);
@@ -110,7 +111,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.Delete(MatchId.ToString(), CancellationToken.None);
@@ -123,7 +124,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.Update(
@@ -140,7 +141,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.Postpone(
@@ -161,7 +162,7 @@ public class MatchStatsRecalculationTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = new MatchesController(matchService, statsService);
+		var controller = CreateController(matchService, statsService);
 		matchService.Matches.Add(CreateCompletedMatch(MatchId, SeasonOneId));
 
 		await controller.UpdateNotes(
@@ -171,6 +172,16 @@ public class MatchStatsRecalculationTests
 		);
 
 		Assert.That(statsService.RecalculatedSeasonIds, Is.Empty);
+	}
+
+	private static MatchesController CreateController(
+		FakeMatchService matchService,
+		FakeStatsService statsService)
+	{
+		return new MatchesController(
+			new MatchQueryService(matchService),
+			matchService,
+			statsService);
 	}
 
 	private static Match CreateMatch(Guid id, Guid seasonId)

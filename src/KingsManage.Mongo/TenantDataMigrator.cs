@@ -32,9 +32,68 @@ public sealed class TenantDataMigrator
 
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
+		await EnsureReadModelIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureReadModelIndexesAsync(CancellationToken cancellationToken)
+	{
+		var matches = database.GetCollection<Match>("matches");
+		await matches.Indexes.CreateOneAsync(
+			new CreateIndexModel<Match>(
+				Builders<Match>.IndexKeys
+					.Ascending(match => match.OrganizationId)
+					.Ascending(match => match.ClubId)
+					.Ascending(match => match.SeasonId)
+					.Descending(match => match.Date),
+				new CreateIndexOptions { Name = "TenantSeasonDate_1" }),
+			cancellationToken: cancellationToken);
+
+		await matches.Indexes.CreateOneAsync(
+			new CreateIndexModel<Match>(
+				Builders<Match>.IndexKeys
+					.Ascending(match => match.OrganizationId)
+					.Ascending(match => match.ClubId)
+					.Ascending(match => match.IsCompleted)
+					.Ascending(match => match.State)
+					.Ascending(match => match.Date),
+				new CreateIndexOptions { Name = "TenantCompletedStateDate_1" }),
+			cancellationToken: cancellationToken);
+
+		var events = database.GetCollection<ClubEvent>("events");
+		await events.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubEvent>(
+				Builders<ClubEvent>.IndexKeys
+					.Ascending(clubEvent => clubEvent.OrganizationId)
+					.Ascending(clubEvent => clubEvent.ClubId)
+					.Ascending(clubEvent => clubEvent.Type)
+					.Ascending(clubEvent => clubEvent.StartDateTime),
+				new CreateIndexOptions { Name = "TenantTypeStartDate_1" }),
+			cancellationToken: cancellationToken);
+
+		var financeTransactions = database.GetCollection<FinanceTransaction>("financeTransactions");
+		await financeTransactions.Indexes.CreateOneAsync(
+			new CreateIndexModel<FinanceTransaction>(
+				Builders<FinanceTransaction>.IndexKeys
+					.Ascending(transaction => transaction.OrganizationId)
+					.Ascending(transaction => transaction.ClubId)
+					.Ascending(transaction => transaction.SeasonId)
+					.Descending(transaction => transaction.TransactionDate),
+				new CreateIndexOptions { Name = "TenantSeasonTransactionDate_1" }),
+			cancellationToken: cancellationToken);
+
+		var playerSeasonStats = database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
+		await playerSeasonStats.Indexes.CreateOneAsync(
+			new CreateIndexModel<PlayerSeasonStats>(
+				Builders<PlayerSeasonStats>.IndexKeys
+					.Ascending(stats => stats.OrganizationId)
+					.Ascending(stats => stats.ClubId)
+					.Ascending(stats => stats.SeasonId)
+					.Ascending(stats => stats.PlayerId),
+				new CreateIndexOptions { Name = "TenantSeasonPlayer_1" }),
+			cancellationToken: cancellationToken);
 	}
 
 	private async Task EnsureBillingIndexesAsync(CancellationToken cancellationToken)
