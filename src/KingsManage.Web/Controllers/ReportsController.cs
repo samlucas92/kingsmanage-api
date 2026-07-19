@@ -172,7 +172,8 @@ public class ReportsController : ControllerBase
 		[FromQuery] string seasonId,
 		[FromQuery] string? teamId,
 		[FromQuery] string? playerId,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		[FromQuery] bool includeFriendlies = true)
 	{
 		if (!TryParseGuid(seasonId, "Season", out var parsedSeasonId, out var errorResult))
 		{
@@ -181,7 +182,10 @@ public class ReportsController : ControllerBase
 
 		Guid? parsedTeamId = ParseOptionalGuid(teamId);
 		Guid? parsedPlayerId = ParseOptionalGuid(playerId);
-		var rows = await BuildPlayerStatsRows(parsedSeasonId, cancellationToken);
+		var rows = await BuildPlayerStatsRows(
+			parsedSeasonId,
+			cancellationToken,
+			includeFriendlies);
 
 		rows = rows
 			.Where(row => parsedPlayerId is null || row.PlayerId == parsedPlayerId.Value)
@@ -513,13 +517,40 @@ public class ReportsController : ControllerBase
 
 	private async Task<List<PlayerStatsViewModel>> BuildPlayerStatsRows(
 		Guid seasonId,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		bool includeFriendlies = true)
 	{
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var selectedSeasonStats = await statsService.GetSeasonStatsAsync(
-			seasonId,
-			cancellationToken);
-		var allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
+		List<PlayerSeasonStats> selectedSeasonStats;
+		List<PlayerSeasonStats> allSeasonStats;
+
+		if (includeFriendlies)
+		{
+			selectedSeasonStats = await statsService.GetSeasonStatsAsync(
+				seasonId,
+				cancellationToken);
+			allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
+		}
+		else
+		{
+			var allMatches = await matchService.GetAllAsync(cancellationToken);
+			var competitiveMatches = allMatches
+				.Where(match => !MatchCompetition.IsFriendly(match.Competition))
+				.ToList();
+
+			selectedSeasonStats = SeasonStatsCalculator.Calculate(
+				seasonId,
+				competitiveMatches);
+			allSeasonStats = competitiveMatches
+				.Where(match => match.SeasonId is not null)
+				.Select(match => match.SeasonId!.Value)
+				.Distinct()
+				.SelectMany(matchSeasonId => SeasonStatsCalculator.Calculate(
+					matchSeasonId,
+					competitiveMatches))
+				.ToList();
+		}
+
 		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
 
 		return players
