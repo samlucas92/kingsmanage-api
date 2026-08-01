@@ -119,6 +119,42 @@ public class JwtTokenServiceTests
 			Is.False);
 	}
 
+	[Test]
+	public void CreateLoginResponse_ShouldGiveCoachClubWideTeamAccess()
+	{
+		var organizationId = Guid.NewGuid();
+		var clubId = Guid.NewGuid();
+		var teamId = Guid.NewGuid();
+		var user = new AppUser
+		{
+			Id = Guid.NewGuid(),
+			Email = "coach@test.local",
+			Role = UserRole.Coach,
+			DefaultOrganizationId = organizationId,
+			DefaultClubId = clubId,
+			Memberships =
+			[
+				new UserMembership
+				{
+					OrganizationId = organizationId,
+					ClubId = clubId,
+					TeamId = teamId,
+					Role = TenantRole.Coach
+				}
+			],
+			IsActive = true
+		};
+
+		var token = new JwtSecurityTokenHandler().ReadJwtToken(
+			CreateService().CreateLoginResponse(user).Token);
+
+		Assert.That(
+			token.Claims.Any(claim =>
+				claim.Type == HttpTeamAccessContext.TeamAccessClaim &&
+				claim.Value == HttpTeamAccessContext.ClubWideAccessValue),
+			Is.True);
+	}
+
 	private static JwtTokenService CreateService()
 	{
 		var settings = new JwtSettings

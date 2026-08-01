@@ -80,9 +80,11 @@ public sealed class JwtTokenService : IJwtTokenService
 			.Where(membership => membership.OrganizationId == organizationId)
 			.Where(membership => membership.ClubId == null || membership.ClubId == clubId)
 			.ToList();
-		if (user.IsPlatformAdmin ||
+		var hasClubWideTeamAccess = user.IsPlatformAdmin ||
 			user.Memberships.Count == 0 ||
-			activeMemberships.Any(membership => !membership.TeamId.HasValue))
+			tenantRole.Value == TenantRole.Coach ||
+			activeMemberships.Any(membership => !membership.TeamId.HasValue);
+		if (hasClubWideTeamAccess)
 		{
 			claims.Add(new Claim(
 				HttpTeamAccessContext.TeamAccessClaim,
