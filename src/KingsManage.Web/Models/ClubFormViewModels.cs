@@ -9,10 +9,12 @@ public sealed class ClubFormViewModel
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public ClubFormStatus Status { get; set; }
+	public ClubFormType FormType { get; set; }
 	public ClubFormSourceType SourceType { get; set; }
 	public Guid? SourceMatchId { get; set; }
 	public string SourceMatchLabel { get; set; } = string.Empty;
 	public Guid? AppliedMatchAwardPlayerId { get; set; }
+	public List<Guid> AppliedMatchAwardPlayerIds { get; set; } = [];
 	public string CreatedByUserEmail { get; set; } = string.Empty;
 	public bool AllowAnonymousResponses { get; set; }
 	public bool AllowMultipleSubmissions { get; set; }
@@ -35,10 +37,12 @@ public sealed class ClubFormViewModel
 			Title = form.Title,
 			Description = form.Description,
 			Status = form.Status,
+			FormType = form.FormType,
 			SourceType = form.SourceType,
 			SourceMatchId = form.SourceMatchId,
 			SourceMatchLabel = sourceMatchLabel,
 			AppliedMatchAwardPlayerId = form.AppliedMatchAwardPlayerId,
+			AppliedMatchAwardPlayerIds = form.AppliedMatchAwardPlayerIds ?? [],
 			CreatedByUserEmail = form.CreatedByUserEmail,
 			AllowAnonymousResponses = form.AllowAnonymousResponses,
 			AllowMultipleSubmissions = form.AllowMultipleSubmissions,
@@ -125,6 +129,7 @@ public sealed class SaveClubFormModel
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public ClubFormStatus Status { get; set; } = ClubFormStatus.Draft;
+	public ClubFormType FormType { get; set; } = ClubFormType.General;
 	public ClubFormSourceType SourceType { get; set; } = ClubFormSourceType.General;
 	public Guid? SourceMatchId { get; set; }
 	public bool AllowAnonymousResponses { get; set; } = true;
@@ -138,6 +143,7 @@ public sealed class SaveClubFormModel
 			Title = Title,
 			Description = Description,
 			Status = Status,
+			FormType = FormType,
 			SourceType = SourceType,
 			SourceMatchId = SourceMatchId,
 			AllowAnonymousResponses = AllowAnonymousResponses,
@@ -159,9 +165,11 @@ public sealed class SaveClubFormModel
 			Title = Title,
 			Description = Description,
 			Status = Status,
+			FormType = FormType,
 			SourceType = existingForm.SourceType,
 			SourceMatchId = existingForm.SourceMatchId,
 			AppliedMatchAwardPlayerId = existingForm.AppliedMatchAwardPlayerId,
+			AppliedMatchAwardPlayerIds = existingForm.AppliedMatchAwardPlayerIds ?? [],
 			AppliedMatchAwardAt = existingForm.AppliedMatchAwardAt,
 			AllowAnonymousResponses = AllowAnonymousResponses,
 			AllowMultipleSubmissions = AllowMultipleSubmissions,

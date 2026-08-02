@@ -162,6 +162,7 @@ public sealed class FormsController : ControllerBase
 			Title = $"Match awards: {match.Opponent}",
 			Description = $"Vote for the match awards from {match.Date:dd/MM/yyyy}.",
 			Status = ClubFormStatus.Open,
+			FormType = ClubFormType.PlayerOfTheMatch,
 			SourceType = ClubFormSourceType.MatchAwards,
 			SourceMatchId = match.Id,
 			AllowAnonymousResponses = true,
@@ -266,14 +267,18 @@ public sealed class FormsController : ControllerBase
 
 		form.Status = model.Status;
 
-		if (model.Status == ClubFormStatus.Closed &&
-			form.SourceType == ClubFormSourceType.MatchAwards &&
-			form.SourceMatchId.HasValue)
+		var updated = await formService.UpdateAsync(form, cancellationToken);
+		if (updated is null) return NotFound();
+
+		if (updated.Status == ClubFormStatus.Closed &&
+			updated.SourceType == ClubFormSourceType.MatchAwards &&
+			updated.SourceMatchId.HasValue)
 		{
-			await ApplyMatchAwardsFormAsync(form, cancellationToken);
+			await ApplyMatchAwardsFormAsync(updated, cancellationToken);
+			updated = await formService.UpdateAsync(updated, cancellationToken);
+			if (updated is null) return NotFound();
 		}
 
-		var updated = await formService.UpdateAsync(form, cancellationToken);
 		return updated is null
 			? NotFound()
 			: Ok(ClubFormViewModel.FromForm(
@@ -434,50 +439,61 @@ public sealed class FormsController : ControllerBase
 		}
 
 		var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
-		var winningAnswer = GetTopChoiceAnswer(form, submissions, "Man of the match");
-		if (string.IsNullOrWhiteSpace(winningAnswer))
+		var winningAnswers = GetTopChoiceAnswers(form, submissions, "Man of the match");
+		if (winningAnswers.Count == 0)
 		{
 			return;
 		}
 
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var winningPlayerId = ResolvePlayerIdFromChoice(form, "Man of the match", winningAnswer, players);
-		if (!winningPlayerId.HasValue)
+		var winningPlayerIds = winningAnswers
+			.Select(answer => ResolvePlayerIdFromChoice(form, "Man of the match", answer, players))
+			.Where(playerId => playerId.HasValue)
+			.Select(playerId => playerId!.Value)
+			.Distinct()
+			.ToHashSet();
+		if (winningPlayerIds.Count == 0)
 		{
 			return;
 		}
 
-		var winningPlayer = players.FirstOrDefault(player => player.Id == winningPlayerId.Value);
-		if (winningPlayer is null)
+		var selectedPlayers = match.SelectedPlayers
+			.Where(selectedPlayer => winningPlayerIds.Contains(selectedPlayer.PlayerId))
+			.GroupBy(selectedPlayer => selectedPlayer.PlayerId)
+			.Select(group => group.First())
+			.ToList();
+		if (selectedPlayers.Count == 0)
 		{
 			return;
 		}
 
-		var selectedPlayer = match.SelectedPlayers.FirstOrDefault(selectedPlayer =>
-			selectedPlayer.PlayerId == winningPlayer.Id);
-		if (selectedPlayer is null)
-		{
-			return;
-		}
+		winningPlayerIds = selectedPlayers
+			.Select(selectedPlayer => selectedPlayer.PlayerId)
+			.ToHashSet();
 
 		var playerStats = match.PlayerStats.ToList();
-		var existingStat = playerStats.FirstOrDefault(stats => stats.PlayerId == winningPlayer.Id);
-		if (existingStat is null)
+		foreach (var selectedPlayer in selectedPlayers)
 		{
-			existingStat = new MatchPlayerStats
+			var existingStat = playerStats.FirstOrDefault(stats => stats.PlayerId == selectedPlayer.PlayerId);
+			if (existingStat is not null)
 			{
-				PlayerId = winningPlayer.Id,
-				AppearanceType = selectedPlayer.Area == "bench"
-					? MatchAppearanceType.SubstituteUsed
-					: MatchAppearanceType.Started,
-				Minutes = selectedPlayer.Area == "bench" ? 0 : 90
-			};
-			playerStats.Add(existingStat);
+				continue;
+			}
+
+			playerStats.Add(
+				new MatchPlayerStats
+				{
+					PlayerId = selectedPlayer.PlayerId,
+					AppearanceType = selectedPlayer.Area == "bench"
+						? MatchAppearanceType.SubstituteUsed
+						: MatchAppearanceType.Started,
+					Minutes = selectedPlayer.Area == "bench" ? 0 : 90
+				});
 		}
 
 		foreach (var stats in playerStats)
 		{
-			stats.IsMOTM = stats.PlayerId == winningPlayer.Id;
+			stats.IsMOTM = winningPlayerIds.Contains(stats.PlayerId);
 		}
 
 		var updatedMatch = await matchService.UpdatePlayerStatsAsync(match.Id, playerStats, cancellationToken);
@@ -486,13 +502,26 @@ public sealed class FormsController : ControllerBase
 			await statsService.RecalculateSeasonStatsAsync(updatedMatch.SeasonId.Value, cancellationToken);
 		}
 
-		form.AppliedMatchAwardPlayerId = winningPlayer.Id;
+		form.AppliedMatchAwardPlayerIds = winningPlayerIds.ToList();
+		form.AppliedMatchAwardPlayerId = form.AppliedMatchAwardPlayerIds.FirstOrDefault();
 		form.AppliedMatchAwardAt = DateTime.UtcNow;
 	}
 
 	private async Task ClearAppliedMatchAwardAsync(ClubForm form, CancellationToken cancellationToken)
 	{
-		if (!form.SourceMatchId.HasValue || !form.AppliedMatchAwardPlayerId.HasValue)
+		if (!form.SourceMatchId.HasValue)
+		{
+			return;
+		}
+
+		var appliedPlayerIds = (form.AppliedMatchAwardPlayerIds ?? [])
+			.Where(playerId => playerId != Guid.Empty)
+			.ToHashSet();
+		if (form.AppliedMatchAwardPlayerId.HasValue)
+		{
+			appliedPlayerIds.Add(form.AppliedMatchAwardPlayerId.Value);
+		}
+		if (appliedPlayerIds.Count == 0)
 		{
 			return;
 		}
@@ -505,7 +534,7 @@ public sealed class FormsController : ControllerBase
 
 		var playerStats = match.PlayerStats.ToList();
 		var changed = false;
-		foreach (var stats in playerStats.Where(stats => stats.PlayerId == form.AppliedMatchAwardPlayerId.Value))
+		foreach (var stats in playerStats.Where(stats => appliedPlayerIds.Contains(stats.PlayerId)))
 		{
 			if (stats.IsMOTM)
 			{
@@ -540,7 +569,7 @@ public sealed class FormsController : ControllerBase
 	private static string BuildMatchLabel(Match match) =>
 		$"{match.Opponent} · {match.Date:dd/MM/yyyy}";
 
-	private static string GetTopChoiceAnswer(
+	private static List<string> GetTopChoiceAnswers(
 		ClubForm form,
 		IReadOnlyList<ClubFormSubmission> submissions,
 		string questionPrompt)
@@ -549,10 +578,10 @@ public sealed class FormsController : ControllerBase
 			string.Equals(question.Prompt, questionPrompt, StringComparison.OrdinalIgnoreCase));
 		if (question is null)
 		{
-			return string.Empty;
+			return [];
 		}
 
-		return submissions
+		var rankedAnswers = submissions
 			.SelectMany(submission => submission.Answers)
 			.Where(answer => answer.QuestionId == question.Id)
 			.SelectMany(answer => answer.SelectedOptions)
@@ -561,7 +590,18 @@ public sealed class FormsController : ControllerBase
 			.Select(group => new { Value = group.Key, Count = group.Count() })
 			.OrderByDescending(result => result.Count)
 			.ThenBy(result => result.Value)
-			.FirstOrDefault()?.Value ?? string.Empty;
+			.ToList();
+
+		if (rankedAnswers.Count == 0)
+		{
+			return [];
+		}
+
+		var winningCount = rankedAnswers[0].Count;
+		return rankedAnswers
+			.Where(result => result.Count == winningCount)
+			.Select(result => result.Value)
+			.ToList();
 	}
 
 	private static Guid? ResolvePlayerIdFromChoice(

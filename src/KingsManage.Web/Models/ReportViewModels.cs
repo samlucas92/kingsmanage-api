@@ -15,6 +15,7 @@ public sealed class PlayerReportsViewModel
 	public List<PlayerStatsViewModel> Players { get; set; } = [];
 	public List<PlayerContributionViewModel> TopContributors { get; set; } = [];
 	public List<PlayerUsageViewModel> SquadUsage { get; set; } = [];
+	public PlayerAwardsReportViewModel Awards { get; set; } = new();
 	public DisciplineReportViewModel Discipline { get; set; } = new();
 }
 
@@ -49,6 +50,19 @@ public sealed class PlayerUsageViewModel
 	public int Minutes { get; set; }
 	public int Goals { get; set; }
 	public int Assists { get; set; }
+}
+
+public sealed class PlayerAwardsReportViewModel
+{
+	public List<PlayerAwardCountViewModel> ManOfTheMatch { get; set; } = [];
+	public List<PlayerAwardCountViewModel> DickOfTheDay { get; set; } = [];
+}
+
+public sealed class PlayerAwardCountViewModel
+{
+	public Guid PlayerId { get; set; }
+	public string PlayerName { get; set; } = string.Empty;
+	public int Count { get; set; }
 }
 
 public sealed class DisciplineReportViewModel

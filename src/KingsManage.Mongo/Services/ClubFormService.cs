@@ -228,6 +228,7 @@ public class ClubFormService : IClubFormService
 		form.Description ??= string.Empty;
 		form.CreatedByUserEmail ??= string.Empty;
 		form.Questions = NormaliseQuestions(form.Questions);
+		form.AppliedMatchAwardPlayerIds ??= [];
 
 		if (form.CreatedAt == default)
 		{
@@ -267,6 +268,7 @@ public class ClubFormService : IClubFormService
 		form.Title = form.Title.Trim();
 		form.Description = form.Description.Trim();
 		form.CreatedByUserEmail = form.CreatedByUserEmail.Trim();
+		form.AppliedMatchAwardPlayerIds ??= [];
 		form.GoCode = NormaliseGoCode(form.GoCode);
 		if (isNew || string.IsNullOrWhiteSpace(form.GoCode))
 		{

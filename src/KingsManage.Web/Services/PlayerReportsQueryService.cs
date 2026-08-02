@@ -1,13 +1,24 @@
+using KingsManage;
 using KingsManage.Web.Models;
 
 namespace KingsManage.Web.Services;
 
 public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 {
+	private readonly IClubFormService formService;
+	private readonly IMatchService matchService;
+	private readonly IPlayerService playerService;
 	private readonly IPlayerStatsQueryService playerStatsQueryService;
 
-	public PlayerReportsQueryService(IPlayerStatsQueryService playerStatsQueryService)
+	public PlayerReportsQueryService(
+		IClubFormService formService,
+		IMatchService matchService,
+		IPlayerService playerService,
+		IPlayerStatsQueryService playerStatsQueryService)
 	{
+		this.formService = formService;
+		this.matchService = matchService;
+		this.playerService = playerService;
 		this.playerStatsQueryService = playerStatsQueryService;
 	}
 
@@ -25,6 +36,12 @@ public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 
 		rows = FilterRows(rows, teamId, playerId);
 		var activeRows = rows.Where(row => row.IsActive).ToList();
+		var awards = await BuildAwardsReportAsync(
+			seasonId,
+			teamId,
+			playerId,
+			includeFriendlies,
+			cancellationToken);
 
 		return new PlayerReportsViewModel
 		{
@@ -40,6 +57,7 @@ public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 			Players = rows,
 			TopContributors = BuildTopContributors(activeRows, 10),
 			SquadUsage = BuildSquadUsage(activeRows, teamId),
+			Awards = awards,
 			Discipline = BuildDisciplineReport(rows)
 		};
 	}
@@ -155,5 +173,194 @@ public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 			TotalCards = playerRows.Sum(row => row.TotalCards),
 			Players = playerRows
 		};
+	}
+
+	private async Task<PlayerAwardsReportViewModel> BuildAwardsReportAsync(
+		Guid seasonId,
+		Guid? teamId,
+		Guid? playerId,
+		bool includeFriendlies,
+		CancellationToken cancellationToken)
+	{
+		var forms = await formService.GetAllAsync(cancellationToken);
+		var awardForms = forms
+			.Where(form =>
+				form.Status == ClubFormStatus.Closed &&
+				form.SourceMatchId.HasValue &&
+				(form.FormType == ClubFormType.PlayerOfTheMatch ||
+					form.SourceType == ClubFormSourceType.MatchAwards))
+			.ToList();
+		if (awardForms.Count == 0)
+		{
+			return new PlayerAwardsReportViewModel();
+		}
+
+		var matches = await matchService.GetBySeasonAsync(seasonId, cancellationToken);
+		var matchLookup = matches
+			.Where(match =>
+				(includeFriendlies || !MatchCompetition.IsFriendly(match.Competition)) &&
+				(teamId is null || (match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team)) == teamId.Value))
+			.ToDictionary(match => match.Id);
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var playerLookup = players.ToDictionary(player => player.Id, player => player.Name);
+		var manOfTheMatchCounts = new Dictionary<Guid, int>();
+		var dickOfTheDayCounts = new Dictionary<Guid, int>();
+
+		foreach (var form in awardForms)
+		{
+			if (!matchLookup.ContainsKey(form.SourceMatchId!.Value))
+			{
+				continue;
+			}
+
+			var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
+			CountTopQuestionAnswers(
+				form,
+				submissions,
+				"Man of the match",
+				players,
+				manOfTheMatchCounts);
+			CountTopQuestionAnswers(
+				form,
+				submissions,
+				"Dick of the day",
+				players,
+				dickOfTheDayCounts);
+		}
+
+		return new PlayerAwardsReportViewModel
+		{
+			ManOfTheMatch = BuildAwardRows(manOfTheMatchCounts, playerLookup, playerId),
+			DickOfTheDay = BuildAwardRows(dickOfTheDayCounts, playerLookup, playerId)
+		};
+	}
+
+	private static void CountTopQuestionAnswers(
+		ClubForm form,
+		IReadOnlyList<ClubFormSubmission> submissions,
+		string questionPrompt,
+		IReadOnlyList<Player> players,
+		Dictionary<Guid, int> counts)
+	{
+		foreach (var answer in GetTopChoiceAnswers(form, submissions, questionPrompt))
+		{
+			var playerId = ResolvePlayerIdFromChoice(form, questionPrompt, answer, players);
+			if (!playerId.HasValue)
+			{
+				continue;
+			}
+
+			counts[playerId.Value] = counts.GetValueOrDefault(playerId.Value) + 1;
+		}
+	}
+
+	private static List<PlayerAwardCountViewModel> BuildAwardRows(
+		Dictionary<Guid, int> counts,
+		IReadOnlyDictionary<Guid, string> playerLookup,
+		Guid? playerId)
+	{
+		return counts
+			.Where(item => playerId is null || item.Key == playerId.Value)
+			.Select(item => new PlayerAwardCountViewModel
+			{
+				PlayerId = item.Key,
+				PlayerName = playerLookup.GetValueOrDefault(item.Key) ?? "Unknown player",
+				Count = item.Value
+			})
+			.OrderByDescending(row => row.Count)
+			.ThenBy(row => row.PlayerName)
+			.ToList();
+	}
+
+	private static List<string> GetTopChoiceAnswers(
+		ClubForm form,
+		IReadOnlyList<ClubFormSubmission> submissions,
+		string questionPrompt)
+	{
+		var question = form.Questions.FirstOrDefault(question =>
+			string.Equals(question.Prompt, questionPrompt, StringComparison.OrdinalIgnoreCase));
+		if (question is null)
+		{
+			return [];
+		}
+
+		var rankedAnswers = submissions
+			.SelectMany(submission => submission.Answers)
+			.Where(answer => answer.QuestionId == question.Id)
+			.SelectMany(answer => answer.SelectedOptions)
+			.Where(option => !string.IsNullOrWhiteSpace(option))
+			.GroupBy(option => option, StringComparer.OrdinalIgnoreCase)
+			.Select(group => new { Value = group.Key, Count = group.Count() })
+			.OrderByDescending(result => result.Count)
+			.ThenBy(result => result.Value)
+			.ToList();
+
+		if (rankedAnswers.Count == 0)
+		{
+			return [];
+		}
+
+		var winningCount = rankedAnswers[0].Count;
+		return rankedAnswers
+			.Where(result => result.Count == winningCount)
+			.Select(result => result.Value)
+			.ToList();
+	}
+
+	private static Guid? ResolvePlayerIdFromChoice(
+		ClubForm form,
+		string questionPrompt,
+		string selectedValue,
+		IReadOnlyList<Player> players)
+	{
+		var question = form.Questions.FirstOrDefault(question =>
+			string.Equals(question.Prompt, questionPrompt, StringComparison.OrdinalIgnoreCase));
+		var choice = question is null
+			? null
+			: GetChoiceOptions(question).FirstOrDefault(option =>
+				string.Equals(option.Value, selectedValue, StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(option.Label, selectedValue, StringComparison.OrdinalIgnoreCase));
+
+		if (choice?.PlayerId is not null)
+		{
+			return choice.PlayerId.Value;
+		}
+
+		if (Guid.TryParse(selectedValue, out var selectedPlayerId))
+		{
+			return selectedPlayerId;
+		}
+
+		return players.FirstOrDefault(player =>
+			string.Equals(player.Name, selectedValue, StringComparison.OrdinalIgnoreCase))?.Id;
+	}
+
+	private static List<ClubFormQuestionOption> GetChoiceOptions(ClubFormQuestion question)
+	{
+		if (question.ChoiceOptions?.Count > 0)
+		{
+			return question.ChoiceOptions
+				.Where(option => !string.IsNullOrWhiteSpace(option.Value) || !string.IsNullOrWhiteSpace(option.Label))
+				.Select(option => new ClubFormQuestionOption
+				{
+					Value = string.IsNullOrWhiteSpace(option.Value)
+						? option.Label
+						: option.Value,
+					Label = string.IsNullOrWhiteSpace(option.Label)
+						? option.Value
+						: option.Label,
+					PlayerId = option.PlayerId
+				})
+				.ToList();
+		}
+
+		return (question.Options ?? [])
+			.Where(option => !string.IsNullOrWhiteSpace(option))
+			.Select(option => new ClubFormQuestionOption
+			{
+				Value = option,
+				Label = option
+			})
+			.ToList();
 	}
 }
