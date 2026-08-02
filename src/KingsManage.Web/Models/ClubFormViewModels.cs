@@ -127,6 +127,11 @@ public sealed class SubmitClubFormModel
 	public List<ClubFormAnswerViewModel> Answers { get; set; } = [];
 }
 
+public sealed class CreateMatchAwardsFormModel
+{
+	public Guid MatchId { get; set; }
+}
+
 public sealed class ClubFormAnswerViewModel
 {
 	public Guid QuestionId { get; set; }

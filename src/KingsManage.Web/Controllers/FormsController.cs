@@ -12,10 +12,17 @@ namespace KingsManage.Web.Controllers;
 public sealed class FormsController : ControllerBase
 {
 	private readonly IClubFormService formService;
+	private readonly IMatchService matchService;
+	private readonly IPlayerService playerService;
 
-	public FormsController(IClubFormService formService)
+	public FormsController(
+		IClubFormService formService,
+		IMatchService matchService,
+		IPlayerService playerService)
 	{
 		this.formService = formService;
+		this.matchService = matchService;
+		this.playerService = playerService;
 	}
 
 	[HttpGet]
@@ -98,6 +105,80 @@ public sealed class FormsController : ControllerBase
 		var form = model.ToForm(
 			userIdResult.UserId,
 			User.FindFirstValue(ClaimTypes.Email) ?? string.Empty);
+		var created = await formService.CreateAsync(form, cancellationToken);
+
+		return CreatedAtAction(
+			nameof(GetById),
+			new { id = created.Id },
+			ClubFormViewModel.FromForm(created, false));
+	}
+
+	[Authorize(Policy = "TeamManagement")]
+	[HttpPost("match-awards")]
+	public async Task<ActionResult<ClubFormViewModel>> CreateMatchAwardsForm(
+		CreateMatchAwardsFormModel model,
+		CancellationToken cancellationToken)
+	{
+		if (model.MatchId == Guid.Empty)
+		{
+			return BadRequest("Match id is required.");
+		}
+
+		var match = await matchService.GetByIdAsync(model.MatchId, cancellationToken);
+		if (match is null)
+		{
+			return NotFound("Match not found.");
+		}
+
+		var playerOptions = await BuildMatchAwardPlayerOptionsAsync(match, cancellationToken);
+		if (playerOptions.Count == 0)
+		{
+			return BadRequest("Select at least one player before creating an awards form.");
+		}
+
+		var userIdResult = GetCurrentUserId();
+		if (!userIdResult.Success) return BadRequest(userIdResult.ErrorMessage);
+
+		var form = new ClubForm
+		{
+			Title = $"Match awards: {match.Opponent}",
+			Description = $"Vote for the match awards from {match.Date:dd/MM/yyyy}.",
+			Status = ClubFormStatus.Open,
+			AllowAnonymousResponses = true,
+			AllowMultipleSubmissions = false,
+			CreatedByUserId = userIdResult.UserId,
+			CreatedByUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+			Questions =
+			[
+				new ClubFormQuestion
+				{
+					Prompt = "Man of the match",
+					Type = ClubFormQuestionType.SingleChoice,
+					IsRequired = true,
+					Options = playerOptions
+				},
+				new ClubFormQuestion
+				{
+					Prompt = "Dick of the day",
+					Type = ClubFormQuestionType.SingleChoice,
+					IsRequired = true,
+					Options = [..playerOptions, "Other"]
+				},
+				new ClubFormQuestion
+				{
+					Prompt = "Dick of the day reason — if Other, please specify name",
+					Type = ClubFormQuestionType.LongText,
+					IsRequired = false
+				},
+				new ClubFormQuestion
+				{
+					Prompt = "Quote/moment of the day",
+					Type = ClubFormQuestionType.LongText,
+					IsRequired = false
+				}
+			]
+		};
+
 		var created = await formService.CreateAsync(form, cancellationToken);
 
 		return CreatedAtAction(
@@ -317,6 +398,50 @@ public sealed class FormsController : ControllerBase
 		}
 
 		return null;
+	}
+
+	private async Task<List<string>> BuildMatchAwardPlayerOptionsAsync(
+		Match match,
+		CancellationToken cancellationToken)
+	{
+		var playedPlayerIds = GetPlayedPlayerIds(match);
+		if (playedPlayerIds.Count == 0)
+		{
+			return [];
+		}
+
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var playerNameLookup = players.ToDictionary(player => player.Id, player => player.Name);
+
+		return playedPlayerIds
+			.Select(playerId => playerNameLookup.TryGetValue(playerId, out var name) ? name : string.Empty)
+			.Where(name => !string.IsNullOrWhiteSpace(name))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.OrderBy(name => name)
+			.ToList();
+	}
+
+	private static List<Guid> GetPlayedPlayerIds(Match match)
+	{
+		var selectedPlayerIds = match.SelectedPlayers
+			.Select(selectedPlayer => selectedPlayer.PlayerId)
+			.Where(playerId => playerId != Guid.Empty)
+			.Distinct()
+			.ToList();
+
+		if (match.PlayerStats.Count == 0)
+		{
+			return selectedPlayerIds;
+		}
+
+		var unusedPlayerIds = match.PlayerStats
+			.Where(stats => stats.AppearanceType == MatchAppearanceType.UnusedSubstitute)
+			.Select(stats => stats.PlayerId)
+			.ToHashSet();
+
+		return selectedPlayerIds
+			.Where(playerId => !unusedPlayerIds.Contains(playerId))
+			.ToList();
 	}
 
 	private static bool HasAnswer(ClubFormQuestion question, ClubFormAnswer? answer)
