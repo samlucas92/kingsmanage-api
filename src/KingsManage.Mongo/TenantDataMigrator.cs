@@ -21,6 +21,8 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<Match>("matches", cancellationToken);
 		await BackfillAsync<ClubEvent>("events", cancellationToken);
 		await BackfillAsync<ClubPost>("posts", cancellationToken);
+		await BackfillAsync<ClubForm>("forms", cancellationToken);
+		await BackfillAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
 		await BackfillAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
@@ -34,9 +36,69 @@ public sealed class TenantDataMigrator
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
 		await EnsureReadModelIndexesAsync(cancellationToken);
+		await EnsureFormIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureFormIndexesAsync(CancellationToken cancellationToken)
+	{
+		var forms = database.GetCollection<ClubForm>("forms");
+		await forms.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubForm>(
+				Builders<ClubForm>.IndexKeys
+					.Ascending(form => form.OrganizationId)
+					.Ascending(form => form.ClubId)
+					.Ascending(form => form.Status)
+					.Descending(form => form.UpdatedAt),
+				new CreateIndexOptions { Name = "TenantStatusUpdatedAt_1" }),
+			cancellationToken: cancellationToken);
+
+		await forms.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubForm>(
+				Builders<ClubForm>.IndexKeys.Ascending(form => form.GoCode),
+				new CreateIndexOptions { Name = "GoCode_1" }),
+			cancellationToken: cancellationToken);
+
+		var submissions = database.GetCollection<ClubFormSubmission>("formSubmissions");
+		try
+		{
+			await submissions.Indexes.DropOneAsync("TenantFormUser_1", cancellationToken);
+		}
+		catch (MongoCommandException exception) when (exception.CodeName == "IndexNotFound")
+		{
+		}
+
+		await submissions.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubFormSubmission>(
+				Builders<ClubFormSubmission>.IndexKeys
+					.Ascending(submission => submission.OrganizationId)
+					.Ascending(submission => submission.ClubId)
+					.Ascending(submission => submission.FormId)
+					.Ascending(submission => submission.RespondentKey),
+				new CreateIndexOptions { Name = "TenantFormRespondent_1" }),
+			cancellationToken: cancellationToken);
+
+		await submissions.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubFormSubmission>(
+				Builders<ClubFormSubmission>.IndexKeys
+					.Ascending(submission => submission.OrganizationId)
+					.Ascending(submission => submission.ClubId)
+					.Ascending(submission => submission.FormId)
+					.Ascending(submission => submission.SubmissionLimitKey),
+				new CreateIndexOptions { Name = "TenantFormSubmissionLimit_1", Unique = true }),
+			cancellationToken: cancellationToken);
+
+		await submissions.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubFormSubmission>(
+				Builders<ClubFormSubmission>.IndexKeys
+					.Ascending(submission => submission.OrganizationId)
+					.Ascending(submission => submission.ClubId)
+					.Ascending(submission => submission.FormId)
+					.Descending(submission => submission.SubmittedAt),
+				new CreateIndexOptions { Name = "TenantFormSubmittedAt_1" }),
+			cancellationToken: cancellationToken);
 	}
 
 	private async Task EnsureReadModelIndexesAsync(CancellationToken cancellationToken)
@@ -295,6 +357,8 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<Match>("matches", cancellationToken);
 		await EnsureTenantIndexAsync<ClubEvent>("events", cancellationToken);
 		await EnsureTenantIndexAsync<ClubPost>("posts", cancellationToken);
+		await EnsureTenantIndexAsync<ClubForm>("forms", cancellationToken);
+		await EnsureTenantIndexAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
 		await EnsureTenantIndexAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await EnsureTenantIndexAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await EnsureTenantIndexAsync<ClubFile>("files", cancellationToken);

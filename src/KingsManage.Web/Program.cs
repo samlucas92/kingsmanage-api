@@ -86,6 +86,7 @@ builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClubEventService, ClubEventService>();
 builder.Services.AddScoped<IClubPostService, ClubPostService>();
+builder.Services.AddScoped<IClubFormService, ClubFormService>();
 builder.Services.AddScoped<IClubPostTemplateService, ClubPostTemplateService>();
 builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
 builder.Services.AddScoped<IClubNotificationService, ClubNotificationService>();
