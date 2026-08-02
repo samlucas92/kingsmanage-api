@@ -15,6 +15,7 @@ public class ClubFormService : IClubFormService
 		RegisterClassMap<ClubForm>();
 		RegisterClassMap<ClubFormSubmission>();
 		RegisterClassMap<ClubFormQuestion>();
+		RegisterClassMap<ClubFormQuestionOption>();
 		RegisterClassMap<ClubFormAnswer>();
 	}
 
@@ -289,14 +290,61 @@ public class ClubFormService : IClubFormService
 			{
 				question.Id = question.Id == Guid.Empty ? Guid.NewGuid() : question.Id;
 				question.Prompt = question.Prompt.Trim();
-				question.Options = question.Options
+				question.Options = (question.Options ?? [])
 					.Select(option => option.Trim())
 					.Where(option => !string.IsNullOrWhiteSpace(option))
 					.Distinct(StringComparer.OrdinalIgnoreCase)
 					.ToList();
+				question.ChoiceOptions = NormaliseChoiceOptions(question.ChoiceOptions, question.Options);
+				if (question.Options.Count == 0)
+				{
+					question.Options = question.ChoiceOptions
+						.Select(option => option.Label)
+						.Where(label => !string.IsNullOrWhiteSpace(label))
+						.Distinct(StringComparer.OrdinalIgnoreCase)
+						.ToList();
+				}
 				question.MinRating = Math.Max(1, question.MinRating);
 				question.MaxRating = Math.Max(question.MinRating, Math.Min(10, question.MaxRating));
 				return question;
+			})
+			.ToList();
+	}
+
+	private static List<ClubFormQuestionOption> NormaliseChoiceOptions(
+		List<ClubFormQuestionOption>? choiceOptions,
+		List<string> legacyOptions)
+	{
+		var normalised = (choiceOptions ?? [])
+			.Select(option =>
+			{
+				option.Value = (option.Value ?? string.Empty).Trim();
+				option.Label = (option.Label ?? string.Empty).Trim();
+				if (string.IsNullOrWhiteSpace(option.Value) && option.PlayerId.HasValue)
+				{
+					option.Value = option.PlayerId.Value.ToString("D");
+				}
+				if (string.IsNullOrWhiteSpace(option.Label))
+				{
+					option.Label = option.Value;
+				}
+				return option;
+			})
+			.Where(option => !string.IsNullOrWhiteSpace(option.Value) && !string.IsNullOrWhiteSpace(option.Label))
+			.GroupBy(option => option.Value, StringComparer.OrdinalIgnoreCase)
+			.Select(group => group.First())
+			.ToList();
+
+		if (normalised.Count > 0)
+		{
+			return normalised;
+		}
+
+		return legacyOptions
+			.Select(option => new ClubFormQuestionOption
+			{
+				Value = option,
+				Label = option
 			})
 			.ToList();
 	}

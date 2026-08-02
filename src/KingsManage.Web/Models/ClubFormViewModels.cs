@@ -58,6 +58,7 @@ public sealed class ClubFormQuestionViewModel
 	public ClubFormQuestionType Type { get; set; }
 	public bool IsRequired { get; set; }
 	public List<string> Options { get; set; } = [];
+	public List<ClubFormQuestionOptionViewModel> ChoiceOptions { get; set; } = [];
 	public int MinRating { get; set; }
 	public int MaxRating { get; set; }
 
@@ -69,7 +70,8 @@ public sealed class ClubFormQuestionViewModel
 			Prompt = question.Prompt,
 			Type = question.Type,
 			IsRequired = question.IsRequired,
-			Options = question.Options,
+			Options = question.Options ?? [],
+			ChoiceOptions = (question.ChoiceOptions ?? []).Select(ClubFormQuestionOptionViewModel.FromOption).ToList(),
 			MinRating = question.MinRating,
 			MaxRating = question.MaxRating
 		};
@@ -83,9 +85,37 @@ public sealed class ClubFormQuestionViewModel
 			Prompt = Prompt,
 			Type = Type,
 			IsRequired = IsRequired,
-			Options = Options,
+			Options = Options ?? [],
+			ChoiceOptions = (ChoiceOptions ?? []).Select(option => option.ToOption()).ToList(),
 			MinRating = MinRating,
 			MaxRating = MaxRating
+		};
+	}
+}
+
+public sealed class ClubFormQuestionOptionViewModel
+{
+	public string Value { get; set; } = string.Empty;
+	public string Label { get; set; } = string.Empty;
+	public Guid? PlayerId { get; set; }
+
+	public static ClubFormQuestionOptionViewModel FromOption(ClubFormQuestionOption option)
+	{
+		return new ClubFormQuestionOptionViewModel
+		{
+			Value = option.Value,
+			Label = option.Label,
+			PlayerId = option.PlayerId
+		};
+	}
+
+	public ClubFormQuestionOption ToOption()
+	{
+		return new ClubFormQuestionOption
+		{
+			Value = Value,
+			Label = Label,
+			PlayerId = PlayerId
 		};
 	}
 }
@@ -214,5 +244,7 @@ public sealed class ClubFormQuestionResultViewModel
 public sealed class ClubFormOptionResultViewModel
 {
 	public string Value { get; set; } = string.Empty;
+	public string Label { get; set; } = string.Empty;
+	public Guid? PlayerId { get; set; }
 	public int Count { get; set; }
 }

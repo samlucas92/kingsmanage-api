@@ -152,6 +152,7 @@ public sealed class FormsController : ControllerBase
 		{
 			return BadRequest("Select at least one player before creating an awards form.");
 		}
+		var otherOption = new ClubFormQuestionOption { Value = "Other", Label = "Other" };
 
 		var userIdResult = GetCurrentUserId();
 		if (!userIdResult.Success) return BadRequest(userIdResult.ErrorMessage);
@@ -174,14 +175,16 @@ public sealed class FormsController : ControllerBase
 					Prompt = "Man of the match",
 					Type = ClubFormQuestionType.SingleChoice,
 					IsRequired = true,
-					Options = playerOptions
+					Options = playerOptions.Select(option => option.Label).ToList(),
+					ChoiceOptions = playerOptions
 				},
 				new ClubFormQuestion
 				{
 					Prompt = "Dick of the day",
 					Type = ClubFormQuestionType.SingleChoice,
 					IsRequired = true,
-					Options = [..playerOptions, "Other"]
+					Options = [..playerOptions.Select(option => option.Label), otherOption.Label],
+					ChoiceOptions = [..playerOptions, otherOption]
 				},
 				new ClubFormQuestion
 				{
@@ -431,15 +434,20 @@ public sealed class FormsController : ControllerBase
 		}
 
 		var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
-		var winningPlayerName = GetTopChoiceAnswer(form, submissions, "Man of the match");
-		if (string.IsNullOrWhiteSpace(winningPlayerName))
+		var winningAnswer = GetTopChoiceAnswer(form, submissions, "Man of the match");
+		if (string.IsNullOrWhiteSpace(winningAnswer))
 		{
 			return;
 		}
 
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var winningPlayer = players.FirstOrDefault(player =>
-			string.Equals(player.Name, winningPlayerName, StringComparison.OrdinalIgnoreCase));
+		var winningPlayerId = ResolvePlayerIdFromChoice(form, "Man of the match", winningAnswer, players);
+		if (!winningPlayerId.HasValue)
+		{
+			return;
+		}
+
+		var winningPlayer = players.FirstOrDefault(player => player.Id == winningPlayerId.Value);
 		if (winningPlayer is null)
 		{
 			return;
@@ -556,6 +564,63 @@ public sealed class FormsController : ControllerBase
 			.FirstOrDefault()?.Value ?? string.Empty;
 	}
 
+	private static Guid? ResolvePlayerIdFromChoice(
+		ClubForm form,
+		string questionPrompt,
+		string selectedValue,
+		IReadOnlyList<Player> players)
+	{
+		var question = form.Questions.FirstOrDefault(question =>
+			string.Equals(question.Prompt, questionPrompt, StringComparison.OrdinalIgnoreCase));
+		var choice = question is null
+			? null
+			: GetChoiceOptions(question).FirstOrDefault(option =>
+				string.Equals(option.Value, selectedValue, StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(option.Label, selectedValue, StringComparison.OrdinalIgnoreCase));
+
+		if (choice?.PlayerId is not null)
+		{
+			return choice.PlayerId.Value;
+		}
+
+		if (Guid.TryParse(selectedValue, out var selectedPlayerId))
+		{
+			return selectedPlayerId;
+		}
+
+		return players.FirstOrDefault(player =>
+			string.Equals(player.Name, selectedValue, StringComparison.OrdinalIgnoreCase))?.Id;
+	}
+
+	private static List<ClubFormQuestionOption> GetChoiceOptions(ClubFormQuestion question)
+	{
+		if (question.ChoiceOptions?.Count > 0)
+		{
+			return question.ChoiceOptions
+				.Where(option => !string.IsNullOrWhiteSpace(option.Value) || !string.IsNullOrWhiteSpace(option.Label))
+				.Select(option => new ClubFormQuestionOption
+				{
+					Value = string.IsNullOrWhiteSpace(option.Value)
+						? option.Label
+						: option.Value,
+					Label = string.IsNullOrWhiteSpace(option.Label)
+						? option.Value
+						: option.Label,
+					PlayerId = option.PlayerId
+				})
+				.ToList();
+		}
+
+		return (question.Options ?? [])
+			.Where(option => !string.IsNullOrWhiteSpace(option))
+			.Select(option => new ClubFormQuestionOption
+			{
+				Value = option,
+				Label = option
+			})
+			.ToList();
+	}
+
 	private bool CanManageForms() =>
 		User.IsInRole(UserRole.Admin.ToString()) ||
 		User.IsInRole(UserRole.Coach.ToString());
@@ -572,7 +637,7 @@ public sealed class FormsController : ControllerBase
 			if (string.IsNullOrWhiteSpace(question.Prompt)) return "Every question needs prompt text.";
 			if (question.Prompt.Trim().Length > 240) return "Question prompts must be 240 characters or fewer.";
 			if (question.Type is ClubFormQuestionType.SingleChoice or ClubFormQuestionType.MultipleChoice &&
-				question.Options.Count(option => !string.IsNullOrWhiteSpace(option)) < 2)
+				GetChoiceOptions(question.ToQuestion()).Count < 2)
 			{
 				return "Choice questions need at least two options.";
 			}
@@ -600,7 +665,11 @@ public sealed class FormsController : ControllerBase
 
 			if (question.Type is ClubFormQuestionType.SingleChoice or ClubFormQuestionType.MultipleChoice)
 			{
-				var allowed = question.Options.ToHashSet(StringComparer.OrdinalIgnoreCase);
+				var choiceOptions = GetChoiceOptions(question);
+				var allowed = choiceOptions
+					.SelectMany(option => new[] { option.Value, option.Label })
+					.Where(option => !string.IsNullOrWhiteSpace(option))
+					.ToHashSet(StringComparer.OrdinalIgnoreCase);
 				if (answer.SelectedOptions.Any(option => !allowed.Contains(option)))
 				{
 					return $"Invalid option for: {question.Prompt}";
@@ -622,7 +691,7 @@ public sealed class FormsController : ControllerBase
 		return null;
 	}
 
-	private async Task<List<string>> BuildMatchAwardPlayerOptionsAsync(
+	private async Task<List<ClubFormQuestionOption>> BuildMatchAwardPlayerOptionsAsync(
 		Match match,
 		CancellationToken cancellationToken)
 	{
@@ -633,13 +702,22 @@ public sealed class FormsController : ControllerBase
 		}
 
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var playerNameLookup = players.ToDictionary(player => player.Id, player => player.Name);
+		var playerLookup = players.ToDictionary(player => player.Id);
 
 		return playedPlayerIds
-			.Select(playerId => playerNameLookup.TryGetValue(playerId, out var name) ? name : string.Empty)
-			.Where(name => !string.IsNullOrWhiteSpace(name))
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.OrderBy(name => name)
+			.Select(playerId => playerLookup.TryGetValue(playerId, out var player)
+				? new ClubFormQuestionOption
+				{
+					Value = player.Id.ToString("D"),
+					Label = player.Name,
+					PlayerId = player.Id
+				}
+				: null)
+			.Where(option => option is not null && !string.IsNullOrWhiteSpace(option.Label))
+			.Cast<ClubFormQuestionOption>()
+			.GroupBy(option => option.PlayerId ?? Guid.Empty)
+			.Select(group => group.First())
+			.OrderBy(option => option.Label)
 			.ToList();
 	}
 
@@ -713,11 +791,15 @@ public sealed class FormsController : ControllerBase
 
 		if (question.Type is ClubFormQuestionType.SingleChoice or ClubFormQuestionType.MultipleChoice)
 		{
-			result.Options = question.Options
+			result.Options = GetChoiceOptions(question)
 				.Select(option => new ClubFormOptionResultViewModel
 				{
-					Value = option,
-					Count = answers.Count(answer => answer.SelectedOptions.Contains(option, StringComparer.OrdinalIgnoreCase))
+					Value = option.Value,
+					Label = option.Label,
+					PlayerId = option.PlayerId,
+					Count = answers.Count(answer =>
+						answer.SelectedOptions.Contains(option.Value, StringComparer.OrdinalIgnoreCase) ||
+						answer.SelectedOptions.Contains(option.Label, StringComparer.OrdinalIgnoreCase))
 				})
 				.ToList();
 		}
