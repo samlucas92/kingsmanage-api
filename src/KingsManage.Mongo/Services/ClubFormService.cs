@@ -298,6 +298,11 @@ public class ClubFormService : IClubFormService
 					.Distinct(StringComparer.OrdinalIgnoreCase)
 					.ToList();
 				question.ChoiceOptions = NormaliseChoiceOptions(question.ChoiceOptions, question.Options);
+				if (question.OptionSource == ClubFormQuestionOptionSource.Manual &&
+					question.ChoiceOptions.Any(option => option.PlayerId.HasValue))
+				{
+					question.OptionSource = ClubFormQuestionOptionSource.MatchPlayers;
+				}
 				if (question.Options.Count == 0)
 				{
 					question.Options = question.ChoiceOptions

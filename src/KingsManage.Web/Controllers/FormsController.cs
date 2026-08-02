@@ -176,6 +176,7 @@ public sealed class FormsController : ControllerBase
 					Prompt = "Man of the match",
 					Type = ClubFormQuestionType.SingleChoice,
 					IsRequired = true,
+					OptionSource = ClubFormQuestionOptionSource.MatchPlayers,
 					Options = playerOptions.Select(option => option.Label).ToList(),
 					ChoiceOptions = playerOptions
 				},
@@ -184,6 +185,7 @@ public sealed class FormsController : ControllerBase
 					Prompt = "Dick of the day",
 					Type = ClubFormQuestionType.SingleChoice,
 					IsRequired = true,
+					OptionSource = ClubFormQuestionOptionSource.MatchPlayers,
 					Options = [..playerOptions.Select(option => option.Label), otherOption.Label],
 					ChoiceOptions = [..playerOptions, otherOption]
 				},

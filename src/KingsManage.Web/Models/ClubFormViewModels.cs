@@ -61,6 +61,7 @@ public sealed class ClubFormQuestionViewModel
 	public string Prompt { get; set; } = string.Empty;
 	public ClubFormQuestionType Type { get; set; }
 	public bool IsRequired { get; set; }
+	public ClubFormQuestionOptionSource OptionSource { get; set; } = ClubFormQuestionOptionSource.Manual;
 	public List<string> Options { get; set; } = [];
 	public List<ClubFormQuestionOptionViewModel> ChoiceOptions { get; set; } = [];
 	public int MinRating { get; set; }
@@ -74,6 +75,7 @@ public sealed class ClubFormQuestionViewModel
 			Prompt = question.Prompt,
 			Type = question.Type,
 			IsRequired = question.IsRequired,
+			OptionSource = question.OptionSource,
 			Options = question.Options ?? [],
 			ChoiceOptions = (question.ChoiceOptions ?? []).Select(ClubFormQuestionOptionViewModel.FromOption).ToList(),
 			MinRating = question.MinRating,
@@ -89,6 +91,7 @@ public sealed class ClubFormQuestionViewModel
 			Prompt = Prompt,
 			Type = Type,
 			IsRequired = IsRequired,
+			OptionSource = OptionSource,
 			Options = Options ?? [],
 			ChoiceOptions = (ChoiceOptions ?? []).Select(option => option.ToOption()).ToList(),
 			MinRating = MinRating,
