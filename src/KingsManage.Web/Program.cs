@@ -12,6 +12,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Newtonsoft.Json.Converters;
 
+Environment.SetEnvironmentVariable(
+	"DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE",
+	Environment.GetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE") ?? "false");
+
 var builder = WebApplication.CreateBuilder(args);
 
 var port = Environment.GetEnvironmentVariable("PORT");
