@@ -61,6 +61,16 @@ public sealed class TenantDataMigrator
 				new CreateIndexOptions { Name = "GoCode_1" }),
 			cancellationToken: cancellationToken);
 
+		await forms.Indexes.CreateOneAsync(
+			new CreateIndexModel<ClubForm>(
+				Builders<ClubForm>.IndexKeys
+					.Ascending(form => form.OrganizationId)
+					.Ascending(form => form.ClubId)
+					.Ascending(form => form.SourceType)
+					.Ascending(form => form.SourceMatchId),
+				new CreateIndexOptions { Name = "TenantSourceMatch_1" }),
+			cancellationToken: cancellationToken);
+
 		var submissions = database.GetCollection<ClubFormSubmission>("formSubmissions");
 		try
 		{

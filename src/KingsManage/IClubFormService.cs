@@ -8,6 +8,8 @@ public interface IClubFormService
 
 	Task<ClubForm?> GetByGoCodeAsync(string goCode, CancellationToken cancellationToken = default);
 
+	Task<ClubForm?> GetMatchAwardsFormAsync(Guid matchId, CancellationToken cancellationToken = default);
+
 	Task<ClubForm> CreateAsync(ClubForm form, CancellationToken cancellationToken = default);
 
 	Task<ClubForm?> UpdateAsync(ClubForm form, CancellationToken cancellationToken = default);

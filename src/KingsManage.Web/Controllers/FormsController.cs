@@ -14,15 +14,18 @@ public sealed class FormsController : ControllerBase
 	private readonly IClubFormService formService;
 	private readonly IMatchService matchService;
 	private readonly IPlayerService playerService;
+	private readonly IStatsService statsService;
 
 	public FormsController(
 		IClubFormService formService,
 		IMatchService matchService,
-		IPlayerService playerService)
+		IPlayerService playerService,
+		IStatsService statsService)
 	{
 		this.formService = formService;
 		this.matchService = matchService;
 		this.playerService = playerService;
+		this.statsService = statsService;
 	}
 
 	[HttpGet]
@@ -42,7 +45,11 @@ public sealed class FormsController : ControllerBase
 			var submissionCount = canManage
 				? (await formService.GetSubmissionsAsync(form.Id, cancellationToken)).Count
 				: 0;
-			viewModels.Add(ClubFormViewModel.FromForm(form, hasSubmitted, submissionCount));
+			viewModels.Add(ClubFormViewModel.FromForm(
+				form,
+				hasSubmitted,
+				submissionCount,
+				await GetSourceMatchLabelAsync(form, cancellationToken)));
 		}
 
 		return Ok(viewModels);
@@ -65,7 +72,11 @@ public sealed class FormsController : ControllerBase
 			? (await formService.GetSubmissionsAsync(form.Id, cancellationToken)).Count
 			: 0;
 
-		return Ok(ClubFormViewModel.FromForm(form, hasSubmitted, submissionCount));
+		return Ok(ClubFormViewModel.FromForm(
+			form,
+			hasSubmitted,
+			submissionCount,
+			await GetSourceMatchLabelAsync(form, cancellationToken)));
 	}
 
 	[AllowAnonymous]
@@ -130,6 +141,12 @@ public sealed class FormsController : ControllerBase
 			return NotFound("Match not found.");
 		}
 
+		var existingForm = await formService.GetMatchAwardsFormAsync(match.Id, cancellationToken);
+		if (existingForm is not null)
+		{
+			return Conflict("This match already has an awards form.");
+		}
+
 		var playerOptions = await BuildMatchAwardPlayerOptionsAsync(match, cancellationToken);
 		if (playerOptions.Count == 0)
 		{
@@ -144,6 +161,8 @@ public sealed class FormsController : ControllerBase
 			Title = $"Match awards: {match.Opponent}",
 			Description = $"Vote for the match awards from {match.Date:dd/MM/yyyy}.",
 			Status = ClubFormStatus.Open,
+			SourceType = ClubFormSourceType.MatchAwards,
+			SourceMatchId = match.Id,
 			AllowAnonymousResponses = true,
 			AllowMultipleSubmissions = false,
 			CreatedByUserId = userIdResult.UserId,
@@ -184,7 +203,29 @@ public sealed class FormsController : ControllerBase
 		return CreatedAtAction(
 			nameof(GetById),
 			new { id = created.Id },
-			ClubFormViewModel.FromForm(created, false));
+			ClubFormViewModel.FromForm(
+				created,
+				false,
+				0,
+				BuildMatchLabel(match)));
+	}
+
+	[Authorize(Policy = "TeamManagement")]
+	[HttpGet("match-awards/{matchId}")]
+	public async Task<ActionResult<ClubFormViewModel>> GetMatchAwardsForm(
+		string matchId,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(matchId, "Match", out var parsedMatchId, out var errorResult)) return errorResult!;
+
+		var form = await formService.GetMatchAwardsFormAsync(parsedMatchId, cancellationToken);
+		if (form is null) return NotFound();
+
+		return Ok(ClubFormViewModel.FromForm(
+			form,
+			false,
+			(await formService.GetSubmissionsAsync(form.Id, cancellationToken)).Count,
+			await GetSourceMatchLabelAsync(form, cancellationToken)));
 	}
 
 	[Authorize(Policy = "TeamManagement")]
@@ -209,10 +250,52 @@ public sealed class FormsController : ControllerBase
 	}
 
 	[Authorize(Policy = "TeamManagement")]
-	[HttpDelete("{id}")]
-	public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
+	[HttpPatch("{id}/status")]
+	public async Task<ActionResult<ClubFormViewModel>> UpdateStatus(
+		string id,
+		UpdateClubFormStatusModel model,
+		CancellationToken cancellationToken)
 	{
 		if (!TryParseGuid(id, "Form", out var formId, out var errorResult)) return errorResult!;
+
+		var form = await formService.GetByIdAsync(formId, cancellationToken);
+		if (form is null) return NotFound();
+
+		form.Status = model.Status;
+
+		if (model.Status == ClubFormStatus.Closed &&
+			form.SourceType == ClubFormSourceType.MatchAwards &&
+			form.SourceMatchId.HasValue)
+		{
+			await ApplyMatchAwardsFormAsync(form, cancellationToken);
+		}
+
+		var updated = await formService.UpdateAsync(form, cancellationToken);
+		return updated is null
+			? NotFound()
+			: Ok(ClubFormViewModel.FromForm(
+				updated,
+				false,
+				(await formService.GetSubmissionsAsync(updated.Id, cancellationToken)).Count,
+				await GetSourceMatchLabelAsync(updated, cancellationToken)));
+	}
+
+	[Authorize(Policy = "TeamManagement")]
+	[HttpDelete("{id}")]
+	public async Task<IActionResult> Delete(
+		string id,
+		[FromQuery] bool cleanupMatchAward,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "Form", out var formId, out var errorResult)) return errorResult!;
+
+		var form = await formService.GetByIdAsync(formId, cancellationToken);
+		if (form is null) return NotFound();
+
+		if (cleanupMatchAward)
+		{
+			await ClearAppliedMatchAwardAsync(form, cancellationToken);
+		}
 
 		var deleted = await formService.DeleteAsync(formId, cancellationToken);
 		return deleted ? NoContent() : NotFound();
@@ -332,6 +415,145 @@ public sealed class FormsController : ControllerBase
 
 		var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
 		return Ok(BuildResults(form, submissions));
+	}
+
+	private async Task ApplyMatchAwardsFormAsync(ClubForm form, CancellationToken cancellationToken)
+	{
+		if (!form.SourceMatchId.HasValue)
+		{
+			return;
+		}
+
+		var match = await matchService.GetByIdAsync(form.SourceMatchId.Value, cancellationToken);
+		if (match is null)
+		{
+			return;
+		}
+
+		var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
+		var winningPlayerName = GetTopChoiceAnswer(form, submissions, "Man of the match");
+		if (string.IsNullOrWhiteSpace(winningPlayerName))
+		{
+			return;
+		}
+
+		var players = await playerService.GetAllAsync(cancellationToken);
+		var winningPlayer = players.FirstOrDefault(player =>
+			string.Equals(player.Name, winningPlayerName, StringComparison.OrdinalIgnoreCase));
+		if (winningPlayer is null)
+		{
+			return;
+		}
+
+		var selectedPlayer = match.SelectedPlayers.FirstOrDefault(selectedPlayer =>
+			selectedPlayer.PlayerId == winningPlayer.Id);
+		if (selectedPlayer is null)
+		{
+			return;
+		}
+
+		var playerStats = match.PlayerStats.ToList();
+		var existingStat = playerStats.FirstOrDefault(stats => stats.PlayerId == winningPlayer.Id);
+		if (existingStat is null)
+		{
+			existingStat = new MatchPlayerStats
+			{
+				PlayerId = winningPlayer.Id,
+				AppearanceType = selectedPlayer.Area == "bench"
+					? MatchAppearanceType.SubstituteUsed
+					: MatchAppearanceType.Started,
+				Minutes = selectedPlayer.Area == "bench" ? 0 : 90
+			};
+			playerStats.Add(existingStat);
+		}
+
+		foreach (var stats in playerStats)
+		{
+			stats.IsMOTM = stats.PlayerId == winningPlayer.Id;
+		}
+
+		var updatedMatch = await matchService.UpdatePlayerStatsAsync(match.Id, playerStats, cancellationToken);
+		if (updatedMatch?.SeasonId is not null)
+		{
+			await statsService.RecalculateSeasonStatsAsync(updatedMatch.SeasonId.Value, cancellationToken);
+		}
+
+		form.AppliedMatchAwardPlayerId = winningPlayer.Id;
+		form.AppliedMatchAwardAt = DateTime.UtcNow;
+	}
+
+	private async Task ClearAppliedMatchAwardAsync(ClubForm form, CancellationToken cancellationToken)
+	{
+		if (!form.SourceMatchId.HasValue || !form.AppliedMatchAwardPlayerId.HasValue)
+		{
+			return;
+		}
+
+		var match = await matchService.GetByIdAsync(form.SourceMatchId.Value, cancellationToken);
+		if (match is null)
+		{
+			return;
+		}
+
+		var playerStats = match.PlayerStats.ToList();
+		var changed = false;
+		foreach (var stats in playerStats.Where(stats => stats.PlayerId == form.AppliedMatchAwardPlayerId.Value))
+		{
+			if (stats.IsMOTM)
+			{
+				stats.IsMOTM = false;
+				changed = true;
+			}
+		}
+
+		if (!changed)
+		{
+			return;
+		}
+
+		var updatedMatch = await matchService.UpdatePlayerStatsAsync(match.Id, playerStats, cancellationToken);
+		if (updatedMatch?.SeasonId is not null)
+		{
+			await statsService.RecalculateSeasonStatsAsync(updatedMatch.SeasonId.Value, cancellationToken);
+		}
+	}
+
+	private async Task<string> GetSourceMatchLabelAsync(ClubForm form, CancellationToken cancellationToken)
+	{
+		if (!form.SourceMatchId.HasValue)
+		{
+			return string.Empty;
+		}
+
+		var match = await matchService.GetByIdAsync(form.SourceMatchId.Value, cancellationToken);
+		return match is null ? string.Empty : BuildMatchLabel(match);
+	}
+
+	private static string BuildMatchLabel(Match match) =>
+		$"{match.Opponent} · {match.Date:dd/MM/yyyy}";
+
+	private static string GetTopChoiceAnswer(
+		ClubForm form,
+		IReadOnlyList<ClubFormSubmission> submissions,
+		string questionPrompt)
+	{
+		var question = form.Questions.FirstOrDefault(question =>
+			string.Equals(question.Prompt, questionPrompt, StringComparison.OrdinalIgnoreCase));
+		if (question is null)
+		{
+			return string.Empty;
+		}
+
+		return submissions
+			.SelectMany(submission => submission.Answers)
+			.Where(answer => answer.QuestionId == question.Id)
+			.SelectMany(answer => answer.SelectedOptions)
+			.Where(option => !string.IsNullOrWhiteSpace(option))
+			.GroupBy(option => option, StringComparer.OrdinalIgnoreCase)
+			.Select(group => new { Value = group.Key, Count = group.Count() })
+			.OrderByDescending(result => result.Count)
+			.ThenBy(result => result.Value)
+			.FirstOrDefault()?.Value ?? string.Empty;
 	}
 
 	private bool CanManageForms() =>

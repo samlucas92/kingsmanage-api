@@ -9,6 +9,11 @@ public sealed class ClubFormViewModel
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public ClubFormStatus Status { get; set; }
+	public ClubFormSourceType SourceType { get; set; }
+	public Guid? SourceMatchId { get; set; }
+	public string SourceMatchLabel { get; set; } = string.Empty;
+	public Guid? AppliedMatchAwardPlayerId { get; set; }
+	public string CreatedByUserEmail { get; set; } = string.Empty;
 	public bool AllowAnonymousResponses { get; set; }
 	public bool AllowMultipleSubmissions { get; set; }
 	public List<ClubFormQuestionViewModel> Questions { get; set; } = [];
@@ -17,7 +22,11 @@ public sealed class ClubFormViewModel
 	public DateTime CreatedAt { get; set; }
 	public DateTime UpdatedAt { get; set; }
 
-	public static ClubFormViewModel FromForm(ClubForm form, bool hasSubmitted, int submissionCount = 0)
+	public static ClubFormViewModel FromForm(
+		ClubForm form,
+		bool hasSubmitted,
+		int submissionCount = 0,
+		string sourceMatchLabel = "")
 	{
 		return new ClubFormViewModel
 		{
@@ -26,6 +35,11 @@ public sealed class ClubFormViewModel
 			Title = form.Title,
 			Description = form.Description,
 			Status = form.Status,
+			SourceType = form.SourceType,
+			SourceMatchId = form.SourceMatchId,
+			SourceMatchLabel = sourceMatchLabel,
+			AppliedMatchAwardPlayerId = form.AppliedMatchAwardPlayerId,
+			CreatedByUserEmail = form.CreatedByUserEmail,
 			AllowAnonymousResponses = form.AllowAnonymousResponses,
 			AllowMultipleSubmissions = form.AllowMultipleSubmissions,
 			Questions = form.Questions.Select(ClubFormQuestionViewModel.FromQuestion).ToList(),
@@ -81,6 +95,8 @@ public sealed class SaveClubFormModel
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public ClubFormStatus Status { get; set; } = ClubFormStatus.Draft;
+	public ClubFormSourceType SourceType { get; set; } = ClubFormSourceType.General;
+	public Guid? SourceMatchId { get; set; }
 	public bool AllowAnonymousResponses { get; set; } = true;
 	public bool AllowMultipleSubmissions { get; set; }
 	public List<ClubFormQuestionViewModel> Questions { get; set; } = [];
@@ -92,6 +108,8 @@ public sealed class SaveClubFormModel
 			Title = Title,
 			Description = Description,
 			Status = Status,
+			SourceType = SourceType,
+			SourceMatchId = SourceMatchId,
 			AllowAnonymousResponses = AllowAnonymousResponses,
 			AllowMultipleSubmissions = AllowMultipleSubmissions,
 			Questions = Questions.Select(question => question.ToQuestion()).ToList(),
@@ -111,6 +129,10 @@ public sealed class SaveClubFormModel
 			Title = Title,
 			Description = Description,
 			Status = Status,
+			SourceType = existingForm.SourceType,
+			SourceMatchId = existingForm.SourceMatchId,
+			AppliedMatchAwardPlayerId = existingForm.AppliedMatchAwardPlayerId,
+			AppliedMatchAwardAt = existingForm.AppliedMatchAwardAt,
 			AllowAnonymousResponses = AllowAnonymousResponses,
 			AllowMultipleSubmissions = AllowMultipleSubmissions,
 			Questions = Questions.Select(question => question.ToQuestion()).ToList(),
@@ -130,6 +152,11 @@ public sealed class SubmitClubFormModel
 public sealed class CreateMatchAwardsFormModel
 {
 	public Guid MatchId { get; set; }
+}
+
+public sealed class UpdateClubFormStatusModel
+{
+	public ClubFormStatus Status { get; set; }
 }
 
 public sealed class ClubFormAnswerViewModel

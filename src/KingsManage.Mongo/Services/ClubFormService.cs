@@ -59,6 +59,23 @@ public class ClubFormService : IClubFormService
 		return form is null ? null : NormaliseFormFromStorage(form);
 	}
 
+	public async Task<ClubForm?> GetMatchAwardsFormAsync(Guid matchId, CancellationToken cancellationToken = default)
+	{
+		if (matchId == Guid.Empty)
+		{
+			return null;
+		}
+
+		var form = await forms
+			.Find(tenant.Filter<ClubForm>(form =>
+				form.SourceType == ClubFormSourceType.MatchAwards &&
+				form.SourceMatchId == matchId))
+			.SortByDescending(form => form.CreatedAt)
+			.FirstOrDefaultAsync(cancellationToken);
+
+		return form is null ? null : NormaliseFormFromStorage(form);
+	}
+
 	public async Task<ClubForm> CreateAsync(ClubForm form, CancellationToken cancellationToken = default)
 	{
 		form.Id = form.Id == Guid.Empty ? Guid.NewGuid() : form.Id;

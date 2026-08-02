@@ -9,6 +9,10 @@ public class ClubForm : ITenantOwned
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public ClubFormStatus Status { get; set; } = ClubFormStatus.Draft;
+	public ClubFormSourceType SourceType { get; set; } = ClubFormSourceType.General;
+	public Guid? SourceMatchId { get; set; }
+	public Guid? AppliedMatchAwardPlayerId { get; set; }
+	public DateTime? AppliedMatchAwardAt { get; set; }
 	public bool AllowAnonymousResponses { get; set; } = true;
 	public bool AllowMultipleSubmissions { get; set; }
 	public List<ClubFormQuestion> Questions { get; set; } = [];
