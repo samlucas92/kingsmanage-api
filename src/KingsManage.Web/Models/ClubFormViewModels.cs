@@ -241,6 +241,31 @@ public sealed class ClubFormResultsViewModel
 	public List<ClubFormQuestionResultViewModel> Questions { get; set; } = [];
 }
 
+public sealed class ClubFormSubmissionReportViewModel
+{
+	public Guid FormId { get; set; }
+	public string Title { get; set; } = string.Empty;
+	public int SubmissionCount { get; set; }
+	public List<ClubFormSubmissionViewModel> Submissions { get; set; } = [];
+}
+
+public sealed class ClubFormSubmissionViewModel
+{
+	public Guid Id { get; set; }
+	public string Label { get; set; } = string.Empty;
+	public DateTime SubmittedAt { get; set; }
+	public List<ClubFormSubmissionAnswerViewModel> Answers { get; set; } = [];
+}
+
+public sealed class ClubFormSubmissionAnswerViewModel
+{
+	public Guid QuestionId { get; set; }
+	public string Prompt { get; set; } = string.Empty;
+	public ClubFormQuestionType Type { get; set; }
+	public string DisplayValue { get; set; } = string.Empty;
+	public List<string> Values { get; set; } = [];
+}
+
 public sealed class ClubFormQuestionResultViewModel
 {
 	public Guid QuestionId { get; set; }

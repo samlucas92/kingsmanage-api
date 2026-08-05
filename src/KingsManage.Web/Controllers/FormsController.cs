@@ -427,6 +427,21 @@ public sealed class FormsController : ControllerBase
 		return Ok(BuildResults(form, submissions));
 	}
 
+	[Authorize(Policy = "TeamManagement")]
+	[HttpGet("{id}/submission-report")]
+	public async Task<ActionResult<ClubFormSubmissionReportViewModel>> GetSubmissionReport(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "Form", out var formId, out var errorResult)) return errorResult!;
+
+		var form = await formService.GetByIdAsync(formId, cancellationToken);
+		if (form is null) return NotFound();
+
+		var submissions = await formService.GetSubmissionsAsync(form.Id, cancellationToken);
+		return Ok(BuildSubmissionReport(form, submissions));
+	}
+
 	private async Task ApplyMatchAwardsFormAsync(ClubForm form, CancellationToken cancellationToken)
 	{
 		if (!form.SourceMatchId.HasValue)
@@ -811,6 +826,82 @@ public sealed class FormsController : ControllerBase
 			SubmissionCount = submissions.Count,
 			Questions = form.Questions.Select(question => BuildQuestionResult(question, submissions)).ToList()
 		};
+	}
+
+	private static ClubFormSubmissionReportViewModel BuildSubmissionReport(
+		ClubForm form,
+		IReadOnlyList<ClubFormSubmission> submissions)
+	{
+		var orderedSubmissions = submissions
+			.OrderBy(submission => submission.SubmittedAt)
+			.ToList();
+
+		return new ClubFormSubmissionReportViewModel
+		{
+			FormId = form.Id,
+			Title = form.Title,
+			SubmissionCount = orderedSubmissions.Count,
+			Submissions = orderedSubmissions
+				.Select((submission, index) => new ClubFormSubmissionViewModel
+				{
+					Id = submission.Id,
+					Label = $"Submission {index + 1}",
+					SubmittedAt = submission.SubmittedAt,
+					Answers = form.Questions
+						.Select(question => BuildSubmissionAnswer(question, submission))
+						.ToList()
+				})
+				.ToList()
+		};
+	}
+
+	private static ClubFormSubmissionAnswerViewModel BuildSubmissionAnswer(
+		ClubFormQuestion question,
+		ClubFormSubmission submission)
+	{
+		var answer = submission.Answers.FirstOrDefault(item => item.QuestionId == question.Id);
+		var values = GetSubmissionAnswerValues(question, answer);
+
+		return new ClubFormSubmissionAnswerViewModel
+		{
+			QuestionId = question.Id,
+			Prompt = question.Prompt,
+			Type = question.Type,
+			Values = values,
+			DisplayValue = values.Count == 0 ? "No answer" : string.Join(", ", values)
+		};
+	}
+
+	private static List<string> GetSubmissionAnswerValues(ClubFormQuestion question, ClubFormAnswer? answer)
+	{
+		if (answer is null) return [];
+
+		return question.Type switch
+		{
+			ClubFormQuestionType.ShortText or ClubFormQuestionType.LongText =>
+				string.IsNullOrWhiteSpace(answer.TextValue) ? [] : [answer.TextValue.Trim()],
+			ClubFormQuestionType.SingleChoice or ClubFormQuestionType.MultipleChoice =>
+				GetChoiceLabels(question, answer.SelectedOptions),
+			ClubFormQuestionType.Rating =>
+				answer.RatingValue.HasValue ? [answer.RatingValue.Value.ToString()] : [],
+			ClubFormQuestionType.YesNo =>
+				answer.BooleanValue.HasValue ? [answer.BooleanValue.Value ? "Yes" : "No"] : [],
+			_ => []
+		};
+	}
+
+	private static List<string> GetChoiceLabels(ClubFormQuestion question, List<string> selectedOptions)
+	{
+		var choiceOptions = GetChoiceOptions(question);
+
+		return selectedOptions
+			.Select(value =>
+				choiceOptions.FirstOrDefault(option =>
+					string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(option.Label, value, StringComparison.OrdinalIgnoreCase))?.Label ?? value)
+			.Where(value => !string.IsNullOrWhiteSpace(value))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
 	}
 
 	private static ClubFormQuestionResultViewModel BuildQuestionResult(
