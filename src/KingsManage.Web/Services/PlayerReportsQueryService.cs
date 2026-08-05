@@ -326,6 +326,14 @@ public sealed class PlayerReportsQueryService : IPlayerReportsQueryService
 			return choice.PlayerId.Value;
 		}
 
+		var resolution = (form.AwardResolutions ?? []).FirstOrDefault(resolution =>
+			string.Equals(resolution.QuestionPrompt, questionPrompt, StringComparison.OrdinalIgnoreCase) &&
+			string.Equals(resolution.SelectedValue, selectedValue, StringComparison.OrdinalIgnoreCase));
+		if (resolution is not null && resolution.PlayerId != Guid.Empty)
+		{
+			return resolution.PlayerId;
+		}
+
 		if (Guid.TryParse(selectedValue, out var selectedPlayerId))
 		{
 			return selectedPlayerId;

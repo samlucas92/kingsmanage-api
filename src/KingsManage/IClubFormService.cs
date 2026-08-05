@@ -14,6 +14,11 @@ public interface IClubFormService
 
 	Task<ClubForm?> UpdateAsync(ClubForm form, CancellationToken cancellationToken = default);
 
+	Task<ClubForm?> ResolveAwardOptionAsync(
+		Guid formId,
+		ClubFormAwardResolution resolution,
+		CancellationToken cancellationToken = default);
+
 	Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
 	Task<bool> HasSubmittedAsync(Guid formId, Guid userId, CancellationToken cancellationToken = default);

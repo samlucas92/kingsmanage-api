@@ -152,7 +152,13 @@ public sealed class FormsController : ControllerBase
 		{
 			return BadRequest("Select at least one player before creating an awards form.");
 		}
-		var otherOption = new ClubFormQuestionOption { Value = "Other", Label = "Other" };
+		var otherOption = new ClubFormQuestionOption
+		{
+			Value = "Other",
+			Label = "Other",
+			RequiresTextInput = true,
+			TextInputLabel = "Who was it?"
+		};
 
 		var userIdResult = GetCurrentUserId();
 		if (!userIdResult.Success) return BadRequest(userIdResult.ErrorMessage);
@@ -288,6 +294,57 @@ public sealed class FormsController : ControllerBase
 				false,
 				(await formService.GetSubmissionsAsync(updated.Id, cancellationToken)).Count,
 				await GetSourceMatchLabelAsync(updated, cancellationToken)));
+	}
+
+	[Authorize(Policy = "TeamManagement")]
+	[HttpPatch("{id}/award-resolution")]
+	public async Task<ActionResult<ClubFormViewModel>> ResolveAwardOption(
+		string id,
+		ResolveClubFormAwardOptionModel model,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "Form", out var formId, out var errorResult)) return errorResult!;
+		if (model.QuestionId == Guid.Empty) return BadRequest("Question is required.");
+		if (model.PlayerId == Guid.Empty) return BadRequest("Player is required.");
+		if (string.IsNullOrWhiteSpace(model.SelectedValue)) return BadRequest("Selected option is required.");
+
+		var form = await formService.GetByIdAsync(formId, cancellationToken);
+		if (form is null) return NotFound();
+
+		var question = form.Questions.FirstOrDefault(question => question.Id == model.QuestionId);
+		if (question is null) return BadRequest("Question was not found.");
+
+		var player = (await playerService.GetAllAsync(cancellationToken))
+			.FirstOrDefault(player => player.Id == model.PlayerId);
+		if (player is null) return BadRequest("Player was not found.");
+
+		var resolved = await formService.ResolveAwardOptionAsync(
+			form.Id,
+			new ClubFormAwardResolution
+			{
+				QuestionId = question.Id,
+				QuestionPrompt = question.Prompt,
+				SelectedValue = model.SelectedValue,
+				PlayerId = player.Id,
+				ResolvedAt = DateTime.UtcNow
+			},
+			cancellationToken);
+		if (resolved is null) return NotFound();
+
+		if (resolved.Status == ClubFormStatus.Closed &&
+			resolved.SourceType == ClubFormSourceType.MatchAwards &&
+			resolved.SourceMatchId.HasValue)
+		{
+			await ApplyMatchAwardsFormAsync(resolved, cancellationToken);
+			resolved = await formService.UpdateAsync(resolved, cancellationToken);
+			if (resolved is null) return NotFound();
+		}
+
+		return Ok(ClubFormViewModel.FromForm(
+			resolved,
+			false,
+			(await formService.GetSubmissionsAsync(resolved.Id, cancellationToken)).Count,
+			await GetSourceMatchLabelAsync(resolved, cancellationToken)));
 	}
 
 	[Authorize(Policy = "TeamManagement")]
@@ -640,6 +697,14 @@ public sealed class FormsController : ControllerBase
 			return choice.PlayerId.Value;
 		}
 
+		var resolution = (form.AwardResolutions ?? []).FirstOrDefault(resolution =>
+			string.Equals(resolution.QuestionPrompt, questionPrompt, StringComparison.OrdinalIgnoreCase) &&
+			string.Equals(resolution.SelectedValue, selectedValue, StringComparison.OrdinalIgnoreCase));
+		if (resolution is not null && resolution.PlayerId != Guid.Empty)
+		{
+			return resolution.PlayerId;
+		}
+
 		if (Guid.TryParse(selectedValue, out var selectedPlayerId))
 		{
 			return selectedPlayerId;
@@ -663,7 +728,11 @@ public sealed class FormsController : ControllerBase
 					Label = string.IsNullOrWhiteSpace(option.Label)
 						? option.Value
 						: option.Label,
-					PlayerId = option.PlayerId
+					PlayerId = option.PlayerId,
+					RequiresTextInput = option.RequiresTextInput || IsOtherOption(option.Value, option.Label),
+					TextInputLabel = string.IsNullOrWhiteSpace(option.TextInputLabel)
+						? "Please specify"
+						: option.TextInputLabel
 				})
 				.ToList();
 		}
@@ -673,7 +742,9 @@ public sealed class FormsController : ControllerBase
 			.Select(option => new ClubFormQuestionOption
 			{
 				Value = option,
-				Label = option
+				Label = option,
+				RequiresTextInput = IsOtherOption(option, option),
+				TextInputLabel = "Please specify"
 			})
 			.ToList();
 	}
@@ -734,6 +805,16 @@ public sealed class FormsController : ControllerBase
 				if (question.Type == ClubFormQuestionType.SingleChoice && answer.SelectedOptions.Count > 1)
 				{
 					return $"Choose one option for: {question.Prompt}";
+				}
+
+				var selectedTextOption = choiceOptions.FirstOrDefault(option =>
+					OptionRequiresTextInput(option) &&
+					answer.SelectedOptions.Any(selectedOption =>
+						string.Equals(selectedOption, option.Value, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(selectedOption, option.Label, StringComparison.OrdinalIgnoreCase)));
+				if (selectedTextOption is not null && string.IsNullOrWhiteSpace(answer.TextValue))
+				{
+					return $"{selectedTextOption.Label} needs a name for: {question.Prompt}";
 				}
 			}
 
@@ -881,7 +962,7 @@ public sealed class FormsController : ControllerBase
 			ClubFormQuestionType.ShortText or ClubFormQuestionType.LongText =>
 				string.IsNullOrWhiteSpace(answer.TextValue) ? [] : [answer.TextValue.Trim()],
 			ClubFormQuestionType.SingleChoice or ClubFormQuestionType.MultipleChoice =>
-				GetChoiceLabels(question, answer.SelectedOptions),
+				GetChoiceLabels(question, answer),
 			ClubFormQuestionType.Rating =>
 				answer.RatingValue.HasValue ? [answer.RatingValue.Value.ToString()] : [],
 			ClubFormQuestionType.YesNo =>
@@ -903,6 +984,35 @@ public sealed class FormsController : ControllerBase
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.ToList();
 	}
+
+	private static List<string> GetChoiceLabels(ClubFormQuestion question, ClubFormAnswer answer)
+	{
+		var choiceOptions = GetChoiceOptions(question);
+
+		return answer.SelectedOptions
+			.Select(value =>
+			{
+				var option = choiceOptions.FirstOrDefault(item =>
+					string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(item.Label, value, StringComparison.OrdinalIgnoreCase));
+				var label = option?.Label ?? value;
+				return option is not null &&
+					OptionRequiresTextInput(option) &&
+					!string.IsNullOrWhiteSpace(answer.TextValue)
+						? $"{label}: {answer.TextValue.Trim()}"
+						: label;
+			})
+			.Where(value => !string.IsNullOrWhiteSpace(value))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
+	}
+
+	private static bool OptionRequiresTextInput(ClubFormQuestionOption option) =>
+		option.RequiresTextInput || IsOtherOption(option.Value, option.Label);
+
+	private static bool IsOtherOption(string? value, string? label) =>
+		string.Equals(value?.Trim(), "Other", StringComparison.OrdinalIgnoreCase) ||
+		string.Equals(label?.Trim(), "Other", StringComparison.OrdinalIgnoreCase);
 
 	private static ClubFormQuestionResultViewModel BuildQuestionResult(
 		ClubFormQuestion question,
@@ -930,6 +1040,7 @@ public sealed class FormsController : ControllerBase
 					Value = option.Value,
 					Label = option.Label,
 					PlayerId = option.PlayerId,
+					RequiresTextInput = OptionRequiresTextInput(option),
 					Count = answers.Count(answer =>
 						answer.SelectedOptions.Contains(option.Value, StringComparer.OrdinalIgnoreCase) ||
 						answer.SelectedOptions.Contains(option.Label, StringComparer.OrdinalIgnoreCase))

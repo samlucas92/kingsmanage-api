@@ -15,6 +15,7 @@ public class ClubForm : ITenantOwned
 	public Guid? AppliedMatchAwardPlayerId { get; set; }
 	public List<Guid> AppliedMatchAwardPlayerIds { get; set; } = [];
 	public DateTime? AppliedMatchAwardAt { get; set; }
+	public List<ClubFormAwardResolution> AwardResolutions { get; set; } = [];
 	public bool AllowAnonymousResponses { get; set; } = true;
 	public bool AllowMultipleSubmissions { get; set; }
 	public List<ClubFormQuestion> Questions { get; set; } = [];
@@ -22,4 +23,13 @@ public class ClubForm : ITenantOwned
 	public string CreatedByUserEmail { get; set; } = string.Empty;
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class ClubFormAwardResolution
+{
+	public Guid QuestionId { get; set; }
+	public string QuestionPrompt { get; set; } = string.Empty;
+	public string SelectedValue { get; set; } = string.Empty;
+	public Guid PlayerId { get; set; }
+	public DateTime ResolvedAt { get; set; } = DateTime.UtcNow;
 }

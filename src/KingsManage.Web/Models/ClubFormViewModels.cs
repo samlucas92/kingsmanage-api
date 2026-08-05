@@ -15,6 +15,7 @@ public sealed class ClubFormViewModel
 	public string SourceMatchLabel { get; set; } = string.Empty;
 	public Guid? AppliedMatchAwardPlayerId { get; set; }
 	public List<Guid> AppliedMatchAwardPlayerIds { get; set; } = [];
+	public List<ClubFormAwardResolutionViewModel> AwardResolutions { get; set; } = [];
 	public string CreatedByUserEmail { get; set; } = string.Empty;
 	public bool AllowAnonymousResponses { get; set; }
 	public bool AllowMultipleSubmissions { get; set; }
@@ -43,6 +44,9 @@ public sealed class ClubFormViewModel
 			SourceMatchLabel = sourceMatchLabel,
 			AppliedMatchAwardPlayerId = form.AppliedMatchAwardPlayerId,
 			AppliedMatchAwardPlayerIds = form.AppliedMatchAwardPlayerIds ?? [],
+			AwardResolutions = (form.AwardResolutions ?? [])
+				.Select(ClubFormAwardResolutionViewModel.FromResolution)
+				.ToList(),
 			CreatedByUserEmail = form.CreatedByUserEmail,
 			AllowAnonymousResponses = form.AllowAnonymousResponses,
 			AllowMultipleSubmissions = form.AllowMultipleSubmissions,
@@ -105,6 +109,8 @@ public sealed class ClubFormQuestionOptionViewModel
 	public string Value { get; set; } = string.Empty;
 	public string Label { get; set; } = string.Empty;
 	public Guid? PlayerId { get; set; }
+	public bool RequiresTextInput { get; set; }
+	public string TextInputLabel { get; set; } = string.Empty;
 
 	public static ClubFormQuestionOptionViewModel FromOption(ClubFormQuestionOption option)
 	{
@@ -112,7 +118,9 @@ public sealed class ClubFormQuestionOptionViewModel
 		{
 			Value = option.Value,
 			Label = option.Label,
-			PlayerId = option.PlayerId
+			PlayerId = option.PlayerId,
+			RequiresTextInput = option.RequiresTextInput,
+			TextInputLabel = option.TextInputLabel
 		};
 	}
 
@@ -122,7 +130,9 @@ public sealed class ClubFormQuestionOptionViewModel
 		{
 			Value = Value,
 			Label = Label,
-			PlayerId = PlayerId
+			PlayerId = PlayerId,
+			RequiresTextInput = RequiresTextInput,
+			TextInputLabel = TextInputLabel
 		};
 	}
 }
@@ -174,6 +184,7 @@ public sealed class SaveClubFormModel
 			AppliedMatchAwardPlayerId = existingForm.AppliedMatchAwardPlayerId,
 			AppliedMatchAwardPlayerIds = existingForm.AppliedMatchAwardPlayerIds ?? [],
 			AppliedMatchAwardAt = existingForm.AppliedMatchAwardAt,
+			AwardResolutions = existingForm.AwardResolutions ?? [],
 			AllowAnonymousResponses = AllowAnonymousResponses,
 			AllowMultipleSubmissions = AllowMultipleSubmissions,
 			Questions = Questions.Select(question => question.ToQuestion()).ToList(),
@@ -198,6 +209,34 @@ public sealed class CreateMatchAwardsFormModel
 public sealed class UpdateClubFormStatusModel
 {
 	public ClubFormStatus Status { get; set; }
+}
+
+public sealed class ResolveClubFormAwardOptionModel
+{
+	public Guid QuestionId { get; set; }
+	public string SelectedValue { get; set; } = string.Empty;
+	public Guid PlayerId { get; set; }
+}
+
+public sealed class ClubFormAwardResolutionViewModel
+{
+	public Guid QuestionId { get; set; }
+	public string QuestionPrompt { get; set; } = string.Empty;
+	public string SelectedValue { get; set; } = string.Empty;
+	public Guid PlayerId { get; set; }
+	public DateTime ResolvedAt { get; set; }
+
+	public static ClubFormAwardResolutionViewModel FromResolution(ClubFormAwardResolution resolution)
+	{
+		return new ClubFormAwardResolutionViewModel
+		{
+			QuestionId = resolution.QuestionId,
+			QuestionPrompt = resolution.QuestionPrompt,
+			SelectedValue = resolution.SelectedValue,
+			PlayerId = resolution.PlayerId,
+			ResolvedAt = resolution.ResolvedAt
+		};
+	}
 }
 
 public sealed class ClubFormAnswerViewModel
@@ -282,5 +321,6 @@ public sealed class ClubFormOptionResultViewModel
 	public string Value { get; set; } = string.Empty;
 	public string Label { get; set; } = string.Empty;
 	public Guid? PlayerId { get; set; }
+	public bool RequiresTextInput { get; set; }
 	public int Count { get; set; }
 }

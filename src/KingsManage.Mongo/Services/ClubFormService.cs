@@ -13,6 +13,7 @@ public class ClubFormService : IClubFormService
 	static ClubFormService()
 	{
 		RegisterClassMap<ClubForm>();
+		RegisterClassMap<ClubFormAwardResolution>();
 		RegisterClassMap<ClubFormSubmission>();
 		RegisterClassMap<ClubFormQuestion>();
 		RegisterClassMap<ClubFormQuestionOption>();
@@ -99,6 +100,27 @@ public class ClubFormService : IClubFormService
 			cancellationToken: cancellationToken);
 
 		return result.MatchedCount == 0 ? null : form;
+	}
+
+	public async Task<ClubForm?> ResolveAwardOptionAsync(
+		Guid formId,
+		ClubFormAwardResolution resolution,
+		CancellationToken cancellationToken = default)
+	{
+		var form = await GetByIdAsync(formId, cancellationToken);
+		if (form is null)
+		{
+			return null;
+		}
+
+		form.AwardResolutions = (form.AwardResolutions ?? [])
+			.Where(existingResolution =>
+				existingResolution.QuestionId != resolution.QuestionId ||
+				!string.Equals(existingResolution.SelectedValue, resolution.SelectedValue, StringComparison.OrdinalIgnoreCase))
+			.ToList();
+		form.AwardResolutions.Add(NormaliseAwardResolution(resolution));
+
+		return await UpdateAsync(form, cancellationToken);
 	}
 
 	public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -229,6 +251,7 @@ public class ClubFormService : IClubFormService
 		form.CreatedByUserEmail ??= string.Empty;
 		form.Questions = NormaliseQuestions(form.Questions);
 		form.AppliedMatchAwardPlayerIds ??= [];
+		form.AwardResolutions = NormaliseAwardResolutions(form.AwardResolutions);
 
 		if (form.CreatedAt == default)
 		{
@@ -269,6 +292,7 @@ public class ClubFormService : IClubFormService
 		form.Description = form.Description.Trim();
 		form.CreatedByUserEmail = form.CreatedByUserEmail.Trim();
 		form.AppliedMatchAwardPlayerIds ??= [];
+		form.AwardResolutions = NormaliseAwardResolutions(form.AwardResolutions);
 		form.GoCode = NormaliseGoCode(form.GoCode);
 		if (isNew || string.IsNullOrWhiteSpace(form.GoCode))
 		{
@@ -354,6 +378,33 @@ public class ClubFormService : IClubFormService
 				Label = option
 			})
 			.ToList();
+	}
+
+	private static List<ClubFormAwardResolution> NormaliseAwardResolutions(List<ClubFormAwardResolution>? resolutions)
+	{
+		return (resolutions ?? [])
+			.Where(resolution =>
+				resolution.QuestionId != Guid.Empty &&
+				resolution.PlayerId != Guid.Empty &&
+				!string.IsNullOrWhiteSpace(resolution.SelectedValue))
+			.Select(NormaliseAwardResolution)
+			.GroupBy(
+				resolution => $"{resolution.QuestionId:D}:{resolution.SelectedValue.ToLowerInvariant()}",
+				StringComparer.OrdinalIgnoreCase)
+			.Select(group => group.Last())
+			.ToList();
+	}
+
+	private static ClubFormAwardResolution NormaliseAwardResolution(ClubFormAwardResolution resolution)
+	{
+		resolution.QuestionPrompt = (resolution.QuestionPrompt ?? string.Empty).Trim();
+		resolution.SelectedValue = (resolution.SelectedValue ?? string.Empty).Trim();
+		if (resolution.ResolvedAt == default)
+		{
+			resolution.ResolvedAt = DateTime.UtcNow;
+		}
+
+		return resolution;
 	}
 
 	private static void PrepareSubmissionForSave(ClubFormSubmission submission)
