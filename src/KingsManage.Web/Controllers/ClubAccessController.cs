@@ -54,6 +54,8 @@ public sealed class ClubAccessController : ControllerBase
 				Id = club.Id,
 				Name = club.Name,
 				SportKey = club.SportKey,
+				PrimaryColor = club.PrimaryColor,
+				SecondaryColor = club.SecondaryColor,
 				CustomFormations = club.CustomFormations,
 				IsCurrent = club.Id == tenant.ClubId
 			})

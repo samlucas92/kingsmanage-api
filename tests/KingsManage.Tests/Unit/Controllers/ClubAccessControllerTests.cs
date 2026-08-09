@@ -27,7 +27,7 @@ public sealed class ClubAccessControllerTests
 		{
 			Clubs =
 			[
-				new SportsClub { Id = CurrentClubId, OrganizationId = OrganizationId, Name = "Football", IsActive = true },
+				new SportsClub { Id = CurrentClubId, OrganizationId = OrganizationId, Name = "Football", PrimaryColor = "#123456", SecondaryColor = "#fedcba", IsActive = true },
 				new SportsClub { Id = Guid.NewGuid(), OrganizationId = OrganizationId, Name = "Rugby", IsActive = true },
 				new SportsClub { Id = Guid.NewGuid(), OrganizationId = OrganizationId, Name = "Archived", IsActive = false }
 			]
@@ -39,7 +39,13 @@ public sealed class ClubAccessControllerTests
 		var ok = result.Result as OkObjectResult;
 		var available = ok?.Value as IReadOnlyList<ClubAccessViewModel>;
 		Assert.That(available, Has.Count.EqualTo(2));
-		Assert.That(available!.Single(club => club.Id == CurrentClubId).IsCurrent, Is.True);
+		var currentClub = available!.Single(club => club.Id == CurrentClubId);
+		Assert.Multiple(() =>
+		{
+			Assert.That(currentClub.IsCurrent, Is.True);
+			Assert.That(currentClub.PrimaryColor, Is.EqualTo("#123456"));
+			Assert.That(currentClub.SecondaryColor, Is.EqualTo("#fedcba"));
+		});
 	}
 
 	[Test]
