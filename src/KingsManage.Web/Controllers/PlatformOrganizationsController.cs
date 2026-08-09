@@ -1,4 +1,5 @@
 using KingsManage;
+using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -45,9 +46,21 @@ public sealed class PlatformOrganizationsController : ControllerBase
 	}
 
 	[HttpGet]
-	public async Task<ActionResult<IReadOnlyList<Organization>>> GetAll(
-		CancellationToken cancellationToken) =>
-		Ok(await organizations.GetAllAsync(cancellationToken));
+	public async Task<ActionResult<IReadOnlyList<PlatformOrganizationViewModel>>> GetAll(
+		CancellationToken cancellationToken)
+	{
+		var organizationList = await organizations.GetAllAsync(cancellationToken);
+		var administratorAccounts = await organizations.GetAdministratorAccountsAsync(cancellationToken);
+		var administratorsByOrganization = administratorAccounts
+			.GroupBy(account => account.OrganizationId)
+			.ToDictionary(group => group.Key, group => (IReadOnlyList<OrganizationAdministratorAccount>)group.ToList());
+
+		return Ok(organizationList.Select(organization =>
+			PlatformOrganizationViewModel.FromOrganization(
+				organization,
+				administratorsByOrganization.GetValueOrDefault(organization.Id, [])))
+			.ToList());
+	}
 
 	[HttpPost]
 	public async Task<ActionResult<Organization>> Create(

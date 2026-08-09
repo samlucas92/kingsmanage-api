@@ -9,6 +9,7 @@ public sealed class OrganizationService : IOrganizationService
 	private readonly IMongoCollection<SportsClub> clubs;
 	private readonly IMongoCollection<OrganizationSubscription> subscriptions;
 	private readonly IMongoCollection<BillingInvoice> invoices;
+	private readonly IMongoCollection<AppUser> users;
 	private readonly ITenantContext tenant;
 
 	public OrganizationService(MongoContext context, ITenantContext tenant)
@@ -17,6 +18,7 @@ public sealed class OrganizationService : IOrganizationService
 		clubs = context.Database.GetCollection<SportsClub>("clubs");
 		subscriptions = context.Database.GetCollection<OrganizationSubscription>("organizationSubscriptions");
 		invoices = context.Database.GetCollection<BillingInvoice>("billingInvoices");
+		users = context.Database.GetCollection<AppUser>("users");
 		this.tenant = tenant;
 	}
 
@@ -24,6 +26,35 @@ public sealed class OrganizationService : IOrganizationService
 		await organizations.Find(_ => true)
 			.SortBy(organization => organization.Name)
 			.ToListAsync(cancellationToken);
+
+	public async Task<IReadOnlyList<OrganizationAdministratorAccount>> GetAdministratorAccountsAsync(
+		CancellationToken cancellationToken = default)
+	{
+		var filter = Builders<AppUser>.Filter.ElemMatch(
+			user => user.Memberships,
+			membership =>
+				membership.Role == TenantRole.OrganizationAdmin &&
+				membership.ClubId == null);
+		var administratorUsers = await users.Find(filter).ToListAsync(cancellationToken);
+
+		return administratorUsers
+			.SelectMany(user => user.Memberships
+				.Where(membership =>
+					membership.Role == TenantRole.OrganizationAdmin &&
+					membership.ClubId == null)
+				.Select(membership => new OrganizationAdministratorAccount
+				{
+					OrganizationId = membership.OrganizationId,
+					UserId = user.Id,
+					Email = user.Email,
+					IsActive = user.IsActive,
+					LastLoginAt = user.LastLoginAt
+				}))
+			.GroupBy(account => new { account.OrganizationId, account.UserId })
+			.Select(group => group.First())
+			.OrderBy(account => account.Email)
+			.ToList();
+	}
 
 	public async Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
 		await organizations.Find(organization => organization.Id == id)

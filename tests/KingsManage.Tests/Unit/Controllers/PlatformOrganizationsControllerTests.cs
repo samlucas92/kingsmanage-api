@@ -1,5 +1,6 @@
 using KingsManage;
 using KingsManage.Web.Controllers;
+using KingsManage.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KingsManage.Tests.Unit.Controllers;
@@ -7,6 +8,29 @@ namespace KingsManage.Tests.Unit.Controllers;
 [TestFixture]
 public sealed class PlatformOrganizationsControllerTests
 {
+	[Test]
+	public async Task GetAll_IncludesEveryOrganizationAdministratorAccount()
+	{
+		var service = new StubOrganizationService();
+		var organization = await service.CreateAsync(
+			new Organization { Name = "South Coast Rugby", Slug = "south-coast-rugby" });
+		service.AdministratorAccounts.Add(new OrganizationAdministratorAccount
+		{
+			OrganizationId = organization!.Id,
+			UserId = Guid.NewGuid(),
+			Email = "admin@south-coast.test",
+			IsActive = true
+		});
+		var controller = new PlatformOrganizationsController(service, new StubOnboardingService());
+
+		var result = await controller.GetAll(CancellationToken.None);
+
+		var ok = result.Result as OkObjectResult;
+		var organizations = ok?.Value as IReadOnlyList<PlatformOrganizationViewModel>;
+		Assert.That(organizations, Has.Count.EqualTo(1));
+		Assert.That(organizations![0].Administrators.Single().Email, Is.EqualTo("admin@south-coast.test"));
+	}
+
 	[Test]
 	public async Task Create_ReturnsCreatedOrganization()
 	{
@@ -149,9 +173,12 @@ public sealed class PlatformOrganizationsControllerTests
 	private sealed class StubOrganizationService : IOrganizationService
 	{
 		public List<Organization> Organizations { get; } = [];
+		public List<OrganizationAdministratorAccount> AdministratorAccounts { get; } = [];
 
 		public Task<IReadOnlyList<Organization>> GetAllAsync(CancellationToken cancellationToken = default) =>
 			Task.FromResult<IReadOnlyList<Organization>>(Organizations);
+		public Task<IReadOnlyList<OrganizationAdministratorAccount>> GetAdministratorAccountsAsync(CancellationToken cancellationToken = default) =>
+			Task.FromResult<IReadOnlyList<OrganizationAdministratorAccount>>(AdministratorAccounts);
 		public Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
 			Task.FromResult(Organizations.FirstOrDefault(item => item.Id == id));
 		public Task<Organization?> GetCurrentAsync(CancellationToken cancellationToken = default) =>
