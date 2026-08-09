@@ -112,6 +112,7 @@ builder.Services.AddScoped<IReportsQueryService, ReportsQueryService>();
 builder.Services.AddSingleton<IFileContentScanner, BasicFileContentScanner>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<IPlatformOrganizationOnboardingService, PlatformOrganizationOnboardingService>();
 builder.Services.AddScoped<IOrganizationDashboardService, OrganizationDashboardService>();
 builder.Services.AddScoped<ISportsClubService, SportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, UserMembershipService>();

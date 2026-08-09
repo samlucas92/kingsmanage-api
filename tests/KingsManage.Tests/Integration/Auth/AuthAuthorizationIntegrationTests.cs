@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using KingsManage;
 using NUnit.Framework;
 
@@ -144,6 +146,76 @@ public sealed class AuthAuthorizationIntegrationTests
 		var response = await client.GetAsync("/api/platform/organizations");
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+	}
+
+	[Test]
+	public async Task OrganizationOnboarding_WhenSiteAdminCreatesWorkspace_AdminCanSignIn()
+	{
+		const string siteAdminEmail = "onboarding-site-admin@test.local";
+		const string siteAdminPassword = "SiteAdmin123!";
+		const string administratorEmail = "new-org-admin@test.local";
+		const string temporaryPassword = "Temporary123!";
+		AddTenantUser(siteAdminEmail, siteAdminPassword, TenantRole.OrganizationAdmin, isPlatformAdmin: true);
+		var client = await factory.CreateAuthenticatedClientAsync(siteAdminEmail, siteAdminPassword);
+
+		var response = await client.PostAsJsonAsync("/api/platform/organizations/onboard", new
+		{
+			OrganizationName = "Harbour Sports",
+			OrganizationSlug = "harbour-sports",
+			ClubName = "Harbour FC",
+			ClubSlug = "harbour-fc",
+			SportKey = "football",
+			PrimaryColor = "#0f766e",
+			SecondaryColor = "#d9f99d",
+			ClubContactEmail = administratorEmail,
+			AdministratorEmail = administratorEmail,
+			TemporaryPassword = temporaryPassword,
+			ClubAllowance = 2,
+			BillingEmail = administratorEmail,
+			SubscriptionStatus = "Trialing"
+		});
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+		using (var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync()))
+		{
+			Assert.Multiple(() =>
+			{
+				Assert.That(document.RootElement.GetProperty("organization").GetProperty("name").GetString(), Is.EqualTo("Harbour Sports"));
+				Assert.That(document.RootElement.GetProperty("club").GetProperty("name").GetString(), Is.EqualTo("Harbour FC"));
+				Assert.That(document.RootElement.GetProperty("administratorEmail").GetString(), Is.EqualTo(administratorEmail));
+			});
+		}
+
+		var administratorClient = await factory.CreateAuthenticatedClientAsync(
+			administratorEmail,
+			temporaryPassword);
+		var meResponse = await administratorClient.GetAsync("/api/auth/me");
+		Assert.That(meResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+	}
+
+	[Test]
+	public async Task OrganizationOnboarding_WhenOrganizationAdminIsSent_ReturnsForbidden()
+	{
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword);
+
+		var response = await client.PostAsJsonAsync("/api/platform/organizations/onboard", new
+		{
+			OrganizationName = "Blocked Org",
+			OrganizationSlug = "blocked-org",
+			ClubName = "Blocked FC",
+			ClubSlug = "blocked-fc",
+			SportKey = "football",
+			PrimaryColor = "#0f766e",
+			SecondaryColor = "#d9f99d",
+			AdministratorEmail = "blocked@test.local",
+			TemporaryPassword = "Temporary123!",
+			ClubAllowance = 1,
+			SubscriptionStatus = "Trialing"
+		});
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
 	}
 
 	[Test]

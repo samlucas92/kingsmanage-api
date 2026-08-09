@@ -347,7 +347,7 @@ public class UserService : IUserService
 		});
 	}
 
-	private static string HashPassword(string password)
+	internal static string HashPassword(string password)
 	{
 		var salt = RandomNumberGenerator.GetBytes(PasswordSaltBytes);
 

@@ -28,6 +28,14 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestFileLifecycleService FileLifecycleService { get; } = new();
 	public TestOrganizationService OrganizationService { get; } = new();
 	public TestSocialGraphicTemplateService SocialGraphicTemplateService { get; } = new();
+	public TestPlatformOrganizationOnboardingService OrganizationOnboardingService { get; }
+
+	public AuthIntegrationTestFactory()
+	{
+		OrganizationOnboardingService = new TestPlatformOrganizationOnboardingService(
+			OrganizationService,
+			UserService);
+	}
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -66,6 +74,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IFileStorageService>();
 			services.RemoveAll<IFileLifecycleService>();
 			services.RemoveAll<IOrganizationService>();
+			services.RemoveAll<IPlatformOrganizationOnboardingService>();
 			services.RemoveAll<ISocialGraphicTemplateService>();
 
 			services.AddSingleton<IUserService>(UserService);
@@ -82,6 +91,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 			services.AddSingleton<IFileLifecycleService>(FileLifecycleService);
 			services.AddSingleton<IOrganizationService>(OrganizationService);
+			services.AddSingleton<IPlatformOrganizationOnboardingService>(OrganizationOnboardingService);
 			services.AddSingleton<ISocialGraphicTemplateService>(SocialGraphicTemplateService);
 		});
 	}
@@ -180,6 +190,81 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 		);
 
 		return client;
+	}
+}
+
+public sealed class TestPlatformOrganizationOnboardingService : IPlatformOrganizationOnboardingService
+{
+	private readonly TestOrganizationService organizations;
+	private readonly TestUserService users;
+
+	public TestPlatformOrganizationOnboardingService(
+		TestOrganizationService organizations,
+		TestUserService users)
+	{
+		this.organizations = organizations;
+		this.users = users;
+	}
+
+	public async Task<PlatformOrganizationOnboardingOutcome> CreateAsync(
+		PlatformOrganizationOnboardingInput input,
+		CancellationToken cancellationToken = default)
+	{
+		if (organizations.Organizations.Any(item => item.Slug == input.OrganizationSlug))
+			return new(PlatformOrganizationOnboardingStatus.OrganizationSlugExists);
+		if (await users.GetByEmailAsync(input.AdministratorEmail, cancellationToken) is not null)
+			return new(PlatformOrganizationOnboardingStatus.AdministratorEmailExists);
+
+		var organization = (await organizations.CreateAsync(new Organization
+		{
+			Name = input.OrganizationName,
+			Slug = input.OrganizationSlug,
+			IsActive = true
+		}, cancellationToken))!;
+		var club = new SportsClub
+		{
+			Id = Guid.NewGuid(),
+			OrganizationId = organization.Id,
+			Name = input.ClubName,
+			Slug = input.ClubSlug,
+			SportKey = input.SportKey,
+			PrimaryColor = input.PrimaryColor,
+			SecondaryColor = input.SecondaryColor,
+			ContactEmail = input.ClubContactEmail,
+			IsActive = true
+		};
+		users.AddUser(new AppUser
+		{
+			Email = input.AdministratorEmail,
+			Role = UserRole.Admin,
+			DefaultOrganizationId = organization.Id,
+			DefaultClubId = club.Id,
+			Memberships =
+			[
+				new UserMembership
+				{
+					OrganizationId = organization.Id,
+					Role = TenantRole.OrganizationAdmin
+				}
+			],
+			IsActive = true
+		}, input.TemporaryPassword);
+
+		return new(
+			PlatformOrganizationOnboardingStatus.Created,
+			new PlatformOrganizationOnboardingResult
+			{
+				Organization = organization,
+				Club = club,
+				AdministratorEmail = input.AdministratorEmail,
+				Subscription = new OrganizationSubscription
+				{
+					OrganizationId = organization.Id,
+					ClubAllowance = input.ClubAllowance,
+					BillingEmail = input.BillingEmail,
+					Status = input.SubscriptionStatus
+				}
+			});
 	}
 }
 

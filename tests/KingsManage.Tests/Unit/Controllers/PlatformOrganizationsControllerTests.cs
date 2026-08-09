@@ -11,7 +11,7 @@ public sealed class PlatformOrganizationsControllerTests
 	public async Task Create_ReturnsCreatedOrganization()
 	{
 		var service = new StubOrganizationService();
-		var controller = new PlatformOrganizationsController(service);
+		var controller = new PlatformOrganizationsController(service, new StubOnboardingService());
 
 		var result = await controller.Create(
 			new Organization { Name = "South Coast Rugby", Slug = "south-coast-rugby" },
@@ -27,7 +27,7 @@ public sealed class PlatformOrganizationsControllerTests
 		var service = new StubOrganizationService();
 		var organization = await service.CreateAsync(
 			new Organization { Name = "South Coast Rugby", Slug = "south-coast-rugby" });
-		var controller = new PlatformOrganizationsController(service);
+		var controller = new PlatformOrganizationsController(service, new StubOnboardingService());
 
 		var result = await controller.SetActive(
 			organization!.Id,
@@ -44,7 +44,7 @@ public sealed class PlatformOrganizationsControllerTests
 		var service = new StubOrganizationService();
 		var organization = await service.CreateAsync(
 			new Organization { Name = "Unused", Slug = "unused" });
-		var controller = new PlatformOrganizationsController(service);
+		var controller = new PlatformOrganizationsController(service, new StubOnboardingService());
 
 		var result = await controller.Delete(
 			organization!.Id,
@@ -52,6 +52,98 @@ public sealed class PlatformOrganizationsControllerTests
 
 		Assert.That(result, Is.TypeOf<NoContentResult>());
 		Assert.That(service.Organizations, Is.Empty);
+	}
+
+	[Test]
+	public async Task Onboard_WithCompleteWorkspace_ReturnsCreatedResult()
+	{
+		var onboarding = new StubOnboardingService();
+		var controller = new PlatformOrganizationsController(
+			new StubOrganizationService(),
+			onboarding);
+
+		var result = await controller.Onboard(ValidOnboardingInput(), CancellationToken.None);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(result.Result, Is.TypeOf<CreatedResult>());
+			Assert.That(onboarding.LastInput?.AdministratorEmail, Is.EqualTo("admin@harbour.test"));
+			Assert.That(onboarding.LastInput?.ClubAllowance, Is.EqualTo(2));
+		});
+	}
+
+	[Test]
+	public async Task Onboard_WithWeakTemporaryPassword_ReturnsBadRequest()
+	{
+		var onboarding = new StubOnboardingService();
+		var controller = new PlatformOrganizationsController(
+			new StubOrganizationService(),
+			onboarding);
+		var input = ValidOnboardingInput();
+		input.TemporaryPassword = "short";
+
+		var result = await controller.Onboard(input, CancellationToken.None);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+			Assert.That(onboarding.LastInput, Is.Null);
+		});
+	}
+
+	private static PlatformOrganizationOnboardingInput ValidOnboardingInput() => new()
+	{
+		OrganizationName = "Harbour Sports",
+		OrganizationSlug = "harbour-sports",
+		ClubName = "Harbour FC",
+		ClubSlug = "harbour-fc",
+		SportKey = "football",
+		PrimaryColor = "#0f766e",
+		SecondaryColor = "#d9f99d",
+		AdministratorEmail = "admin@harbour.test",
+		TemporaryPassword = "Temporary123!",
+		ClubAllowance = 2,
+		BillingEmail = "billing@harbour.test",
+		SubscriptionStatus = SubscriptionStatus.Trialing
+	};
+
+	private sealed class StubOnboardingService : IPlatformOrganizationOnboardingService
+	{
+		public PlatformOrganizationOnboardingInput? LastInput { get; private set; }
+
+		public Task<PlatformOrganizationOnboardingOutcome> CreateAsync(
+			PlatformOrganizationOnboardingInput input,
+			CancellationToken cancellationToken = default)
+		{
+			LastInput = input;
+			var organization = new Organization
+			{
+				Id = Guid.NewGuid(),
+				Name = input.OrganizationName,
+				Slug = input.OrganizationSlug,
+				IsActive = true
+			};
+			return Task.FromResult(new PlatformOrganizationOnboardingOutcome(
+				PlatformOrganizationOnboardingStatus.Created,
+				new PlatformOrganizationOnboardingResult
+				{
+					Organization = organization,
+					Club = new SportsClub
+					{
+						Id = Guid.NewGuid(),
+						OrganizationId = organization.Id,
+						Name = input.ClubName,
+						Slug = input.ClubSlug,
+						SportKey = input.SportKey
+					},
+					AdministratorEmail = input.AdministratorEmail,
+					Subscription = new OrganizationSubscription
+					{
+						OrganizationId = organization.Id,
+						ClubAllowance = input.ClubAllowance
+					}
+				}));
+		}
 	}
 
 	private sealed class StubOrganizationService : IOrganizationService
