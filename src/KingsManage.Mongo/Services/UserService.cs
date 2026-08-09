@@ -271,19 +271,35 @@ public class UserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		var existingUsers = await users
-			.Find(_ => true)
-			.Limit(1)
-			.ToListAsync(cancellationToken);
+		var normalisedEmail = NormaliseEmail(email);
+		var existingUser = await users
+			.Find(user => user.Email == normalisedEmail)
+			.FirstOrDefaultAsync(cancellationToken);
 
-		if (existingUsers.Count > 0)
+		if (existingUser is not null)
 		{
-			return existingUsers[0];
+			if (existingUser.IsPlatformAdmin && existingUser.Role == UserRole.Admin && existingUser.IsActive)
+			{
+				return existingUser;
+			}
+
+			var update = Builders<AppUser>.Update
+				.Set(user => user.IsPlatformAdmin, true)
+				.Set(user => user.Role, UserRole.Admin)
+				.Set(user => user.IsActive, true)
+				.Set(user => user.UpdatedAt, DateTime.UtcNow);
+
+			return await users.FindOneAndUpdateAsync(
+				user => user.Id == existingUser.Id,
+				update,
+				new FindOneAndUpdateOptions<AppUser> { ReturnDocument = ReturnDocument.After },
+				cancellationToken
+			);
 		}
 
 		var adminUser = new AppUser
 		{
-			Email = email,
+			Email = normalisedEmail,
 			Role = UserRole.Admin,
 			IsPlatformAdmin = true,
 			IsActive = true

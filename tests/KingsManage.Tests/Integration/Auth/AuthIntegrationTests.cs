@@ -51,6 +51,32 @@ public sealed class AuthIntegrationTests
 	}
 
 	[Test]
+	public async Task EnsureDefaultAdmin_WhenOtherUsersExist_ShouldPromoteConfiguredUserAndPreservePassword()
+	{
+		var initialUserCount = factory.UserService.Users.Count;
+
+		var user = await factory.UserService.EnsureDefaultAdminUserAsync(
+			TestUsers.CoachEmail,
+			"ReplacementPassword123!"
+		);
+
+		Assert.That(factory.UserService.Users, Has.Count.EqualTo(initialUserCount));
+		Assert.Multiple(() =>
+		{
+			Assert.That(user.Id, Is.EqualTo(TestUsers.CoachId));
+			Assert.That(user.Role, Is.EqualTo(UserRole.Admin));
+			Assert.That(user.IsPlatformAdmin, Is.True);
+			Assert.That(user.IsActive, Is.True);
+		});
+
+		var authenticatedUser = await factory.UserService.ValidateCredentialsAsync(
+			TestUsers.CoachEmail,
+			TestUsers.CoachPassword
+		);
+		Assert.That(authenticatedUser, Is.Not.Null);
+	}
+
+	[Test]
 	public async Task Login_WhenPasswordIsWrong_ShouldReturnUnauthorized()
 	{
 		var client = factory.CreateClient();

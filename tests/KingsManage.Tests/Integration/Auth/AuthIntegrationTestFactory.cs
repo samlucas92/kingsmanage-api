@@ -740,16 +740,25 @@ public sealed class TestUserService : IUserService
 		CancellationToken cancellationToken = default
 	)
 	{
-		if (users.Any())
+		var normalisedEmail = NormaliseEmail(email);
+		var existingUser = users.FirstOrDefault(user =>
+			user.Email.Equals(normalisedEmail, StringComparison.OrdinalIgnoreCase));
+
+		if (existingUser is not null)
 		{
-			return Task.FromResult(users.First());
+			existingUser.Role = UserRole.Admin;
+			existingUser.IsPlatformAdmin = true;
+			existingUser.IsActive = true;
+			existingUser.UpdatedAt = DateTime.UtcNow;
+			return Task.FromResult(existingUser);
 		}
 
 		var user = new AppUser
 		{
 			Id = Guid.NewGuid(),
-			Email = email,
+			Email = normalisedEmail,
 			Role = UserRole.Admin,
+			IsPlatformAdmin = true,
 			IsActive = true,
 			CreatedAt = DateTime.UtcNow,
 			UpdatedAt = DateTime.UtcNow
