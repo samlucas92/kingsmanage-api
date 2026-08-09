@@ -131,6 +131,31 @@ public class MatchesControllerTests
 	}
 
 	[Test]
+	public async Task Create_WhenDateHasNoTimezone_ShouldReturnBadRequest()
+	{
+		var controller = CreateController(new FakeMatchService());
+
+		var result = await controller.Create(
+			new Match
+			{
+				SeasonId = SeasonOneId,
+				Team = ClubTeam.First,
+				Opponent = "Test Opponent",
+				Competition = "League",
+				Location = "The Rec",
+				Date = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Unspecified),
+				Venue = MatchVenue.Home,
+				SelectedFormation = LineupFormation.FourThreeThree
+			},
+			CancellationToken.None
+		);
+
+		var badRequest = result.Result as BadRequestObjectResult;
+		Assert.That(badRequest, Is.Not.Null);
+		Assert.That(badRequest!.Value, Is.EqualTo("Match date must include a UTC timezone."));
+	}
+
+	[Test]
 	public async Task Create_WhenMatchIsValid_ShouldReturnCreatedMatch()
 	{
 		var matchService = new FakeMatchService();
@@ -408,6 +433,25 @@ public class MatchesControllerTests
 		);
 
 		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
+	public async Task Postpone_WhenNewDateHasNoTimezone_ShouldReturnBadRequest()
+	{
+		var controller = CreateController(new FakeMatchService());
+
+		var result = await controller.Postpone(
+			MatchOneId.ToString(),
+			new PostponeMatchModel
+			{
+				NewDate = new DateTime(2026, 8, 8, 14, 0, 0, DateTimeKind.Unspecified)
+			},
+			CancellationToken.None
+		);
+
+		var badRequest = result.Result as BadRequestObjectResult;
+		Assert.That(badRequest, Is.Not.Null);
+		Assert.That(badRequest!.Value, Is.EqualTo("New date must include a UTC timezone."));
 	}
 
 	[Test]

@@ -494,6 +494,11 @@ public class MatchesController : ControllerBase
 			return BadRequest("New date is required.");
 		}
 
+		if (model.NewDate.Kind != DateTimeKind.Utc)
+		{
+			return BadRequest("New date must include a UTC timezone.");
+		}
+
 		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
 
 		if (existingMatch is null)
@@ -583,6 +588,11 @@ public class MatchesController : ControllerBase
 		if (match.Date == default)
 		{
 			return "Match date is required.";
+		}
+
+		if (match.Date.Kind != DateTimeKind.Utc)
+		{
+			return "Match date must include a UTC timezone.";
 		}
 
 		if (string.IsNullOrWhiteSpace(match.Competition))
