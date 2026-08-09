@@ -46,6 +46,22 @@ public sealed class SocialGraphicTemplatesIntegrationTests
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
 	}
 
+	[TestCase("upcoming-editorial-gold")]
+	[TestCase("matchday-editorial-gold")]
+	[TestCase("lineup-editorial-gold")]
+	[TestCase("result-editorial-gold")]
+	public async Task Get_ForEditableTemplate_AsCoach_ReturnsOk(string templateId)
+	{
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.CoachEmail,
+			TestUsers.CoachPassword
+		);
+
+		var response = await client.GetAsync($"/api/social-graphic-templates/{templateId}");
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+	}
+
 	[Test]
 	public async Task SaveRestoreAndReset_AsCoach_PreservesRevisionHistory()
 	{

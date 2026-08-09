@@ -15,7 +15,10 @@ public class SocialGraphicTemplatesController : ControllerBase
 	private static readonly HashSet<string> SupportedTemplateIds =
 		new(StringComparer.OrdinalIgnoreCase)
 		{
-			"upcoming-editorial-gold"
+			"upcoming-editorial-gold",
+			"matchday-editorial-gold",
+			"lineup-editorial-gold",
+			"result-editorial-gold"
 		};
 	private readonly ISocialGraphicTemplateService service;
 
