@@ -27,6 +27,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 	public TestFileStorageService FileStorageService { get; } = new();
 	public TestFileLifecycleService FileLifecycleService { get; } = new();
 	public TestOrganizationService OrganizationService { get; } = new();
+	public TestSocialGraphicTemplateService SocialGraphicTemplateService { get; } = new();
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
 	{
@@ -65,6 +66,7 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.RemoveAll<IFileStorageService>();
 			services.RemoveAll<IFileLifecycleService>();
 			services.RemoveAll<IOrganizationService>();
+			services.RemoveAll<ISocialGraphicTemplateService>();
 
 			services.AddSingleton<IUserService>(UserService);
 			services.AddSingleton<IPlayerService>(PlayerService);
@@ -80,12 +82,14 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 			services.AddSingleton<IFileStorageService>(FileStorageService);
 			services.AddSingleton<IFileLifecycleService>(FileLifecycleService);
 			services.AddSingleton<IOrganizationService>(OrganizationService);
+			services.AddSingleton<ISocialGraphicTemplateService>(SocialGraphicTemplateService);
 		});
 	}
 
 	public void SeedDefaultUsers()
 	{
 		UserService.Clear();
+		SocialGraphicTemplateService.Clear();
 
 		UserService.AddUser(
 			new AppUser
@@ -177,6 +181,139 @@ public sealed class AuthIntegrationTestFactory : WebApplicationFactory<Program>
 
 		return client;
 	}
+}
+
+public sealed class TestSocialGraphicTemplateService : ISocialGraphicTemplateService
+{
+	private readonly Dictionary<string, SocialGraphicTemplateCustomization> customizations = new();
+	private readonly List<SocialGraphicTemplateRevision> revisions = [];
+
+	public void Clear()
+	{
+		customizations.Clear();
+		revisions.Clear();
+	}
+
+	public Task<SocialGraphicTemplateCustomization?> GetAsync(
+		string templateId,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult(customizations.GetValueOrDefault(Normalize(templateId)));
+
+	public Task<IReadOnlyList<SocialGraphicTemplateRevision>> GetRevisionsAsync(
+		string templateId,
+		int limit = 20,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult<IReadOnlyList<SocialGraphicTemplateRevision>>(
+		revisions
+			.Where(item => item.TemplateId == Normalize(templateId))
+			.OrderByDescending(item => item.Revision)
+			.Take(Math.Clamp(limit, 1, 50))
+			.ToList()
+	);
+
+	public Task<SocialGraphicTemplateSaveResult> SaveAsync(
+		string templateId,
+		int schemaVersion,
+		string definitionJson,
+		int expectedRevision,
+		Guid userId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var normalizedTemplateId = Normalize(templateId);
+		customizations.TryGetValue(normalizedTemplateId, out var existing);
+		if ((existing?.Revision ?? 0) != expectedRevision)
+		{
+			return Task.FromResult(new SocialGraphicTemplateSaveResult(
+				SocialGraphicTemplateSaveStatus.Conflict
+			));
+		}
+
+		var now = DateTime.UtcNow;
+		var revision = existing is null
+			? revisions.Where(item => item.TemplateId == normalizedTemplateId)
+				.Select(item => item.Revision)
+				.DefaultIfEmpty()
+				.Max() + 1
+			: existing.Revision + 1;
+		var customization = new SocialGraphicTemplateCustomization
+		{
+			Id = existing?.Id ?? Guid.NewGuid(),
+			TemplateId = normalizedTemplateId,
+			SchemaVersion = schemaVersion,
+			DefinitionJson = definitionJson,
+			Revision = revision,
+			UpdatedByUserId = userId,
+			CreatedAt = existing?.CreatedAt ?? now,
+			UpdatedAt = now
+		};
+		customizations[normalizedTemplateId] = customization;
+		revisions.Add(new SocialGraphicTemplateRevision
+		{
+			Id = Guid.NewGuid(),
+			CustomizationId = customization.Id,
+			TemplateId = normalizedTemplateId,
+			SchemaVersion = schemaVersion,
+			DefinitionJson = definitionJson,
+			Revision = revision,
+			CreatedByUserId = userId,
+			CreatedAt = now
+		});
+		return Task.FromResult(new SocialGraphicTemplateSaveResult(
+			SocialGraphicTemplateSaveStatus.Saved,
+			customization
+		));
+	}
+
+	public async Task<SocialGraphicTemplateSaveResult> RestoreRevisionAsync(
+		string templateId,
+		int revision,
+		int expectedRevision,
+		Guid userId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var target = revisions.FirstOrDefault(item =>
+			item.TemplateId == Normalize(templateId) && item.Revision == revision);
+		if (target is null)
+		{
+			return new SocialGraphicTemplateSaveResult(
+				SocialGraphicTemplateSaveStatus.RevisionNotFound
+			);
+		}
+
+		return await SaveAsync(
+			templateId,
+			target.SchemaVersion,
+			target.DefinitionJson,
+			expectedRevision,
+			userId,
+			cancellationToken
+		);
+	}
+
+	public Task<SocialGraphicTemplateResetResult> ResetAsync(
+		string templateId,
+		int expectedRevision,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var normalizedTemplateId = Normalize(templateId);
+		if (!customizations.TryGetValue(normalizedTemplateId, out var existing))
+		{
+			return Task.FromResult(SocialGraphicTemplateResetResult.NotFound);
+		}
+		if (existing.Revision != expectedRevision)
+		{
+			return Task.FromResult(SocialGraphicTemplateResetResult.Conflict);
+		}
+
+		customizations.Remove(normalizedTemplateId);
+		return Task.FromResult(SocialGraphicTemplateResetResult.Reset);
+	}
+
+	private static string Normalize(string templateId) =>
+		templateId.Trim().ToLowerInvariant();
 }
 
 public sealed class TestOrganizationService : IOrganizationService

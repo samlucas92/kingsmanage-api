@@ -40,6 +40,49 @@ public sealed class TenantDataMigrator
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
+		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureSocialGraphicTemplateIndexesAsync(
+		CancellationToken cancellationToken
+	)
+	{
+		var customizations = database.GetCollection<SocialGraphicTemplateCustomization>(
+			"socialGraphicTemplates"
+		);
+		await customizations.Indexes.CreateOneAsync(
+			new CreateIndexModel<SocialGraphicTemplateCustomization>(
+				Builders<SocialGraphicTemplateCustomization>.IndexKeys
+					.Ascending(item => item.OrganizationId)
+					.Ascending(item => item.ClubId)
+					.Ascending(item => item.TemplateId),
+				new CreateIndexOptions
+				{
+					Name = "TenantTemplate_1",
+					Unique = true
+				}
+			),
+			cancellationToken: cancellationToken
+		);
+
+		var revisions = database.GetCollection<SocialGraphicTemplateRevision>(
+			"socialGraphicTemplateRevisions"
+		);
+		await revisions.Indexes.CreateOneAsync(
+			new CreateIndexModel<SocialGraphicTemplateRevision>(
+				Builders<SocialGraphicTemplateRevision>.IndexKeys
+					.Ascending(item => item.OrganizationId)
+					.Ascending(item => item.ClubId)
+					.Ascending(item => item.TemplateId)
+					.Ascending(item => item.Revision),
+				new CreateIndexOptions
+				{
+					Name = "TenantTemplateRevision_1",
+					Unique = true
+				}
+			),
+			cancellationToken: cancellationToken
+		);
 	}
 
 	private async Task EnsureFormIndexesAsync(CancellationToken cancellationToken)

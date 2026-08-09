@@ -137,6 +137,8 @@ public sealed class SportsClubService : ISportsClubService
 			await HasClubDataAsync<ClubEvent>("events", clubId, cancellationToken) ||
 			await HasClubDataAsync<ClubPost>("posts", clubId, cancellationToken) ||
 			await HasClubDataAsync<ClubPostTemplate>("postTemplates", clubId, cancellationToken) ||
+			await HasClubDataAsync<SocialGraphicTemplateCustomization>("socialGraphicTemplates", clubId, cancellationToken) ||
+			await HasClubDataAsync<SocialGraphicTemplateRevision>("socialGraphicTemplateRevisions", clubId, cancellationToken) ||
 			await HasClubDataAsync<FinanceTransaction>("financeTransactions", clubId, cancellationToken) ||
 			await HasClubDataAsync<ClubFile>("files", clubId, cancellationToken) ||
 			await HasClubDataAsync<ClubNotification>("notifications", clubId, cancellationToken) ||
