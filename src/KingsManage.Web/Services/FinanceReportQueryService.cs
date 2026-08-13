@@ -30,10 +30,14 @@ public sealed class FinanceReportQueryService : IFinanceReportQueryService
 		}
 
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var transactions = await financeService.GetSeasonTransactionsAsync(
+		var seasonTransactions = await financeService.GetSeasonTransactionsAsync(
 			seasonId,
 			cancellationToken);
 		var activePlayers = players.Where(player => player.IsActive).ToList();
+		var activePlayerIds = activePlayers.Select(player => player.Id).ToHashSet();
+		var transactions = seasonTransactions
+			.Where(transaction => activePlayerIds.Contains(transaction.PlayerId))
+			.ToList();
 		var financeRows = activePlayers
 			.Select(player => PlayerFinanceViewModel.FromPlayer(player, seasonId, transactions))
 			.ToList();
@@ -86,19 +90,20 @@ public sealed class FinanceReportQueryService : IFinanceReportQueryService
 			Collected = collected,
 			Outstanding = outstanding,
 			Adjustments = adjustments,
-			PaidPercentage = expected > 0 ? (int)Math.Round(collected / expected * 100) : 0,
+			PaidPercentage = expected > 0 ? Math.Min(100, (int)Math.Round(collected / expected * 100)) : 0,
 			PlayersOwing = rows.Count(row => row.Balance > 0),
 			ProjectedCollected = projectedCollected,
 			ProjectedShortfall = Math.Max(0, expected - projectedCollected),
 			DailyPace = dailyPace,
 			RequiredDailyPace = requiredDailyPace,
 			ElapsedPercentage = (int)Math.Round(elapsedRatio * 100),
-			ForecastStatus = BuildFinanceForecastStatus(expected, outstanding, dailyPace, requiredDailyPace),
+			ForecastStatus = BuildFinanceForecastStatus(expected, outstanding, last30DaysPace, requiredDailyPace),
 			Last30DaysCollected = last30DaysCollected,
 			Last90DaysCollected = last90DaysCollected,
 			Last30DaysPace = last30DaysPace,
 			Last90DaysPace = last90DaysPace,
 			DaysRemaining = (int)Math.Ceiling(remainingDays),
+			OutstandingBreakdown = BuildOutstandingBreakdown(rows),
 			ForecastScenarios = forecastScenarios,
 			Months = transactions
 				.GroupBy(transaction => ReportDate.MonthStart(transaction.TransactionDate))
@@ -121,6 +126,33 @@ public sealed class FinanceReportQueryService : IFinanceReportQueryService
 		};
 	}
 
+	private static FinanceOutstandingBreakdownViewModel BuildOutstandingBreakdown(
+		IReadOnlyList<PlayerFinanceViewModel> rows)
+	{
+		var unpaid = rows.Where(row => row.AmountOwed > 0 && row.TotalPaid <= 0).ToList();
+		var partPaid = rows.Where(row => row.AmountOwed > 0 && row.TotalPaid > 0 && row.Balance > 0).ToList();
+		var paid = rows.Where(row => row.AmountOwed > 0 && row.Balance <= 0).ToList();
+		var noCharge = rows.Where(row => row.AmountOwed <= 0).ToList();
+
+		return new FinanceOutstandingBreakdownViewModel
+		{
+			Unpaid = BuildOutstandingGroup(unpaid),
+			PartPaid = BuildOutstandingGroup(partPaid),
+			Paid = BuildOutstandingGroup(paid),
+			NoCharge = BuildOutstandingGroup(noCharge)
+		};
+	}
+
+	private static FinanceOutstandingGroupViewModel BuildOutstandingGroup(
+		IReadOnlyCollection<PlayerFinanceViewModel> rows)
+	{
+		return new FinanceOutstandingGroupViewModel
+		{
+			PlayerCount = rows.Count,
+			Outstanding = rows.Sum(row => row.Balance)
+		};
+	}
+
 	private static decimal SumPaymentsSince(
 		IEnumerable<FinanceTransaction> paymentTransactions,
 		DateTime startDate)
@@ -133,7 +165,7 @@ public sealed class FinanceReportQueryService : IFinanceReportQueryService
 	private static string BuildFinanceForecastStatus(
 		decimal expected,
 		decimal outstanding,
-		decimal currentDailyPace,
+		decimal recentDailyPace,
 		decimal requiredDailyPace)
 	{
 		if (expected <= 0)
@@ -146,13 +178,13 @@ public sealed class FinanceReportQueryService : IFinanceReportQueryService
 			return "On target";
 		}
 
-		if (requiredDailyPace <= 0 || currentDailyPace >= requiredDailyPace)
+		if (requiredDailyPace <= 0 || recentDailyPace > requiredDailyPace * 1.05m)
 		{
-			return "On pace";
+			return "Ahead of pace";
 		}
 
-		return currentDailyPace >= requiredDailyPace * 0.75m
-			? "Needs attention"
+		return recentDailyPace >= requiredDailyPace * 0.9m
+			? "On pace"
 			: "Behind pace";
 	}
 

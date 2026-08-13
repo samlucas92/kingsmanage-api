@@ -101,8 +101,23 @@ public sealed class FinanceReportViewModel
 	public decimal Last30DaysPace { get; set; }
 	public decimal Last90DaysPace { get; set; }
 	public int DaysRemaining { get; set; }
+	public FinanceOutstandingBreakdownViewModel OutstandingBreakdown { get; set; } = new();
 	public List<FinanceForecastScenarioViewModel> ForecastScenarios { get; set; } = [];
 	public List<MonthlyFinanceBreakdownViewModel> Months { get; set; } = [];
+}
+
+public sealed class FinanceOutstandingBreakdownViewModel
+{
+	public FinanceOutstandingGroupViewModel Unpaid { get; set; } = new();
+	public FinanceOutstandingGroupViewModel PartPaid { get; set; } = new();
+	public FinanceOutstandingGroupViewModel Paid { get; set; } = new();
+	public FinanceOutstandingGroupViewModel NoCharge { get; set; } = new();
+}
+
+public sealed class FinanceOutstandingGroupViewModel
+{
+	public int PlayerCount { get; set; }
+	public decimal Outstanding { get; set; }
 }
 
 public sealed class FinanceForecastScenarioViewModel
