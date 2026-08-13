@@ -186,11 +186,6 @@ public class MatchesController : ControllerBase
 			return "The appearance type is invalid.";
 		}
 
-		if (playerStats.Count(stats => stats.IsMOTM) > 1)
-		{
-			return "Only one player can be named player of the match.";
-		}
-
 		if (playerStats.Any(stats =>
 			stats.AppearanceType == MatchAppearanceType.UnusedSubstitute &&
 			(stats.Goals > 0 ||

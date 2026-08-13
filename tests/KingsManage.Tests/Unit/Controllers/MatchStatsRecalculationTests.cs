@@ -52,10 +52,11 @@ public class MatchStatsRecalculationTests
 	}
 
 	[Test]
-	public async Task UpdatePlayerStats_WithMoreThanOneMotm_ShouldReturnBadRequest()
+	public async Task UpdatePlayerStats_WithMoreThanOneMotm_ShouldSaveEveryWinner()
 	{
 		var matchService = new FakeMatchService();
-		var controller = CreateController(matchService, new FakeStatsService());
+		var statsService = new FakeStatsService();
+		var controller = CreateController(matchService, statsService);
 		var match = CreateCompletedMatch(MatchId, SeasonOneId);
 		var playerTwoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 		match.SelectedPlayers.Add(new SelectedPlayer { PlayerId = playerTwoId, Area = "bench" });
@@ -70,7 +71,13 @@ public class MatchStatsRecalculationTests
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+		var okResult = result.Result as OkObjectResult;
+		var updatedMatch = okResult?.Value as Match;
+		Assert.That(okResult, Is.Not.Null);
+		Assert.That(updatedMatch, Is.Not.Null);
+		Assert.That(updatedMatch!.PlayerStats.Where(stats => stats.IsMOTM).Select(stats => stats.PlayerId),
+			Is.EquivalentTo(new[] { PlayerOneId, playerTwoId }));
+		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
 	}
 
 	[Test]
