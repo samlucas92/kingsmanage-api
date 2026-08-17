@@ -37,6 +37,7 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexesAsync(cancellationToken);
 		await EnsureReadModelIndexesAsync(cancellationToken);
 		await EnsureFormIndexesAsync(cancellationToken);
+		await EnsureFormAnalyticsIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
@@ -152,6 +153,75 @@ public sealed class TenantDataMigrator
 					.Descending(submission => submission.SubmittedAt),
 				new CreateIndexOptions { Name = "TenantFormSubmittedAt_1" }),
 			cancellationToken: cancellationToken);
+	}
+
+	private async Task EnsureFormAnalyticsIndexesAsync(CancellationToken cancellationToken)
+	{
+		var sessions = database.GetCollection<FormAnalyticsSession>("formAnalyticsSessions");
+		await sessions.Indexes.CreateManyAsync(
+			[
+				new CreateIndexModel<FormAnalyticsSession>(
+					Builders<FormAnalyticsSession>.IndexKeys
+						.Ascending(item => item.OrganizationId)
+						.Ascending(item => item.ClubId)
+						.Ascending(item => item.FormId)
+						.Ascending(item => item.Id),
+					new CreateIndexOptions { Name = "TenantFormSession_1", Unique = true }),
+				new CreateIndexModel<FormAnalyticsSession>(
+					Builders<FormAnalyticsSession>.IndexKeys
+						.Ascending(item => item.OrganizationId)
+						.Ascending(item => item.ClubId)
+						.Ascending(item => item.FormId)
+						.Descending(item => item.StartedAt),
+					new CreateIndexOptions { Name = "TenantFormStartedAt_1" })
+			],
+			cancellationToken);
+
+		var events = database.GetCollection<FormAnalyticsEvent>("formAnalyticsEvents");
+		await events.Indexes.CreateManyAsync(
+			[
+				new CreateIndexModel<FormAnalyticsEvent>(
+					Builders<FormAnalyticsEvent>.IndexKeys
+						.Ascending(item => item.OrganizationId)
+						.Ascending(item => item.ClubId)
+						.Ascending(item => item.FormId)
+						.Descending(item => item.OccurredAt),
+					new CreateIndexOptions { Name = "TenantFormOccurredAt_1" }),
+				new CreateIndexModel<FormAnalyticsEvent>(
+					Builders<FormAnalyticsEvent>.IndexKeys
+						.Ascending(item => item.OrganizationId)
+						.Ascending(item => item.ClubId)
+						.Ascending(item => item.FormId)
+						.Ascending(item => item.SessionId)
+						.Ascending(item => item.EventType)
+						.Ascending(item => item.FieldId),
+					new CreateIndexOptions { Name = "TenantFormSessionEvent_1" }),
+				CreateUniqueAnalyticsEventIndex("TenantFormViewedSession_1", FormAnalyticsEventType.Viewed, includeField: false),
+				CreateUniqueAnalyticsEventIndex("TenantFormStartedSession_1", FormAnalyticsEventType.InteractionStarted, includeField: false),
+				CreateUniqueAnalyticsEventIndex("TenantFormSubmittedSession_1", FormAnalyticsEventType.Submitted, includeField: false),
+				CreateUniqueAnalyticsEventIndex("TenantFormFieldSession_1", FormAnalyticsEventType.FieldInteracted, includeField: true)
+			],
+			cancellationToken);
+	}
+
+	private static CreateIndexModel<FormAnalyticsEvent> CreateUniqueAnalyticsEventIndex(
+		string name,
+		FormAnalyticsEventType eventType,
+		bool includeField)
+	{
+		var keys = Builders<FormAnalyticsEvent>.IndexKeys
+			.Ascending(item => item.OrganizationId)
+			.Ascending(item => item.ClubId)
+			.Ascending(item => item.FormId)
+			.Ascending(item => item.SessionId)
+			.Ascending(item => item.EventType);
+		if (includeField) keys = keys.Ascending(item => item.FieldId);
+		return new CreateIndexModel<FormAnalyticsEvent>(keys, new CreateIndexOptions<FormAnalyticsEvent>
+		{
+			Name = name,
+			Unique = true,
+			PartialFilterExpression = Builders<FormAnalyticsEvent>.Filter.Eq(item => item.EventType, eventType)
+		});
 	}
 
 	private async Task EnsureReadModelIndexesAsync(CancellationToken cancellationToken)

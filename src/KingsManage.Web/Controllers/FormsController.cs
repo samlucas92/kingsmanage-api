@@ -15,17 +15,20 @@ public sealed class FormsController : ControllerBase
 	private readonly IMatchService matchService;
 	private readonly IPlayerService playerService;
 	private readonly IStatsService statsService;
+	private readonly IFormAnalyticsService analyticsService;
 
 	public FormsController(
 		IClubFormService formService,
 		IMatchService matchService,
 		IPlayerService playerService,
-		IStatsService statsService)
+		IStatsService statsService,
+		IFormAnalyticsService analyticsService)
 	{
 		this.formService = formService;
 		this.matchService = matchService;
 		this.playerService = playerService;
 		this.statsService = statsService;
+		this.analyticsService = analyticsService;
 	}
 
 	[HttpGet]
@@ -365,6 +368,10 @@ public sealed class FormsController : ControllerBase
 		}
 
 		var deleted = await formService.DeleteAsync(formId, cancellationToken);
+		if (deleted)
+		{
+			await analyticsService.DeleteForFormAsync(formId, cancellationToken);
+		}
 		return deleted ? NoContent() : NotFound();
 	}
 
@@ -391,7 +398,11 @@ public sealed class FormsController : ControllerBase
 
 		var answers = model.Answers.Select(answer => answer.ToAnswer()).ToList();
 		var validationError = ValidateAnswers(form, answers);
-		if (validationError is not null) return BadRequest(validationError);
+		if (validationError is not null)
+		{
+			await RecordSubmissionValidationAnalyticsAsync(form, model.AnalyticsSessionId, userIdResult.UserId, cancellationToken);
+			return BadRequest(validationError);
+		}
 
 		try
 		{
@@ -402,9 +413,11 @@ public sealed class FormsController : ControllerBase
 					SubmittedByUserId = userIdResult.UserId,
 					RespondentKey = respondentKey,
 					SubmissionLimitKey = BuildSubmissionLimitKey(form, respondentKey),
+					AnalyticsSessionId = NormaliseAnalyticsSessionId(model.AnalyticsSessionId),
 					Answers = answers
 				},
 				cancellationToken);
+			await RecordSuccessfulSubmissionAnalyticsAsync(form, model.AnalyticsSessionId, userIdResult.UserId, cancellationToken);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -444,7 +457,11 @@ public sealed class FormsController : ControllerBase
 
 		var answers = model.Answers.Select(answer => answer.ToAnswer()).ToList();
 		var validationError = ValidateAnswers(form, answers);
-		if (validationError is not null) return BadRequest(validationError);
+		if (validationError is not null)
+		{
+			await RecordSubmissionValidationAnalyticsAsync(form, model.AnalyticsSessionId, userId, cancellationToken);
+			return BadRequest(validationError);
+		}
 
 		try
 		{
@@ -457,9 +474,11 @@ public sealed class FormsController : ControllerBase
 					SubmittedByUserId = userId ?? Guid.Empty,
 					RespondentKey = respondentKey,
 					SubmissionLimitKey = BuildSubmissionLimitKey(form, respondentKey),
+					AnalyticsSessionId = NormaliseAnalyticsSessionId(model.AnalyticsSessionId),
 					Answers = answers
 				},
 				cancellationToken);
+			await RecordSuccessfulSubmissionAnalyticsAsync(form, model.AnalyticsSessionId, userId, cancellationToken);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -468,6 +487,50 @@ public sealed class FormsController : ControllerBase
 
 		return Ok(ClubFormViewModel.FromForm(form, true));
 	}
+
+	private async Task RecordSuccessfulSubmissionAnalyticsAsync(
+		ClubForm form,
+		Guid? analyticsSessionId,
+		Guid? userId,
+		CancellationToken cancellationToken)
+	{
+		if (!analyticsSessionId.HasValue || analyticsSessionId == Guid.Empty) return;
+		try
+		{
+			await analyticsService.RecordSubmissionAsync(form, analyticsSessionId.Value, userId, cancellationToken);
+		}
+		catch
+		{
+			// The submission collection remains the source of truth. Analytics must never turn a saved response into a failed submission.
+		}
+	}
+
+	private async Task RecordSubmissionValidationAnalyticsAsync(
+		ClubForm form,
+		Guid? analyticsSessionId,
+		Guid? userId,
+		CancellationToken cancellationToken)
+	{
+		if (!analyticsSessionId.HasValue || analyticsSessionId == Guid.Empty) return;
+		try
+		{
+			await analyticsService.RecordValidationErrorAsync(
+				form,
+				analyticsSessionId.Value,
+				null,
+				"submission-validation",
+				userId,
+				cancellationToken);
+		}
+		catch
+		{
+			// Analytics cannot change the form validation response.
+		}
+	}
+
+	private static Guid? NormaliseAnalyticsSessionId(Guid? sessionId) => sessionId.HasValue && sessionId != Guid.Empty
+		? sessionId
+		: null;
 
 	[Authorize(Policy = "TeamManagement")]
 	[HttpGet("{id}/results")]

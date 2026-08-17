@@ -198,6 +198,7 @@ public sealed class SaveClubFormModel
 public sealed class SubmitClubFormModel
 {
 	public string AnonymousSubmissionKey { get; set; } = string.Empty;
+	public Guid? AnalyticsSessionId { get; set; }
 	public List<ClubFormAnswerViewModel> Answers { get; set; } = [];
 }
 

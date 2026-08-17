@@ -91,6 +91,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClubEventService, ClubEventService>();
 builder.Services.AddScoped<IClubPostService, ClubPostService>();
 builder.Services.AddScoped<IClubFormService, ClubFormService>();
+builder.Services.AddScoped<IFormAnalyticsService, FormAnalyticsService>();
 builder.Services.AddScoped<IClubPostTemplateService, ClubPostTemplateService>();
 builder.Services.AddScoped<ISocialGraphicTemplateService, SocialGraphicTemplateService>();
 builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
