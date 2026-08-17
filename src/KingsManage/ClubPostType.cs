@@ -5,5 +5,6 @@ public enum ClubPostType
 	General,
 	Announcement,
 	MatchInfo,
-	Social
+	Social,
+	OrganizationDocument
 }

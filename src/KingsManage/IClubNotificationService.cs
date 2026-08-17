@@ -18,6 +18,13 @@ public interface IClubNotificationService
 		CancellationToken cancellationToken = default
 	);
 
+	Task<bool> ExistsAsync(
+		NotificationType type,
+		Guid sourceId,
+		Guid userId,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult(false);
+
 	Task<ClubNotification?> MarkReadAsync(
 		Guid notificationId,
 		Guid userId,

@@ -34,7 +34,7 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		var posts = await this.posts
-			.Find(tenant.Filter<ClubPost>())
+			.Find(tenant.Filter<ClubPost>(post => post.Type != ClubPostType.OrganizationDocument))
 			.SortByDescending(post => post.IsPinned)
 			.ThenByDescending(post => post.CreatedAt)
 			.ToListAsync(cancellationToken);
@@ -48,7 +48,7 @@ public class ClubPostService : IClubPostService
 	)
 	{
 		var post = await posts
-			.Find(tenant.Filter<ClubPost>(post => post.Id == id))
+			.Find(tenant.Filter<ClubPost>(post => post.Id == id && post.Type != ClubPostType.OrganizationDocument))
 			.FirstOrDefaultAsync(cancellationToken);
 
 		return post is null ? null : NormaliseFromStorage(post);

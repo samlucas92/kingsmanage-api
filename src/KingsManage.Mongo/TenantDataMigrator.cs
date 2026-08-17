@@ -42,6 +42,54 @@ public sealed class TenantDataMigrator
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
+		await EnsureHandoverVaultIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureHandoverVaultIndexesAsync(CancellationToken cancellationToken)
+	{
+		var roles = database.GetCollection<OperationalRole>("operationalRoles");
+		await roles.Indexes.CreateManyAsync([
+			new CreateIndexModel<OperationalRole>(
+				Builders<OperationalRole>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.IsActive).Ascending(item => item.DisplayOrder),
+				new CreateIndexOptions { Name = "OrganizationActiveOrder_1" }),
+			new CreateIndexModel<OperationalRole>(
+				Builders<OperationalRole>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.PrimaryOwnerUserId),
+				new CreateIndexOptions { Name = "OrganizationPrimaryOwner_1" })
+		], cancellationToken);
+
+		var responsibilities = database.GetCollection<RoleResponsibility>("roleResponsibilities");
+		await responsibilities.Indexes.CreateOneAsync(new CreateIndexModel<RoleResponsibility>(
+			Builders<RoleResponsibility>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.OperationalRoleId).Ascending(item => item.IsActive),
+			new CreateIndexOptions { Name = "OrganizationRoleActive_1" }), cancellationToken: cancellationToken);
+
+		var links = database.GetCollection<HandoverDocumentLink>("handoverDocumentLinks");
+		await links.Indexes.CreateManyAsync([
+			new CreateIndexModel<HandoverDocumentLink>(Builders<HandoverDocumentLink>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.OperationalRoleId).Ascending(item => item.DisplayOrder), new CreateIndexOptions { Name = "OrganizationRoleOrder_1" }),
+			new CreateIndexModel<HandoverDocumentLink>(Builders<HandoverDocumentLink>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ResponsibilityId).Ascending(item => item.DisplayOrder), new CreateIndexOptions { Name = "OrganizationResponsibilityOrder_1" }),
+			new CreateIndexModel<HandoverDocumentLink>(Builders<HandoverDocumentLink>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.OrganizationDocumentId), new CreateIndexOptions { Name = "OrganizationDocument_1" })
+		], cancellationToken);
+
+		var tasks = database.GetCollection<OperationalTask>("operationalTasks");
+		await tasks.Indexes.CreateManyAsync([
+			new CreateIndexModel<OperationalTask>(Builders<OperationalTask>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.Status).Ascending(item => item.DueAt), new CreateIndexOptions { Name = "OrganizationStatusDueAt_1" }),
+			new CreateIndexModel<OperationalTask>(Builders<OperationalTask>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.AssignedUserIds).Ascending(item => item.Status), new CreateIndexOptions { Name = "OrganizationAssigneesStatus_1" }),
+			new CreateIndexModel<OperationalTask>(Builders<OperationalTask>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.RecurrenceSourceTaskId), new CreateIndexOptions<OperationalTask> { Name = "OrganizationRecurrenceSource_1", Unique = true, Sparse = true })
+		], cancellationToken);
+
+		var contacts = database.GetCollection<OperationalContact>("operationalContacts");
+		await contacts.Indexes.CreateOneAsync(new CreateIndexModel<OperationalContact>(Builders<OperationalContact>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.OperationalRoleId).Ascending(item => item.IsActive), new CreateIndexOptions { Name = "OrganizationRoleActive_1" }), cancellationToken: cancellationToken);
+
+		var handovers = database.GetCollection<HandoverRecord>("handoverRecords");
+		await handovers.Indexes.CreateManyAsync([
+			new CreateIndexModel<HandoverRecord>(Builders<HandoverRecord>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.Status).Descending(item => item.StartedAt), new CreateIndexOptions { Name = "OrganizationStatusStartedAt_1" }),
+			new CreateIndexModel<HandoverRecord>(Builders<HandoverRecord>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.OutgoingUserId).Ascending(item => item.IncomingUserId), new CreateIndexOptions { Name = "OrganizationParticipants_1" })
+		], cancellationToken);
+
+		var audit = database.GetCollection<HandoverAuditEntry>("handoverAudit");
+		await audit.Indexes.CreateOneAsync(new CreateIndexModel<HandoverAuditEntry>(Builders<HandoverAuditEntry>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.EntityId).Descending(item => item.OccurredAt), new CreateIndexOptions { Name = "OrganizationEntityOccurredAt_1" }), cancellationToken: cancellationToken);
+
+		var posts = database.GetCollection<ClubPost>("posts");
+		await posts.Indexes.CreateOneAsync(new CreateIndexModel<ClubPost>(Builders<ClubPost>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.Type).Ascending(item => item.IsArchived).Descending(item => item.UpdatedAt), new CreateIndexOptions { Name = "OrganizationTypeArchivedUpdatedAt_1" }), cancellationToken: cancellationToken);
 	}
 
 	private async Task EnsureSocialGraphicTemplateIndexesAsync(

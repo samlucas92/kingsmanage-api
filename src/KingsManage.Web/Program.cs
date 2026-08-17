@@ -90,6 +90,8 @@ builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClubEventService, ClubEventService>();
 builder.Services.AddScoped<IClubPostService, ClubPostService>();
+builder.Services.AddScoped<IOrganizationDocumentService, OrganizationDocumentService>();
+builder.Services.AddScoped<IHandoverVaultService, HandoverVaultService>();
 builder.Services.AddScoped<IClubFormService, ClubFormService>();
 builder.Services.AddScoped<IFormAnalyticsService, FormAnalyticsService>();
 builder.Services.AddScoped<IClubPostTemplateService, ClubPostTemplateService>();
@@ -258,6 +260,11 @@ app.Use(async (context, next) =>
 	catch (UnauthorizedAccessException exception)
 	{
 		context.Response.StatusCode = StatusCodes.Status403Forbidden;
+		await context.Response.WriteAsJsonAsync(new { message = exception.Message });
+	}
+	catch (ArgumentException exception)
+	{
+		context.Response.StatusCode = StatusCodes.Status400BadRequest;
 		await context.Response.WriteAsJsonAsync(new { message = exception.Message });
 	}
 });

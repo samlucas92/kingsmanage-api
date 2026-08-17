@@ -93,6 +93,21 @@ public class ClubNotificationService : IClubNotificationService
 		return notification;
 	}
 
+	public async Task<bool> ExistsAsync(
+		NotificationType type,
+		Guid sourceId,
+		Guid userId,
+		CancellationToken cancellationToken = default)
+	{
+		var recipientFilter = Builders<ClubNotification>.Filter.ElemMatch(
+			notification => notification.Recipients,
+			recipient => recipient.UserId == userId);
+		return await notifications.Find(
+			tenant.Filter<ClubNotification>(notification =>
+				notification.Type == type && notification.SourceId == sourceId) & recipientFilter)
+			.AnyAsync(cancellationToken);
+	}
+
 	public async Task<ClubNotification?> MarkReadAsync(
 		Guid notificationId,
 		Guid userId,

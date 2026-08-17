@@ -7,5 +7,9 @@ public enum NotificationSourceType
 	Match,
 	Message,
 	Finance,
-	System
+	System,
+	Handover,
+	OperationalTask,
+	OperationalRole,
+	OrganizationDocument
 }
