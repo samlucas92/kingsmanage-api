@@ -47,6 +47,7 @@ public sealed class SocialGraphicTemplatesIntegrationTests
 	}
 
 	[TestCase("upcoming-editorial-gold")]
+	[TestCase("blank-editorial-gold")]
 	[TestCase("matchday-editorial-gold")]
 	[TestCase("lineup-editorial-gold")]
 	[TestCase("result-editorial-gold")]
