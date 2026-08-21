@@ -14,6 +14,14 @@ public interface IFileStorageService
 		CancellationToken cancellationToken = default
 	);
 
+	Task UploadAsync(
+		string storageKey,
+		Stream content,
+		string contentType,
+		long contentLength,
+		CancellationToken cancellationToken = default
+	);
+
 	Task<FileStorageValidationResult> ValidateObjectAsync(
 		string storageKey,
 		string expectedContentHash,

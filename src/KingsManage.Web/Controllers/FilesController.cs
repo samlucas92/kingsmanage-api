@@ -283,6 +283,63 @@ public class FilesController : ControllerBase
 	}
 
 	[Authorize(Policy = "TeamManagement")]
+	[HttpPut("{id}/content")]
+	[RequestSizeLimit(MaxFileSizeBytes)]
+	public async Task<ActionResult<ClubFile>> UploadContent(
+		string id,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "File", out var fileId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var pendingFile = await fileService.GetByIdAsync(fileId, cancellationToken);
+		if (pendingFile is null || pendingFile.Status == ClubFileStatus.Deleted)
+		{
+			return NotFound();
+		}
+		if (!await CanCurrentUserAccessFileAsync(pendingFile, cancellationToken))
+		{
+			return Forbid();
+		}
+		if (pendingFile.Status == ClubFileStatus.Uploaded)
+		{
+			return Ok(pendingFile);
+		}
+		if (pendingFile.Status != ClubFileStatus.PendingUpload)
+		{
+			return Conflict("The file is not awaiting upload.");
+		}
+		if (Request.ContentLength != pendingFile.SizeBytes)
+		{
+			return BadRequest("Uploaded file size does not match the upload request.");
+		}
+		if (!string.Equals(Request.ContentType, pendingFile.ContentType, StringComparison.OrdinalIgnoreCase))
+		{
+			return BadRequest("Uploaded file content type does not match the upload request.");
+		}
+
+		try
+		{
+			await storageService.UploadAsync(
+				pendingFile.StorageKey,
+				Request.Body,
+				pendingFile.ContentType,
+				pendingFile.SizeBytes,
+				cancellationToken
+			);
+		}
+		catch (InvalidOperationException)
+		{
+			return StatusCode(StatusCodes.Status502BadGateway, "The file could not be uploaded to storage.");
+		}
+
+		return await MarkUploaded(id, cancellationToken);
+	}
+
+	[Authorize(Policy = "TeamManagement")]
 	[HttpPost("{id}/mark-uploaded")]
 	public async Task<ActionResult<ClubFile>> MarkUploaded(
 		string id,

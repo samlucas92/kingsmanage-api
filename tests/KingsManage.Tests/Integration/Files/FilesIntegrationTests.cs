@@ -92,6 +92,40 @@ public sealed class FilesIntegrationTests
 	}
 
 	[Test]
+	public async Task UploadContent_AsCoach_ProxiesToStorageAndMarksFileUploaded()
+	{
+		var postId = SeedPost();
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.CoachEmail,
+			TestUsers.CoachPassword
+		);
+		var createResponse = await client.PostAsJsonAsync(
+			"/api/files/upload-url",
+			new
+			{
+				OriginalFileName = "Team Sheet.pdf",
+				ContentType = "application/pdf",
+				SizeBytes = 2048,
+				LinkedEntityType = "Post",
+				LinkedEntityId = postId,
+				Visibility = "AuthenticatedUsers"
+			}
+		);
+		using var createDocument = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+		var fileId = createDocument.RootElement.GetProperty("file").GetProperty("id").GetGuid();
+		using var content = new ByteArrayContent(new byte[2048]);
+		content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+
+		var response = await client.PutAsync($"/api/files/{fileId}/content", content);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+		Assert.That(factory.FileStorageService.UploadedStorageKeys, Has.Count.EqualTo(1));
+		Assert.That(factory.FileStorageService.ValidatedStorageKeys, Has.Count.EqualTo(1));
+		using var responseDocument = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		Assert.That(responseDocument.RootElement.GetProperty("status").GetString(), Is.EqualTo("Uploaded"));
+	}
+
+	[Test]
 	public async Task CreateUploadUrl_WithUploadedMatchingHash_ReusesStoredObject()
 	{
 		var postId = SeedPost();

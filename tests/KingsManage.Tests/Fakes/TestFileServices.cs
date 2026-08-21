@@ -222,6 +222,7 @@ public sealed class TestClubFileService : IClubFileService
 public sealed class TestFileStorageService : IFileStorageService
 {
 	public FileStorageValidationResult? ValidationResult { get; set; }
+	public List<string> UploadedStorageKeys { get; } = new();
 	public List<string> ValidatedStorageKeys { get; } = new();
 	public List<string> DeletedStorageKeys { get; } = new();
 	public bool DeleteSucceeds { get; set; } = true;
@@ -242,6 +243,23 @@ public sealed class TestFileStorageService : IFileStorageService
 	)
 	{
 		return Task.FromResult(CreateSignedUrl("download", storageKey, expiresIn));
+	}
+
+	public async Task UploadAsync(
+		string storageKey,
+		Stream content,
+		string contentType,
+		long contentLength,
+		CancellationToken cancellationToken = default
+	)
+	{
+		using var buffer = new MemoryStream();
+		await content.CopyToAsync(buffer, cancellationToken);
+		if (buffer.Length != contentLength)
+		{
+			throw new InvalidOperationException("Uploaded content length does not match.");
+		}
+		UploadedStorageKeys.Add(storageKey);
 	}
 
 	public Task<FileStorageValidationResult> ValidateObjectAsync(

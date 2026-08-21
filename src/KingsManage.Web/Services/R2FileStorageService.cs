@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using KingsManage;
@@ -45,6 +46,29 @@ public sealed class R2FileStorageService : IFileStorageService
 	)
 	{
 		return Task.FromResult(CreateSignedUrl("GET", storageKey, expiresIn));
+	}
+
+	public async Task UploadAsync(
+		string storageKey,
+		Stream content,
+		string contentType,
+		long contentLength,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var signedUrl = CreateSignedUrl("PUT", storageKey, ValidationUrlExpiry);
+		using var request = new HttpRequestMessage(HttpMethod.Put, signedUrl.Url);
+		using var requestContent = new StreamContent(content);
+		requestContent.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+		requestContent.Headers.ContentLength = contentLength;
+		request.Content = requestContent;
+		using var response = await httpClientFactory
+			.CreateClient()
+			.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+		if (!response.IsSuccessStatusCode)
+		{
+			throw new InvalidOperationException($"R2 rejected the upload (HTTP {(int)response.StatusCode}).");
+		}
 	}
 
 	public async Task<FileStorageValidationResult> ValidateObjectAsync(
