@@ -89,6 +89,7 @@ public interface IMetaGraphClient
 
 public sealed class MetaGraphClient : IMetaGraphClient
 {
+	private const string PageDiscoveryFields = "id,name,access_token,tasks,instagram_business_account{id,username,name,profile_picture_url}";
 	private readonly HttpClient http;
 	private readonly MetaIntegrationSettings settings;
 
@@ -101,7 +102,7 @@ public sealed class MetaGraphClient : IMetaGraphClient
 	public string BuildAuthorizationUrl(string state)
 	{
 		EnsureConfigured();
-		var scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_insights";
+		var scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management";
 		return $"https://www.facebook.com/{settings.GraphApiVersion}/dialog/oauth?client_id={Uri.EscapeDataString(settings.AppId)}&redirect_uri={Uri.EscapeDataString(settings.RedirectUri)}&state={Uri.EscapeDataString(state)}&scope={Uri.EscapeDataString(scopes)}&response_type=code";
 	}
 
@@ -114,35 +115,102 @@ public sealed class MetaGraphClient : IMetaGraphClient
 		var userToken = RequiredString(longTokenDocument.RootElement, "access_token");
 		var expiresIn = longTokenDocument.RootElement.TryGetProperty("expires_in", out var expires) && expires.TryGetInt32(out var seconds) ? seconds : (int?)null;
 		var user = await GetJsonAsync($"me?fields=id,name&access_token={Escape(userToken)}", cancellationToken);
-		var pagesDocument = await GetJsonAsync($"me/accounts?fields=id,name,access_token,tasks,instagram_business_account{{id,username,name,profile_picture_url}}&limit=100&access_token={Escape(userToken)}", cancellationToken);
-		var pages = new List<MetaGraphPage>();
-		if (pagesDocument.RootElement.TryGetProperty("data", out var data))
-		{
-			foreach (var page in data.EnumerateArray())
-			{
-				MetaInstagramAccount? instagram = null;
-				if (page.TryGetProperty("instagram_business_account", out var account))
-				{
-					instagram = new MetaInstagramAccount
-					{
-						Id = RequiredString(account, "id"),
-						Username = OptionalString(account, "username") ?? string.Empty,
-						Name = OptionalString(account, "name") ?? string.Empty,
-						ProfilePictureUrl = OptionalString(account, "profile_picture_url")
-					};
-				}
-				var tasks = page.TryGetProperty("tasks", out var taskValues)
-					? taskValues.EnumerateArray().Select(item => item.GetString() ?? string.Empty).Where(item => item.Length > 0).ToList()
-					: [];
-				pages.Add(new MetaGraphPage(RequiredString(page, "id"), RequiredString(page, "name"), RequiredString(page, "access_token"), tasks, instagram));
-			}
-		}
+		var pages = await DiscoverPagesAsync(userToken, cancellationToken);
 		return new MetaAuthorizationResult(
 			RequiredString(user.RootElement, "id"),
 			RequiredString(user.RootElement, "name"),
 			userToken,
 			expiresIn is int value ? DateTime.UtcNow.AddSeconds(value) : null,
 			pages);
+	}
+
+	private async Task<IReadOnlyList<MetaGraphPage>> DiscoverPagesAsync(string userToken, CancellationToken cancellationToken)
+	{
+		var pages = new Dictionary<string, MetaGraphPage>(StringComparer.Ordinal);
+		await AddPagesAsync($"me/accounts?fields={Escape(PageDiscoveryFields)}&limit=100&access_token={Escape(userToken)}", userToken, pages, cancellationToken);
+
+		try
+		{
+			var businessesDocument = await GetJsonAsync($"me/businesses?fields=id,name&limit=100&access_token={Escape(userToken)}", cancellationToken);
+			if (businessesDocument.RootElement.TryGetProperty("data", out var businesses))
+			{
+				foreach (var business in businesses.EnumerateArray())
+				{
+					var businessId = OptionalString(business, "id");
+					if (string.IsNullOrWhiteSpace(businessId)) continue;
+					await TryAddBusinessPagesAsync(businessId, "owned_pages", userToken, pages, cancellationToken);
+					await TryAddBusinessPagesAsync(businessId, "client_pages", userToken, pages, cancellationToken);
+				}
+			}
+		}
+		catch (InvalidOperationException)
+		{
+			// Business Portfolio discovery is additive. Direct Page discovery must still work
+			// when the user declines business_management or has no portfolio access.
+		}
+
+		return pages.Values.OrderBy(page => page.Name, StringComparer.OrdinalIgnoreCase).ToList();
+	}
+
+	private async Task TryAddBusinessPagesAsync(string businessId, string edge, string userToken, IDictionary<string, MetaGraphPage> pages, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await AddPagesAsync($"{Escape(businessId)}/{edge}?fields={Escape(PageDiscoveryFields)}&limit=100&access_token={Escape(userToken)}", userToken, pages, cancellationToken);
+		}
+		catch (InvalidOperationException)
+		{
+			// A portfolio can expose only one of the owned/client Page edges to this user.
+		}
+	}
+
+	private async Task AddPagesAsync(string path, string userToken, IDictionary<string, MetaGraphPage> pages, CancellationToken cancellationToken)
+	{
+		var document = await GetJsonAsync(path, cancellationToken);
+		if (!document.RootElement.TryGetProperty("data", out var data)) return;
+		foreach (var item in data.EnumerateArray())
+		{
+			var page = await ParseDiscoverablePageAsync(item, userToken, cancellationToken);
+			if (page is not null) pages.TryAdd(page.Id, page);
+		}
+	}
+
+	private async Task<MetaGraphPage?> ParseDiscoverablePageAsync(JsonElement item, string userToken, CancellationToken cancellationToken)
+	{
+		var id = OptionalString(item, "id");
+		if (string.IsNullOrWhiteSpace(id)) return null;
+
+		var source = item;
+		if (string.IsNullOrWhiteSpace(OptionalString(source, "access_token")))
+		{
+			try
+			{
+				var pageDocument = await GetJsonAsync($"{Escape(id)}?fields={Escape(PageDiscoveryFields)}&access_token={Escape(userToken)}", cancellationToken);
+				source = pageDocument.RootElement.Clone();
+			}
+			catch (InvalidOperationException)
+			{
+				return null;
+			}
+		}
+
+		var accessToken = OptionalString(source, "access_token");
+		if (string.IsNullOrWhiteSpace(accessToken)) return null;
+		MetaInstagramAccount? instagram = null;
+		if (source.TryGetProperty("instagram_business_account", out var account))
+		{
+			instagram = new MetaInstagramAccount
+			{
+				Id = RequiredString(account, "id"),
+				Username = OptionalString(account, "username") ?? string.Empty,
+				Name = OptionalString(account, "name") ?? string.Empty,
+				ProfilePictureUrl = OptionalString(account, "profile_picture_url")
+			};
+		}
+		var tasks = source.TryGetProperty("tasks", out var taskValues)
+			? taskValues.EnumerateArray().Select(value => value.GetString() ?? string.Empty).Where(value => value.Length > 0).ToList()
+			: [];
+		return new MetaGraphPage(id, OptionalString(source, "name") ?? OptionalString(item, "name") ?? id, accessToken, tasks, instagram);
 	}
 
 	public async Task ValidateAsync(string accessToken, CancellationToken cancellationToken = default) =>

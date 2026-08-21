@@ -21,8 +21,11 @@ Add the exact redirect URL to **Facebook Login for Business → Valid OAuth Redi
 - `instagram_basic`
 - `instagram_content_publish`
 - `instagram_manage_insights`
+- `business_management`
 
 Facebook Pages must be managed by the connecting account. Instagram destinations must be professional accounts connected to those Pages. The app can be tested with Meta app roles while in development mode; publishing and insights for customer organisations require the relevant Advanced Access and App Review approval.
+
+Yepset discovers Pages both from the connecting user's direct Page list and from Business Portfolios to which the user has access. Business Portfolio discovery checks both owned Pages and partner/client Pages. Add `business_management` to the Meta app before deploying this version, then disconnect and reconnect existing integrations so their user tokens include the new permission. Direct Page discovery remains available when the permission is declined or the user does not belong to a Business Portfolio.
 
 Yepset reads Page and Instagram post metadata plus post-level insights. Overview responses are cached for five minutes. Some metrics may be missing for new posts, unsupported post types or accounts that do not meet Meta's eligibility thresholds.
 
