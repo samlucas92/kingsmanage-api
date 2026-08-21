@@ -34,8 +34,23 @@ public sealed class SocialPublicationService : ISocialPublicationService
 		var publication = await GetAsync(id, cancellationToken);
 		if (publication is null || publication.Status != SocialPublicationStatus.Draft) return null;
 		publication.FileId = fileId;
+		publication.UpdatedAt = DateTime.UtcNow;
+		await publications.ReplaceOneAsync(tenant.Filter<SocialPublication>(item => item.Id == id), publication, cancellationToken: cancellationToken);
+		return publication;
+	}
+
+	public async Task<SocialPublication?> QueueAsync(Guid id, SocialPublicationMode mode, CancellationToken cancellationToken = default)
+	{
+		var publication = await GetAsync(id, cancellationToken);
+		if (publication is null || publication.Status != SocialPublicationStatus.Draft || publication.FileId is null || mode == SocialPublicationMode.YepsetDraft || publication.Deliveries.Count == 0) return null;
+		if (mode == SocialPublicationMode.FacebookDraft)
+		{
+			if (!publication.Deliveries.Any(item => item.Platform == SocialPlatform.Facebook)) return null;
+			foreach (var delivery in publication.Deliveries.Where(item => item.Platform == SocialPlatform.Instagram)) delivery.Status = SocialDeliveryStatus.Saved;
+		}
+		publication.Mode = mode;
 		publication.Status = SocialPublicationStatus.Scheduled;
-		publication.ScheduledForUtc ??= DateTime.UtcNow;
+		publication.ScheduledForUtc = DateTime.UtcNow;
 		publication.UpdatedAt = DateTime.UtcNow;
 		await publications.ReplaceOneAsync(tenant.Filter<SocialPublication>(item => item.Id == id), publication, cancellationToken: cancellationToken);
 		return publication;
@@ -44,9 +59,9 @@ public sealed class SocialPublicationService : ISocialPublicationService
 	public async Task<SocialPublication?> CancelAsync(Guid id, CancellationToken cancellationToken = default)
 	{
 		var publication = await GetAsync(id, cancellationToken);
-		if (publication is null || publication.Status is SocialPublicationStatus.Published or SocialPublicationStatus.Cancelled) return null;
+		if (publication is null || publication.Status is SocialPublicationStatus.Published or SocialPublicationStatus.MetaDraft or SocialPublicationStatus.Cancelled) return null;
 		publication.Status = SocialPublicationStatus.Cancelled;
-		foreach (var delivery in publication.Deliveries.Where(item => item.Status != SocialDeliveryStatus.Published)) delivery.Status = SocialDeliveryStatus.Cancelled;
+		foreach (var delivery in publication.Deliveries.Where(item => item.Status is not (SocialDeliveryStatus.Published or SocialDeliveryStatus.Drafted))) delivery.Status = SocialDeliveryStatus.Cancelled;
 		publication.UpdatedAt = DateTime.UtcNow;
 		await publications.ReplaceOneAsync(tenant.Filter<SocialPublication>(item => item.Id == id), publication, cancellationToken: cancellationToken);
 		return publication;
@@ -97,13 +112,18 @@ public sealed class SocialPublicationService : ISocialPublicationService
 		var delivery = publication.Deliveries.First(item => item.Platform == platform);
 		delivery.AttemptCount++;
 		delivery.LastAttemptAt = DateTime.UtcNow;
-		delivery.Status = succeeded ? SocialDeliveryStatus.Published : retryAt is not null ? SocialDeliveryStatus.Pending : SocialDeliveryStatus.Failed;
+		delivery.Status = succeeded
+			? publication.Mode == SocialPublicationMode.FacebookDraft ? SocialDeliveryStatus.Drafted : SocialDeliveryStatus.Published
+			: retryAt is not null ? SocialDeliveryStatus.Pending : SocialDeliveryStatus.Failed;
 		delivery.ProviderPostId = providerPostId;
 		delivery.LastError = error;
 		delivery.NextAttemptAt = retryAt;
 		var published = publication.Deliveries.Count(item => item.Status == SocialDeliveryStatus.Published);
+		var drafted = publication.Deliveries.Count(item => item.Status is SocialDeliveryStatus.Drafted or SocialDeliveryStatus.Saved);
 		var pending = publication.Deliveries.Count(item => item.Status == SocialDeliveryStatus.Pending);
-		publication.Status = published == publication.Deliveries.Count
+		publication.Status = publication.Mode == SocialPublicationMode.FacebookDraft && drafted == publication.Deliveries.Count
+			? SocialPublicationStatus.MetaDraft
+			: published == publication.Deliveries.Count
 			? SocialPublicationStatus.Published
 			: pending > 0 ? retryAt is not null ? SocialPublicationStatus.Scheduled : SocialPublicationStatus.Processing
 			: published > 0 ? SocialPublicationStatus.PartiallyPublished : SocialPublicationStatus.Failed;

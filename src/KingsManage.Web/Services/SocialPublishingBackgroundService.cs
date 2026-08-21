@@ -66,7 +66,9 @@ public sealed class SocialPublishingBackgroundService : BackgroundService
 				try
 				{
 					var externalId = delivery.Platform == SocialPlatform.Facebook
-						? await meta.PublishFacebookPhotoAsync(page.Id, pageToken, media.Url, publication.FacebookCaption, cancellationToken)
+						? publication.Mode == SocialPublicationMode.FacebookDraft
+							? await meta.CreateFacebookDraftPhotoAsync(page.Id, pageToken, media.Url, publication.FacebookCaption, cancellationToken)
+							: await meta.PublishFacebookPhotoAsync(page.Id, pageToken, media.Url, publication.FacebookCaption, cancellationToken)
 						: await meta.PublishInstagramImageAsync(delivery.DestinationId, pageToken, media.Url, publication.InstagramCaption, cancellationToken);
 					await publications.CompleteDeliveryAsync(publication.Id, leaseId, delivery.Platform, externalId, cancellationToken);
 				}

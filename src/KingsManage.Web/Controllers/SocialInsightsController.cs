@@ -50,7 +50,7 @@ public sealed class SocialInsightsController : ControllerBase
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException or CryptographicException)
 		{
-			return Problem(exception.Message, statusCode: StatusCodes.Status502BadGateway, title: "Meta insights are unavailable");
+			return Problem(GetInsightsError(exception), statusCode: StatusCodes.Status502BadGateway, title: "Meta insights are unavailable");
 		}
 	}
 
@@ -73,7 +73,7 @@ public sealed class SocialInsightsController : ControllerBase
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException or CryptographicException)
 		{
-			return Problem(exception.Message, statusCode: StatusCodes.Status502BadGateway, title: "Meta insights are unavailable");
+			return Problem(GetInsightsError(exception), statusCode: StatusCodes.Status502BadGateway, title: "Meta insights are unavailable");
 		}
 	}
 
@@ -121,6 +121,17 @@ public sealed class SocialInsightsController : ControllerBase
 		SocialPlatform.Instagram => mapping.InstagramEnabled,
 		_ => false
 	};
+
+	private static string GetInsightsError(Exception exception)
+	{
+		if (exception.Message.Contains("pages_read_user_content", StringComparison.OrdinalIgnoreCase) ||
+			exception.Message.Contains("Page Public Content Access", StringComparison.OrdinalIgnoreCase) ||
+			exception.Message.Contains("(#10)", StringComparison.OrdinalIgnoreCase))
+		{
+			return "Facebook post insights need the pages_read_user_content permission. Add that permission to the Yepset Social app in Meta, then reconnect Meta in Organisation integrations so the existing connection grants it.";
+		}
+		return exception.Message;
+	}
 
 	private sealed record MetaDestination(SocialChannelMapping? Mapping, MetaPageConnection? Page, string? AccessToken, string? Error)
 	{

@@ -18,6 +18,7 @@ public enum SocialPublicationStatus
 	Draft,
 	Scheduled,
 	Processing,
+	MetaDraft,
 	Published,
 	PartiallyPublished,
 	Failed,
@@ -28,9 +29,18 @@ public enum SocialDeliveryStatus
 {
 	Pending,
 	Processing,
+	Saved,
+	Drafted,
 	Published,
 	Failed,
 	Cancelled
+}
+
+public enum SocialPublicationMode
+{
+	YepsetDraft,
+	PublishNow,
+	FacebookDraft
 }
 
 public sealed class MetaInstagramAccount
@@ -112,9 +122,14 @@ public sealed class SocialPublication : ITenantOwned
 	public Guid ClubId { get; set; }
 	public Guid CreatedByUserId { get; set; }
 	public Guid? FileId { get; set; }
+	public string Title { get; set; } = string.Empty;
+	public string? GraphicKind { get; set; }
+	public string? TemplateId { get; set; }
+	public string? EditorStateJson { get; set; }
 	public string FacebookCaption { get; set; } = string.Empty;
 	public string InstagramCaption { get; set; } = string.Empty;
 	public DateTime? ScheduledForUtc { get; set; }
+	public SocialPublicationMode Mode { get; set; } = SocialPublicationMode.YepsetDraft;
 	public SocialPublicationStatus Status { get; set; } = SocialPublicationStatus.Draft;
 	public List<SocialPublicationDelivery> Deliveries { get; set; } = [];
 	public Guid? LeaseId { get; set; }
@@ -148,6 +163,7 @@ public interface ISocialPublicationService
 	Task<SocialPublication?> GetAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication> CreateAsync(SocialPublication publication, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> AttachFileAsync(Guid id, Guid fileId, CancellationToken cancellationToken = default);
+	Task<SocialPublication?> QueueAsync(Guid id, SocialPublicationMode mode, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> CancelAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> RetryAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> LeaseDueAsync(CancellationToken cancellationToken = default);

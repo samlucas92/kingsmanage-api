@@ -22,10 +22,32 @@ public sealed class MetaGraphClientTests
 		{
 			Assert.That(url, Does.Contain("pages_manage_posts"));
 			Assert.That(url, Does.Contain("pages_read_engagement"));
+			Assert.That(url, Does.Contain("pages_read_user_content"));
 			Assert.That(url, Does.Contain("read_insights"));
 			Assert.That(url, Does.Contain("instagram_content_publish"));
 			Assert.That(url, Does.Contain("instagram_manage_insights"));
 			Assert.That(url, Does.Contain("business_management"));
+		});
+	}
+
+	[Test]
+	public async Task CreateFacebookDraftPhoto_CreatesAnUnpublishedDraft()
+	{
+		string? body = null;
+		var handler = new StubMetaHandler(request =>
+		{
+			body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+			return Json("""{"post_id":"draft-post"}""");
+		});
+		var client = new MetaGraphClient(new HttpClient(handler), Settings());
+
+		var result = await client.CreateFacebookDraftPhotoAsync("page", "token", "https://example.com/image.jpg", "Caption");
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(result, Is.EqualTo("draft-post"));
+			Assert.That(body, Does.Contain("published=false"));
+			Assert.That(body, Does.Contain("unpublished_content_type=DRAFT"));
 		});
 	}
 

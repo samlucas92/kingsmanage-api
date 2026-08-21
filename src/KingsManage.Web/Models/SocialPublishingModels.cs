@@ -44,11 +44,20 @@ public sealed class SetIntegrationEnabledRequest
 
 public sealed class CreateSocialPublicationRequest
 {
+	public string Title { get; set; } = string.Empty;
+	public string? GraphicKind { get; set; }
+	public string? TemplateId { get; set; }
+	public string? EditorStateJson { get; set; }
 	public bool PublishToFacebook { get; set; }
 	public bool PublishToInstagram { get; set; }
 	public string FacebookCaption { get; set; } = string.Empty;
 	public string InstagramCaption { get; set; } = string.Empty;
 	public DateTime? ScheduledForUtc { get; set; }
+}
+
+public sealed class QueueSocialPublicationRequest
+{
+	public SocialPublicationMode Mode { get; set; }
 }
 
 public sealed class AttachSocialPublicationFileRequest

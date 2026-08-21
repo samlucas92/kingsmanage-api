@@ -17,6 +17,7 @@ Add the exact redirect URL to **Facebook Login for Business → Valid OAuth Redi
 - `pages_show_list`
 - `pages_manage_posts`
 - `pages_read_engagement`
+- `pages_read_user_content`
 - `read_insights`
 - `instagram_basic`
 - `instagram_content_publish`
@@ -25,7 +26,7 @@ Add the exact redirect URL to **Facebook Login for Business → Valid OAuth Redi
 
 Facebook Pages must be managed by the connecting account. Instagram destinations must be professional accounts connected to those Pages. The app can be tested with Meta app roles while in development mode; publishing and insights for customer organisations require the relevant Advanced Access and App Review approval.
 
-Yepset discovers Pages both from the connecting user's direct Page list and from Business Portfolios to which the user has access. Business Portfolio discovery checks both owned Pages and partner/client Pages. Add `business_management` to the Meta app before deploying this version, then disconnect and reconnect existing integrations so their user tokens include the new permission. Direct Page discovery remains available when the permission is declined or the user does not belong to a Business Portfolio.
+Yepset discovers Pages both from the connecting user's direct Page list and from Business Portfolios to which the user has access. Business Portfolio discovery checks both owned Pages and partner/client Pages. Add `business_management` and `pages_read_user_content` to the Meta app before deploying this version, then disconnect and reconnect existing integrations so their user tokens include the new permissions. Direct Page discovery remains available when `business_management` is declined or the user does not belong to a Business Portfolio.
 
 Yepset reads Page and Instagram post metadata plus post-level insights. Overview responses are cached for five minutes. Some metrics may be missing for new posts, unsupported post types or accounts that do not meet Meta's eligibility thresholds.
 
@@ -33,6 +34,6 @@ The API never receives a Facebook password. User and Page access tokens are encr
 
 ## Worker and storage
 
-The API hosts the publishing worker. `MetaIntegration:PublishingEnabled` and `MetaIntegration:PollIntervalSeconds` control it. Scheduled times are persisted in UTC.
+The API hosts a short-lived delivery worker. `MetaIntegration:PublishingEnabled` and `MetaIntegration:PollIntervalSeconds` control it. The Studio does not expose future Yepset-side scheduling: content is either saved in Yepset, queued for immediate publishing, or sent to Facebook as an unpublished draft. Instagram does not provide an equivalent persistent draft endpoint, so Instagram content remains in Yepset when Facebook draft is selected. Legacy scheduled records are still processed at their persisted UTC time.
 
 Studio artwork is converted to JPEG, stored through the existing managed-file/R2 path and exposed to Meta with a two-hour signed read URL during publishing. The bucket does not need to be public.

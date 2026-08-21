@@ -82,6 +82,7 @@ public interface IMetaGraphClient
 	Task<MetaAuthorizationResult> CompleteAuthorizationAsync(string code, CancellationToken cancellationToken = default);
 	Task ValidateAsync(string accessToken, CancellationToken cancellationToken = default);
 	Task<string> PublishFacebookPhotoAsync(string pageId, string pageAccessToken, string mediaUrl, string caption, CancellationToken cancellationToken = default);
+	Task<string> CreateFacebookDraftPhotoAsync(string pageId, string pageAccessToken, string mediaUrl, string caption, CancellationToken cancellationToken = default);
 	Task<string> PublishInstagramImageAsync(string instagramAccountId, string pageAccessToken, string mediaUrl, string caption, CancellationToken cancellationToken = default);
 	Task<SocialInsightsOverview> GetInsightsOverviewAsync(MetaPageConnection page, string pageAccessToken, CancellationToken cancellationToken = default);
 	Task<SocialPostInsightsDetail> GetPostInsightsAsync(SocialPlatform platform, string postId, string pageAccessToken, CancellationToken cancellationToken = default);
@@ -102,7 +103,7 @@ public sealed class MetaGraphClient : IMetaGraphClient
 	public string BuildAuthorizationUrl(string state)
 	{
 		EnsureConfigured();
-		var scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management";
+		var scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,pages_read_user_content,read_insights,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management";
 		return $"https://www.facebook.com/{settings.GraphApiVersion}/dialog/oauth?client_id={Uri.EscapeDataString(settings.AppId)}&redirect_uri={Uri.EscapeDataString(settings.RedirectUri)}&state={Uri.EscapeDataString(state)}&scope={Uri.EscapeDataString(scopes)}&response_type=code";
 	}
 
@@ -219,6 +220,19 @@ public sealed class MetaGraphClient : IMetaGraphClient
 	public async Task<string> PublishFacebookPhotoAsync(string pageId, string pageAccessToken, string mediaUrl, string caption, CancellationToken cancellationToken = default)
 	{
 		var response = await PostFormAsync($"{pageId}/photos", new Dictionary<string, string> { ["url"] = mediaUrl, ["caption"] = caption, ["published"] = "true", ["access_token"] = pageAccessToken }, cancellationToken);
+		return OptionalString(response.RootElement, "post_id") ?? RequiredString(response.RootElement, "id");
+	}
+
+	public async Task<string> CreateFacebookDraftPhotoAsync(string pageId, string pageAccessToken, string mediaUrl, string caption, CancellationToken cancellationToken = default)
+	{
+		var response = await PostFormAsync($"{pageId}/photos", new Dictionary<string, string>
+		{
+			["url"] = mediaUrl,
+			["caption"] = caption,
+			["published"] = "false",
+			["unpublished_content_type"] = "DRAFT",
+			["access_token"] = pageAccessToken
+		}, cancellationToken);
 		return OptionalString(response.RootElement, "post_id") ?? RequiredString(response.RootElement, "id");
 	}
 
