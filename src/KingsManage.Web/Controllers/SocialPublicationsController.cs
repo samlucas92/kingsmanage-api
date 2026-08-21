@@ -1,0 +1,97 @@
+using System.Security.Claims;
+using KingsManage;
+using KingsManage.Web.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace KingsManage.Web.Controllers;
+
+[ApiController]
+[Authorize(Policy = "ClubAdmin")]
+[Route("api/social-publications")]
+public sealed class SocialPublicationsController : ControllerBase
+{
+	private readonly ISocialPublicationService publications;
+	private readonly IOrganizationMetaIntegrationService integrations;
+	private readonly IClubFileService files;
+	private readonly ITenantContext tenant;
+
+	public SocialPublicationsController(ISocialPublicationService publications, IOrganizationMetaIntegrationService integrations, IClubFileService files, ITenantContext tenant)
+	{
+		this.publications = publications;
+		this.integrations = integrations;
+		this.files = files;
+		this.tenant = tenant;
+	}
+
+	[HttpGet("destinations")]
+	public async Task<ActionResult<IReadOnlyList<SocialDestination>>> GetDestinations(CancellationToken cancellationToken)
+	{
+		var integration = await integrations.GetCurrentAsync(cancellationToken);
+		if (integration is null || !integration.IsEnabled || integration.Status != OrganizationIntegrationStatus.Connected) return Ok(Array.Empty<SocialDestination>());
+		var mapping = integration.ClubMappings.FirstOrDefault(item => item.ClubId == tenant.ClubId);
+		if (mapping is null) return Ok(Array.Empty<SocialDestination>());
+		var page = integration.Pages.FirstOrDefault(item => item.Id == mapping.FacebookPageId);
+		var result = new List<SocialDestination>();
+		if (mapping.FacebookEnabled && page is not null) result.Add(new SocialDestination(SocialPlatform.Facebook, page.Id, page.Name));
+		if (mapping.InstagramEnabled && page?.InstagramAccount is { } instagram) result.Add(new SocialDestination(SocialPlatform.Instagram, instagram.Id, instagram.Name, instagram.Username));
+		return Ok(result);
+	}
+
+	[HttpGet]
+	public async Task<ActionResult<IReadOnlyList<SocialPublication>>> Get([FromQuery] int limit = 50, CancellationToken cancellationToken = default) =>
+		Ok(await publications.GetCurrentClubAsync(limit, cancellationToken));
+
+	[HttpPost]
+	public async Task<ActionResult<SocialPublication>> Create(CreateSocialPublicationRequest request, CancellationToken cancellationToken)
+	{
+		if (!request.PublishToFacebook && !request.PublishToInstagram) return BadRequest("Select at least one destination.");
+		if (request.FacebookCaption.Length > 63206 || request.InstagramCaption.Length > 2200) return BadRequest("A platform caption is too long.");
+		if (request.ScheduledForUtc < DateTime.UtcNow.AddMinutes(-1)) return BadRequest("The scheduled time cannot be in the past.");
+		var integration = await integrations.GetCurrentAsync(cancellationToken);
+		if (integration is null || !integration.IsEnabled || integration.Status != OrganizationIntegrationStatus.Connected) return Conflict("Meta publishing is not currently enabled.");
+		var mapping = integration.ClubMappings.FirstOrDefault(item => item.ClubId == tenant.ClubId);
+		var page = integration.Pages.FirstOrDefault(item => item.Id == mapping?.FacebookPageId);
+		var deliveries = new List<SocialPublicationDelivery>();
+		if (request.PublishToFacebook)
+		{
+			if (mapping?.FacebookEnabled != true || page is null) return BadRequest("Facebook is not configured for this club.");
+			deliveries.Add(new SocialPublicationDelivery { Platform = SocialPlatform.Facebook, DestinationId = page.Id, DestinationName = page.Name });
+		}
+		if (request.PublishToInstagram)
+		{
+			if (mapping?.InstagramEnabled != true || page?.InstagramAccount is not { } instagram) return BadRequest("Instagram is not configured for this club.");
+			deliveries.Add(new SocialPublicationDelivery { Platform = SocialPlatform.Instagram, DestinationId = instagram.Id, DestinationName = instagram.Username.Length > 0 ? $"@{instagram.Username}" : instagram.Name });
+		}
+		var userId = GetCurrentUserId();
+		if (userId is null) return BadRequest("Current user id is invalid.");
+		var created = await publications.CreateAsync(new SocialPublication
+		{
+			CreatedByUserId = userId.Value,
+			FacebookCaption = request.FacebookCaption.Trim(),
+			InstagramCaption = request.InstagramCaption.Trim(),
+			ScheduledForUtc = request.ScheduledForUtc?.ToUniversalTime(),
+			Deliveries = deliveries
+		}, cancellationToken);
+		return Created($"/api/social-publications/{created.Id}", created);
+	}
+
+	[HttpPost("{id:guid}/media")]
+	public async Task<ActionResult<SocialPublication>> AttachMedia(Guid id, AttachSocialPublicationFileRequest request, CancellationToken cancellationToken)
+	{
+		var file = await files.GetByIdAsync(request.FileId, cancellationToken);
+		if (file is null || file.Status != ClubFileStatus.Uploaded || file.LinkedEntityType != ClubFileLinkedEntityType.SocialPublication || file.LinkedEntityId != id) return BadRequest("Upload a valid JPEG publication image first.");
+		if (!string.Equals(file.ContentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)) return BadRequest("Meta publication images must be JPEG files.");
+		return await publications.AttachFileAsync(id, request.FileId, cancellationToken) is { } publication ? Ok(publication) : NotFound();
+	}
+
+	[HttpPost("{id:guid}/cancel")]
+	public async Task<ActionResult<SocialPublication>> Cancel(Guid id, CancellationToken cancellationToken) =>
+		await publications.CancelAsync(id, cancellationToken) is { } publication ? Ok(publication) : Conflict("This publication can no longer be cancelled.");
+
+	[HttpPost("{id:guid}/retry")]
+	public async Task<ActionResult<SocialPublication>> Retry(Guid id, CancellationToken cancellationToken) =>
+		await publications.RetryAsync(id, cancellationToken) is { } publication ? Ok(publication) : Conflict("This publication has no failed delivery to retry.");
+
+	private Guid? GetCurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), out var id) ? id : null;
+}

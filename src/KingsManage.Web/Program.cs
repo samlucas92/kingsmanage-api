@@ -47,6 +47,9 @@ var fileLifecycleSettings = builder.Configuration
 var billingSettings = builder.Configuration
 	.GetSection("Billing")
 	.Get<BillingSettings>() ?? new BillingSettings();
+var metaIntegrationSettings = builder.Configuration
+	.GetSection("MetaIntegration")
+	.Get<MetaIntegrationSettings>() ?? new MetaIntegrationSettings();
 
 r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
 r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
@@ -55,6 +58,11 @@ r2StorageSettings.BucketName = Environment.GetEnvironmentVariable("R2_BUCKET_NAM
 r2StorageSettings.PublicBaseUrl = Environment.GetEnvironmentVariable("R2_PUBLIC_BASE_URL") ?? r2StorageSettings.PublicBaseUrl;
 
 jwtSettings.Secret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings.Secret;
+metaIntegrationSettings.AppId = Environment.GetEnvironmentVariable("META_APP_ID") ?? metaIntegrationSettings.AppId;
+metaIntegrationSettings.AppSecret = Environment.GetEnvironmentVariable("META_APP_SECRET") ?? metaIntegrationSettings.AppSecret;
+metaIntegrationSettings.RedirectUri = Environment.GetEnvironmentVariable("META_REDIRECT_URI") ?? metaIntegrationSettings.RedirectUri;
+metaIntegrationSettings.GraphApiVersion = Environment.GetEnvironmentVariable("META_GRAPH_API_VERSION") ?? metaIntegrationSettings.GraphApiVersion;
+metaIntegrationSettings.TokenEncryptionKey = Environment.GetEnvironmentVariable("META_TOKEN_ENCRYPTION_KEY") ?? metaIntegrationSettings.TokenEncryptionKey;
 
 if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 {
@@ -65,6 +73,7 @@ builder.Services.AddSingleton(mongoDbSettings);
 builder.Services.AddSingleton(r2StorageSettings);
 builder.Services.AddSingleton(fileLifecycleSettings);
 builder.Services.AddSingleton(billingSettings);
+builder.Services.AddSingleton(metaIntegrationSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -96,6 +105,8 @@ builder.Services.AddScoped<IClubFormService, ClubFormService>();
 builder.Services.AddScoped<IFormAnalyticsService, FormAnalyticsService>();
 builder.Services.AddScoped<IClubPostTemplateService, ClubPostTemplateService>();
 builder.Services.AddScoped<ISocialGraphicTemplateService, SocialGraphicTemplateService>();
+builder.Services.AddScoped<IOrganizationMetaIntegrationService, OrganizationMetaIntegrationService>();
+builder.Services.AddScoped<ISocialPublicationService, SocialPublicationService>();
 builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
 builder.Services.AddScoped<IClubNotificationService, ClubNotificationService>();
 builder.Services.AddScoped<IClubFileService, ClubFileService>();
@@ -121,10 +132,17 @@ builder.Services.AddScoped<ISportsClubService, SportsClubService>();
 builder.Services.AddScoped<IUserMembershipService, UserMembershipService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+builder.Services.AddSingleton<IIntegrationSecretProtector, AesGcmIntegrationSecretProtector>();
+builder.Services.AddHttpClient<IMetaGraphClient, MetaGraphClient>();
 
 if (fileLifecycleSettings.Enabled)
 {
 	builder.Services.AddHostedService<FileLifecycleBackgroundService>();
+}
+
+if (metaIntegrationSettings.PublishingEnabled)
+{
+	builder.Services.AddHostedService<SocialPublishingBackgroundService>();
 }
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));

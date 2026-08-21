@@ -655,6 +655,7 @@ public class FilesController : ControllerBase
 			model.LinkedEntityType is ClubFileLinkedEntityType.ClubLogo
 				or ClubFileLinkedEntityType.PostTemplate
 				or ClubFileLinkedEntityType.RichTextDraft
+				or ClubFileLinkedEntityType.SocialPublication
 		)
 		{
 			if (!model.ContentType.Trim().StartsWith("image/", StringComparison.OrdinalIgnoreCase))
@@ -720,6 +721,7 @@ public class FilesController : ControllerBase
 			ClubFileLinkedEntityType.PostTemplate =>
 				await templateService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.RichTextDraft => true,
+			ClubFileLinkedEntityType.SocialPublication => true,
 			_ => false
 		};
 	}
@@ -744,6 +746,7 @@ public class FilesController : ControllerBase
 			ClubFileLinkedEntityType.ClubLogo => true,
 			ClubFileLinkedEntityType.PostTemplate => IsAdminOrCoach(),
 			ClubFileLinkedEntityType.RichTextDraft => IsAdminOrCoach(),
+			ClubFileLinkedEntityType.SocialPublication => IsAdminOrCoach(),
 			_ => false
 		};
 	}

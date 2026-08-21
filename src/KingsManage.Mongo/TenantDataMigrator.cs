@@ -43,6 +43,27 @@ public sealed class TenantDataMigrator
 		await EnsureBillingIndexesAsync(cancellationToken);
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
+		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureSocialPublishingIndexesAsync(CancellationToken cancellationToken)
+	{
+		var integrations = database.GetCollection<OrganizationMetaIntegration>("organizationMetaIntegrations");
+		await integrations.Indexes.CreateOneAsync(new CreateIndexModel<OrganizationMetaIntegration>(
+			Builders<OrganizationMetaIntegration>.IndexKeys.Ascending(item => item.OrganizationId),
+			new CreateIndexOptions { Name = "Organization_1", Unique = true }), cancellationToken: cancellationToken);
+
+		var oauthStates = database.GetCollection<MetaOAuthState>("metaOAuthStates");
+		await oauthStates.Indexes.CreateManyAsync([
+			new CreateIndexModel<MetaOAuthState>(Builders<MetaOAuthState>.IndexKeys.Ascending(item => item.StateHash), new CreateIndexOptions { Name = "StateHash_1", Unique = true }),
+			new CreateIndexModel<MetaOAuthState>(Builders<MetaOAuthState>.IndexKeys.Ascending(item => item.ExpiresAt), new CreateIndexOptions { Name = "ExpiresAtTtl_1", ExpireAfter = TimeSpan.Zero })
+		], cancellationToken);
+
+		var publications = database.GetCollection<SocialPublication>("socialPublications");
+		await publications.Indexes.CreateManyAsync([
+			new CreateIndexModel<SocialPublication>(Builders<SocialPublication>.IndexKeys.Ascending(item => item.Status).Ascending(item => item.ScheduledForUtc).Ascending(item => item.LeaseExpiresAt), new CreateIndexOptions { Name = "DueLease_1" }),
+			new CreateIndexModel<SocialPublication>(Builders<SocialPublication>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Descending(item => item.CreatedAt), new CreateIndexOptions { Name = "TenantCreatedAt_1" })
+		], cancellationToken);
 	}
 
 	private async Task EnsureHandoverVaultIndexesAsync(CancellationToken cancellationToken)
