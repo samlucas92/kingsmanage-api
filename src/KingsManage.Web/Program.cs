@@ -86,6 +86,7 @@ builder.Services.Configure<JwtSettings>(options =>
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<TenantDataMigrator>();
 builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
 builder.Services.AddScoped<ITeamAccessContext, HttpTeamAccessContext>();

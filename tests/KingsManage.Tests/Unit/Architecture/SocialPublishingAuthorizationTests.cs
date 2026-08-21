@@ -14,6 +14,10 @@ public sealed class SocialPublishingAuthorizationTests
 	public void SocialPublishing_IsClubAdminOnly() =>
 		AssertPolicy(typeof(SocialPublicationsController), "ClubAdmin");
 
+	[Test]
+	public void SocialInsights_AreLimitedToTeamManagement() =>
+		AssertPolicy(typeof(SocialInsightsController), "TeamManagement");
+
 	private static void AssertPolicy(Type controllerType, string expectedPolicy)
 	{
 		var policies = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), true)

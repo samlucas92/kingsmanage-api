@@ -17,10 +17,14 @@ Add the exact redirect URL to **Facebook Login for Business → Valid OAuth Redi
 - `pages_show_list`
 - `pages_manage_posts`
 - `pages_read_engagement`
+- `read_insights`
 - `instagram_basic`
 - `instagram_content_publish`
+- `instagram_manage_insights`
 
-Facebook Pages must be managed by the connecting account. Instagram destinations must be professional accounts connected to those Pages. The app can be tested with Meta app roles while in development mode; publishing for customer organisations requires the relevant Advanced Access and App Review approval.
+Facebook Pages must be managed by the connecting account. Instagram destinations must be professional accounts connected to those Pages. The app can be tested with Meta app roles while in development mode; publishing and insights for customer organisations require the relevant Advanced Access and App Review approval.
+
+Yepset reads Page and Instagram post metadata plus post-level insights. Overview responses are cached for five minutes. Some metrics may be missing for new posts, unsupported post types or accounts that do not meet Meta's eligibility thresholds.
 
 The API never receives a Facebook password. User and Page access tokens are encrypted before MongoDB persistence and are never returned by API view models.
 
