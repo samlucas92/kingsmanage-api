@@ -14,14 +14,45 @@ public sealed class SocialPublicationsController : ControllerBase
 	private readonly ISocialPublicationService publications;
 	private readonly IOrganizationMetaIntegrationService integrations;
 	private readonly IClubFileService files;
+	private readonly IStoredFileObjectService storedObjects;
+	private readonly IFileLifecycleService fileLifecycle;
 	private readonly ITenantContext tenant;
 
-	public SocialPublicationsController(ISocialPublicationService publications, IOrganizationMetaIntegrationService integrations, IClubFileService files, ITenantContext tenant)
+	public SocialPublicationsController(ISocialPublicationService publications, IOrganizationMetaIntegrationService integrations, IClubFileService files, IStoredFileObjectService storedObjects, IFileLifecycleService fileLifecycle, ITenantContext tenant)
 	{
 		this.publications = publications;
 		this.integrations = integrations;
 		this.files = files;
+		this.storedObjects = storedObjects;
+		this.fileLifecycle = fileLifecycle;
 		this.tenant = tenant;
+	}
+
+	[HttpDelete("{id:guid}")]
+	public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+	{
+		var userId = GetCurrentUserId();
+		if (userId is null) return BadRequest("Current user id is invalid.");
+		var deleted = await publications.DeleteUnsentAsync(id, cancellationToken);
+		if (deleted is null) return Conflict("Only content that has never been sent to Meta can be deleted.");
+		if (deleted.FileId is Guid fileId && await files.GetByIdAsync(fileId, cancellationToken) is { } file)
+		{
+			if (await files.SoftDeleteAsync(fileId, userId.Value, cancellationToken))
+			{
+				if (file.StoredObjectId is Guid storedObjectId) await storedObjects.DecrementReferenceCountAsync(storedObjectId, cancellationToken);
+				await fileLifecycle.RecordAuditAsync(new FileLifecycleAudit
+				{
+					OrganizationId = file.OrganizationId,
+					ClubId = file.ClubId,
+					FileId = file.Id,
+					StoredObjectId = file.StoredObjectId,
+					UserId = userId.Value,
+					EventType = FileLifecycleEventType.ReferenceDeleted,
+					Detail = "Unsent social content deleted."
+				}, cancellationToken);
+			}
+		}
+		return NoContent();
 	}
 
 	[HttpGet("destinations")]

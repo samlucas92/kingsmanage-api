@@ -56,6 +56,17 @@ public sealed class SocialPublicationService : ISocialPublicationService
 		return publication;
 	}
 
+	public async Task<SocialPublication?> DeleteUnsentAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var allowedStatuses = new[] { SocialPublicationStatus.Draft, SocialPublicationStatus.Failed, SocialPublicationStatus.Cancelled };
+		var filter = tenant.Filter<SocialPublication>(item => item.Id == id) &
+			Builders<SocialPublication>.Filter.In(item => item.Status, allowedStatuses) &
+			Builders<SocialPublication>.Filter.Not(Builders<SocialPublication>.Filter.ElemMatch(
+				item => item.Deliveries,
+				delivery => delivery.ProviderPostId != null && delivery.ProviderPostId != string.Empty));
+		return await publications.FindOneAndDeleteAsync(filter, cancellationToken: cancellationToken);
+	}
+
 	public async Task<SocialPublication?> CancelAsync(Guid id, CancellationToken cancellationToken = default)
 	{
 		var publication = await GetAsync(id, cancellationToken);

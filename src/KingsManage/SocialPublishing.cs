@@ -164,6 +164,7 @@ public interface ISocialPublicationService
 	Task<SocialPublication> CreateAsync(SocialPublication publication, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> AttachFileAsync(Guid id, Guid fileId, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> QueueAsync(Guid id, SocialPublicationMode mode, CancellationToken cancellationToken = default);
+	Task<SocialPublication?> DeleteUnsentAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> CancelAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> RetryAsync(Guid id, CancellationToken cancellationToken = default);
 	Task<SocialPublication?> LeaseDueAsync(CancellationToken cancellationToken = default);
