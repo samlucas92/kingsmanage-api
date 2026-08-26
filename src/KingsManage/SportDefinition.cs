@@ -29,7 +29,7 @@ public static class SportCatalog
 	[
 		Create("football", "Football", "football-pitch", 11,
 			["GK|Goalkeeper|Goalkeeper", "LB|Left Back|Defence", "CB|Centre Back|Defence", "RB|Right Back|Defence", "LWB|Left Wing Back|Defence", "RWB|Right Wing Back|Defence", "CDM|Defensive Midfielder|Midfield", "CM|Central Midfielder|Midfield", "CAM|Attacking Midfielder|Midfield", "LM|Left Midfielder|Midfield", "RM|Right Midfielder|Midfield", "LW|Left Wing|Attack", "RW|Right Wing|Attack", "ST|Striker|Attack", "CF|Centre Forward|Attack"],
-			["4-4-2", "4-3-3", "3-5-2", "4-2-3-1"]),
+			["4-4-2", "4-3-3", "4-5-1", "3-5-2", "4-2-3-1"]),
 		Create("rugby-union", "Rugby Union", "rugby-pitch", 15,
 			["PR|Prop|Forwards", "HK|Hooker|Forwards", "LK|Lock|Forwards", "FL|Flanker|Forwards", "N8|Number Eight|Forwards", "SH|Scrum Half|Backs", "FH|Fly Half|Backs", "CE|Centre|Backs", "WG|Wing|Backs", "FB|Full Back|Backs"], ["standard-xv"]),
 		Create("rugby-league", "Rugby League", "rugby-pitch", 13,

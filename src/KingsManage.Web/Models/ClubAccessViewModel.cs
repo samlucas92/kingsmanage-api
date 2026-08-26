@@ -14,5 +14,7 @@ public sealed class ClubAccessViewModel
 
 	public IReadOnlyList<ClubFormation> CustomFormations { get; set; } = [];
 
+	public string DefaultFormationKey { get; set; } = string.Empty;
+
 	public bool IsCurrent { get; set; }
 }

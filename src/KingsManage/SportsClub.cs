@@ -30,6 +30,8 @@ public sealed class SportsClub
 
 	public List<ClubFormation> CustomFormations { get; set; } = [];
 
+	public string DefaultFormationKey { get; set; } = string.Empty;
+
 	public Guid? LogoFileId { get; set; }
 
 	public bool IsActive { get; set; } = true;

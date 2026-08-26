@@ -167,6 +167,11 @@ public sealed class OrganizationController : ControllerBase
 			}
 		}
 
+		if (!string.IsNullOrWhiteSpace(club.DefaultFormationKey) &&
+			!builtInKeys.Contains(club.DefaultFormationKey.Trim()) &&
+			!customKeys.Contains(club.DefaultFormationKey.Trim()))
+			return "Default formation must be one of the club's available formations.";
+
 		return null;
 	}
 

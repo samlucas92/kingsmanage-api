@@ -57,6 +57,7 @@ public sealed class ClubAccessController : ControllerBase
 				PrimaryColor = club.PrimaryColor,
 				SecondaryColor = club.SecondaryColor,
 				CustomFormations = club.CustomFormations,
+				DefaultFormationKey = club.DefaultFormationKey,
 				IsCurrent = club.Id == tenant.ClubId
 			})
 			.ToList());

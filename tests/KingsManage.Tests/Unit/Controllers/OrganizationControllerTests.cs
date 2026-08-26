@@ -85,6 +85,62 @@ public sealed class OrganizationControllerTests
 	}
 
 	[Test]
+	public async Task UpdateClub_AcceptsBuiltInAndCustomDefaultFormations()
+	{
+		var customFormation = new ClubFormation
+		{
+			Key = "custom-shape",
+			Name = "Custom shape",
+			Slots = Enumerable.Range(0, 11).Select(index => new ClubFormationSlot
+			{
+				Key = $"slot-{index}",
+				Label = index == 0 ? "GK" : "CM",
+				X = 10 + index * 7,
+				Y = 50
+			}).ToList()
+		};
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var builtIn = await controller.UpdateClub(Guid.NewGuid(), new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			DefaultFormationKey = "4-5-1"
+		}, CancellationToken.None);
+		var custom = await controller.UpdateClub(Guid.NewGuid(), new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			DefaultFormationKey = "custom-shape",
+			CustomFormations = [customFormation]
+		}, CancellationToken.None);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(builtIn.Result, Is.TypeOf<OkObjectResult>());
+			Assert.That(custom.Result, Is.TypeOf<OkObjectResult>());
+		});
+	}
+
+	[Test]
+	public async Task UpdateClub_RejectsAnUnavailableDefaultFormation()
+	{
+		var controller = new OrganizationController(new StubOrganizationService(), new StubClubService());
+
+		var result = await controller.UpdateClub(Guid.NewGuid(), new SportsClub
+		{
+			Name = "Kingsbridge",
+			Slug = "kingsbridge",
+			SportKey = "football",
+			DefaultFormationKey = "missing-shape"
+		}, CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
 	public async Task UpdateClub_RejectsAnIncompleteCustomFormation()
 	{
 		var club = new SportsClub

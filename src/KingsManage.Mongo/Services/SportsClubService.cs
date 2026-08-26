@@ -56,6 +56,7 @@ public sealed class SportsClubService : ISportsClubService
 		existing.SetupStep = club.SetupStep;
 		existing.SetupCompletedAt = club.SetupCompletedAt;
 		existing.CustomFormations = club.CustomFormations;
+		existing.DefaultFormationKey = club.DefaultFormationKey;
 		existing.LogoFileId = club.LogoFileId;
 		Normalise(existing);
 		existing.UpdatedAt = DateTime.UtcNow;
@@ -203,6 +204,7 @@ public sealed class SportsClubService : ISportsClubService
 				slot.Label = slot.Label.Trim().ToUpperInvariant();
 			}
 		}
+		club.DefaultFormationKey = club.DefaultFormationKey?.Trim().ToLowerInvariant() ?? string.Empty;
 	}
 
 	private static string NormaliseColor(string? value, string fallback) =>
