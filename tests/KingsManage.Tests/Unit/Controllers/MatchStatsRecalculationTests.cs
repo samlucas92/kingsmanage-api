@@ -188,7 +188,8 @@ public class MatchStatsRecalculationTests
 		return new MatchesController(
 			new MatchQueryService(matchService),
 			matchService,
-			statsService);
+			statsService,
+			new FakeClubEventService());
 	}
 
 	private static Match CreateMatch(Guid id, Guid seasonId)

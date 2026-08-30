@@ -189,6 +189,48 @@ public class MatchesControllerTests
 	}
 
 	[Test]
+	public async Task BulkImport_WhenCreatingEvents_ShouldCreateLinkedMatchesAndEvents()
+	{
+		var matchService = new FakeMatchService();
+		var eventService = new FakeClubEventService();
+		var statsService = new FakeStatsService();
+		var controller = CreateController(matchService, statsService, eventService);
+		var model = new BulkMatchImportModel
+		{
+			SeasonId = SeasonOneId,
+			CreateEvents = true,
+			Matches =
+			[
+				new BulkMatchImportItemModel
+				{
+					TeamId = DefaultClubTeams.FirstTeamId,
+					Team = ClubTeam.First,
+					TeamName = "First Team",
+					Opponent = "Example United",
+					Competition = "League",
+					Date = new DateTime(2026, 9, 5, 14, 0, 0, DateTimeKind.Utc),
+					Venue = MatchVenue.Home,
+					Location = "The Rec",
+					FormationKey = "4-5-1"
+				}
+			]
+		};
+
+		var result = await controller.BulkImport(model, CancellationToken.None);
+
+		var okResult = result.Result as OkObjectResult;
+		var importResult = okResult?.Value as BulkMatchImportResultModel;
+		Assert.That(importResult?.MatchCount, Is.EqualTo(1));
+		Assert.That(importResult?.EventCount, Is.EqualTo(1));
+		Assert.That(matchService.Matches, Has.Count.EqualTo(1));
+		Assert.That(eventService.Events, Has.Count.EqualTo(1));
+		Assert.That(matchService.Matches[0].ClubEventId, Is.EqualTo(eventService.Events[0].Id));
+		Assert.That(eventService.Events[0].MatchLinks[0].MatchId, Is.EqualTo(matchService.Matches[0].Id));
+		Assert.That(eventService.Events[0].TeamIds, Is.EqualTo(new[] { DefaultClubTeams.FirstTeamId }));
+		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
+	}
+
+	[Test]
 	public async Task Update_WhenMatchExists_ShouldReturnUpdatedMatch()
 	{
 		var matchService = new FakeMatchService();
@@ -512,13 +554,15 @@ public class MatchesControllerTests
 
 	private static MatchesController CreateController(
 		FakeMatchService matchService,
-		FakeStatsService? statsService = null
+		FakeStatsService? statsService = null,
+		IClubEventService? eventService = null
 	)
 	{
 		return new MatchesController(
 			new MatchQueryService(matchService),
 			matchService,
-			statsService ?? new FakeStatsService());
+			statsService ?? new FakeStatsService(),
+			eventService ?? new FakeClubEventService());
 	}
 
 	private static List<object>? GetResultItems(OkObjectResult? okResult)

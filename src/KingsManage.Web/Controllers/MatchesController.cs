@@ -14,16 +14,83 @@ public class MatchesController : ControllerBase
 	private readonly IMatchQueryService matchQueryService;
 	private readonly IMatchService matchService;
 	private readonly IStatsService statsService;
+	private readonly IClubEventService eventService;
 
 	public MatchesController(
 		IMatchQueryService matchQueryService,
 		IMatchService matchService,
-		IStatsService statsService
+		IStatsService statsService,
+		IClubEventService eventService
 	)
 	{
 		this.matchQueryService = matchQueryService;
 		this.matchService = matchService;
 		this.statsService = statsService;
+		this.eventService = eventService;
+	}
+
+	[HttpPost("bulk-import")]
+	public async Task<ActionResult<BulkMatchImportResultModel>> BulkImport(
+		BulkMatchImportModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		model.Matches ??= [];
+		var validationError = await ValidateBulkImportAsync(model, cancellationToken);
+
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
+		}
+
+		var createdMatches = new List<Match>();
+		var createdEvents = new List<ClubEvent>();
+
+		try
+		{
+			foreach (var item in model.Matches)
+			{
+				var eventId = model.CreateEvents ? Guid.NewGuid() : (Guid?)null;
+				var createdMatch = await matchService.CreateAsync(
+					item.ToMatch(model.SeasonId, eventId),
+					cancellationToken
+				);
+				createdMatches.Add(createdMatch);
+
+				if (!model.CreateEvents || !eventId.HasValue)
+				{
+					continue;
+				}
+
+				var createdEvent = await eventService.CreateAsync(
+					BuildImportedMatchEvent(item, createdMatch, eventId.Value),
+					cancellationToken
+				);
+				createdEvents.Add(createdEvent);
+			}
+		}
+		catch
+		{
+			foreach (var clubEvent in createdEvents.AsEnumerable().Reverse())
+			{
+				await eventService.DeleteAsync(clubEvent.Id, CancellationToken.None);
+			}
+
+			foreach (var match in createdMatches.AsEnumerable().Reverse())
+			{
+				await matchService.DeleteAsync(match.Id, CancellationToken.None);
+			}
+
+			throw;
+		}
+
+		await statsService.RecalculateSeasonStatsAsync(model.SeasonId, cancellationToken);
+
+		return Ok(new BulkMatchImportResultModel
+		{
+			MatchCount = createdMatches.Count,
+			EventCount = createdEvents.Count
+		});
 	}
 
 	[HttpGet]
@@ -571,6 +638,126 @@ public class MatchesController : ControllerBase
 				cancellationToken
 			);
 		}
+	}
+
+	private async Task<string?> ValidateBulkImportAsync(
+		BulkMatchImportModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		if (model.SeasonId == Guid.Empty)
+		{
+			return "Season is required.";
+		}
+
+		if (model.Matches.Count == 0)
+		{
+			return "Add at least one match to import.";
+		}
+
+		if (model.Matches.Count > 100)
+		{
+			return "A maximum of 100 matches can be imported at once.";
+		}
+
+		for (var index = 0; index < model.Matches.Count; index++)
+		{
+			var item = model.Matches[index];
+
+			if (item.TeamId == Guid.Empty)
+			{
+				return $"Row {index + 1}: Team is required.";
+			}
+
+			var matchValidationError = ValidateMatch(item.ToMatch(model.SeasonId));
+
+			if (matchValidationError is not null)
+			{
+				return $"Row {index + 1}: {matchValidationError}";
+			}
+		}
+
+		var duplicateRows = model.Matches
+			.Select((match, index) => new
+			{
+				Index = index,
+				Key = BuildImportDuplicateKey(match.TeamId, match.Opponent, match.Date)
+			})
+			.GroupBy(item => item.Key)
+			.FirstOrDefault(group => group.Count() > 1);
+
+		if (duplicateRows is not null)
+		{
+			var rows = string.Join(", ", duplicateRows.Select(item => item.Index + 1));
+			return $"Rows {rows} describe the same match.";
+		}
+
+		var existingMatches = await matchQueryService.GetMatchesAsync(
+			model.SeasonId,
+			cancellationToken
+		);
+		var existingKeys = existingMatches
+			.Select(match => BuildImportDuplicateKey(match.TeamId, match.Opponent, match.Date))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		for (var index = 0; index < model.Matches.Count; index++)
+		{
+			var item = model.Matches[index];
+
+			if (existingKeys.Contains(BuildImportDuplicateKey(item.TeamId, item.Opponent, item.Date)))
+			{
+				return $"Row {index + 1}: This match already exists in the selected season.";
+			}
+		}
+
+		return null;
+	}
+
+	private static string BuildImportDuplicateKey(
+		Guid teamId,
+		string opponent,
+		DateTime date
+	)
+	{
+		return $"{teamId:N}|{opponent.Trim().ToUpperInvariant()}|{date:O}";
+	}
+
+	private static ClubEvent BuildImportedMatchEvent(
+		BulkMatchImportItemModel item,
+		Match match,
+		Guid eventId
+	)
+	{
+		var teamName = string.IsNullOrWhiteSpace(item.TeamName)
+			? "Match"
+			: item.TeamName.Trim();
+		var fixtureTitle = item.Venue == MatchVenue.Home
+			? $"{teamName} vs {item.Opponent.Trim()}"
+			: $"{teamName} at {item.Opponent.Trim()}";
+
+		return new ClubEvent
+		{
+			Id = eventId,
+			Type = ClubEventType.Match,
+			TeamScope = item.Team == ClubTeam.Second
+				? ClubEventTeamScope.Second
+				: ClubEventTeamScope.First,
+			TeamIds = [item.TeamId],
+			Title = fixtureTitle,
+			Description = item.Competition.Trim(),
+			StartDateTime = item.Date,
+			EndDateTime = item.Date.AddHours(2),
+			Location = item.Location.Trim(),
+			MatchLinks =
+			[
+				new ClubEventMatchLink
+				{
+					TeamId = item.TeamId,
+					Team = item.Team,
+					MatchId = match.Id
+				}
+			]
+		};
 	}
 
 	private static string? ValidateMatch(Match match)
