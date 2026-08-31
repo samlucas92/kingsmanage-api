@@ -109,6 +109,7 @@ builder.Services.AddScoped<ISocialGraphicTemplateService, SocialGraphicTemplateS
 builder.Services.AddScoped<IOrganizationMetaIntegrationService, OrganizationMetaIntegrationService>();
 builder.Services.AddScoped<ISocialPublicationService, SocialPublicationService>();
 builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
+builder.Services.AddScoped<IOrganizationLocationService, OrganizationLocationService>();
 builder.Services.AddScoped<IClubNotificationService, ClubNotificationService>();
 builder.Services.AddScoped<IClubFileService, ClubFileService>();
 builder.Services.AddScoped<IStoredFileObjectService, StoredFileObjectService>();

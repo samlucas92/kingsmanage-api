@@ -24,6 +24,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<ClubForm>("forms", cancellationToken);
 		await BackfillAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
 		await BackfillAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
+		await BackfillAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
 		await BackfillAsync<ClubNotification>("notifications", cancellationToken);
@@ -552,6 +553,7 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<ClubForm>("forms", cancellationToken);
 		await EnsureTenantIndexAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
 		await EnsureTenantIndexAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
+		await EnsureTenantIndexAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await EnsureTenantIndexAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await EnsureTenantIndexAsync<ClubFile>("files", cancellationToken);
 		await EnsureTenantIndexAsync<ClubNotification>("notifications", cancellationToken);
@@ -560,6 +562,19 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await EnsureTenantIndexAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
 		await EnsureTenantIndexAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
+
+		var locations = database.GetCollection<OrganizationLocation>("organizationLocations");
+		await locations.Indexes.CreateOneAsync(
+			new CreateIndexModel<OrganizationLocation>(
+				Builders<OrganizationLocation>.IndexKeys
+					.Ascending(location => location.OrganizationId)
+					.Ascending(location => location.ClubId)
+					.Ascending(location => location.IsActive)
+					.Ascending(location => location.Name),
+				new CreateIndexOptions { Name = "TenantActiveName_1" }
+			),
+			cancellationToken: cancellationToken
+		);
 	}
 
 	private async Task EnsureTenantIndexAsync<T>(string collectionName, CancellationToken cancellationToken)
