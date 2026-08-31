@@ -16,6 +16,7 @@ public class SocialGraphicTemplatesController : ControllerBase
 		new(StringComparer.OrdinalIgnoreCase)
 		{
 			"blank-editorial-gold",
+			"player-portrait-club",
 			"upcoming-editorial-gold",
 			"matchday-editorial-gold",
 			"lineup-editorial-gold",
