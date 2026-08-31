@@ -166,7 +166,28 @@ public class MatchesController : ControllerBase
 			return BadRequest(validationError);
 		}
 
+		var createEvent = ShouldCreateLinkedEvent();
+		var eventId = createEvent ? Guid.NewGuid() : (Guid?)null;
+		match.ClubEventId = eventId;
+
 		var createdMatch = await matchService.CreateAsync(match, cancellationToken);
+
+		if (eventId.HasValue)
+		{
+			try
+			{
+				await eventService.CreateAsync(
+					BuildMatchEvent(createdMatch, eventId.Value),
+					cancellationToken
+				);
+			}
+			catch
+			{
+				await matchService.DeleteAsync(createdMatch.Id, CancellationToken.None);
+				throw;
+			}
+		}
+
 		await RecalculateAffectedSeasonsAsync(null, createdMatch, cancellationToken);
 
 		return CreatedAtAction(
@@ -204,6 +225,7 @@ public class MatchesController : ControllerBase
 
 		match.Id = matchId;
 		match.CreatedAt = existingMatch.CreatedAt;
+		match.ClubEventId = existingMatch.ClubEventId;
 
 		var updatedMatch = await matchService.UpdateAsync(match, cancellationToken);
 
@@ -213,8 +235,59 @@ public class MatchesController : ControllerBase
 		}
 
 		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
+		await SynchroniseLinkedEventAsync(updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
+	}
+
+	[HttpPost("{id}/event")]
+	public async Task<ActionResult<ClubEvent>> CreateLinkedEvent(
+		string id,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var match = await matchService.GetByIdAsync(matchId, cancellationToken);
+		if (match is null)
+		{
+			return NotFound();
+		}
+
+		if (match.ClubEventId.HasValue)
+		{
+			var existingEvent = await eventService.GetByIdAsync(match.ClubEventId.Value, cancellationToken);
+			if (existingEvent is not null)
+			{
+				return Ok(existingEvent);
+			}
+		}
+
+		var eventId = Guid.NewGuid();
+		match.ClubEventId = eventId;
+		var updatedMatch = await matchService.UpdateAsync(match, cancellationToken);
+		if (updatedMatch is null)
+		{
+			return NotFound();
+		}
+
+		try
+		{
+			var createdEvent = await eventService.CreateAsync(
+				BuildMatchEvent(updatedMatch, eventId),
+				cancellationToken
+			);
+			return Created($"/api/events/{createdEvent.Id}", createdEvent);
+		}
+		catch
+		{
+			updatedMatch.ClubEventId = null;
+			await matchService.UpdateAsync(updatedMatch, CancellationToken.None);
+			throw;
+		}
 	}
 
 	private static string? ValidatePlayerStats(Match match, List<MatchPlayerStats> playerStats)
@@ -285,6 +358,29 @@ public class MatchesController : ControllerBase
 		if (existingMatch is null)
 		{
 			return NotFound();
+		}
+
+		if (existingMatch.ClubEventId.HasValue)
+		{
+			var linkedEvent = await eventService.GetByIdAsync(
+				existingMatch.ClubEventId.Value,
+				cancellationToken
+			);
+
+			if (linkedEvent is not null)
+			{
+				if (ShouldDeleteLinkedRecord("linkedEvent"))
+				{
+					await eventService.DeleteAsync(linkedEvent.Id, cancellationToken);
+				}
+				else
+				{
+					linkedEvent.MatchLinks = linkedEvent.MatchLinks
+						.Where(link => link.MatchId != existingMatch.Id)
+						.ToList();
+					await eventService.UpdateAsync(linkedEvent, cancellationToken);
+				}
+			}
 		}
 
 		var deleted = await matchService.DeleteAsync(matchId, cancellationToken);
@@ -581,6 +677,7 @@ public class MatchesController : ControllerBase
 		}
 
 		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
+		await SynchroniseLinkedEventAsync(updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -611,6 +708,7 @@ public class MatchesController : ControllerBase
 		}
 
 		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
+		await SynchroniseLinkedEventAsync(updatedMatch, cancellationToken);
 
 		return Ok(updatedMatch);
 	}
@@ -638,6 +736,122 @@ public class MatchesController : ControllerBase
 				cancellationToken
 			);
 		}
+	}
+
+	private bool ShouldCreateLinkedEvent()
+	{
+		var request = ControllerContext.HttpContext?.Request;
+
+		if (request is null || !request.Query.TryGetValue("createEvent", out var value))
+		{
+			return true;
+		}
+
+		return !bool.TryParse(value, out var createEvent) || createEvent;
+	}
+
+	private bool ShouldDeleteLinkedRecord(string queryName)
+	{
+		var request = ControllerContext.HttpContext?.Request;
+
+		if (request is null || !request.Query.TryGetValue(queryName, out var value))
+		{
+			return true;
+		}
+
+		return !string.Equals(value, "detach", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private async Task SynchroniseLinkedEventAsync(
+		Match match,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!match.ClubEventId.HasValue)
+		{
+			return;
+		}
+
+		var linkedEvent = await eventService.GetByIdAsync(
+			match.ClubEventId.Value,
+			cancellationToken
+		);
+
+		if (linkedEvent is null)
+		{
+			match.ClubEventId = null;
+			await matchService.UpdateAsync(match, cancellationToken);
+			return;
+		}
+
+		var duration = linkedEvent.EndDateTime.HasValue
+			? linkedEvent.EndDateTime.Value - linkedEvent.StartDateTime
+			: TimeSpan.FromHours(2);
+		linkedEvent.Title = BuildFixtureTitle(match);
+		linkedEvent.Description = match.Competition.Trim();
+		linkedEvent.StartDateTime = match.Date;
+		linkedEvent.EndDateTime = match.Date.Add(duration > TimeSpan.Zero ? duration : TimeSpan.FromHours(2));
+		linkedEvent.Location = match.Location.Trim();
+		linkedEvent.TeamScope = GetEventTeamScope(match.Team);
+		linkedEvent.TeamIds = match.TeamId.HasValue ? [match.TeamId.Value] : [];
+
+		var existingLink = linkedEvent.MatchLinks.FirstOrDefault(link => link.MatchId == match.Id);
+		if (existingLink is null)
+		{
+			linkedEvent.MatchLinks.Add(new ClubEventMatchLink
+			{
+				TeamId = match.TeamId,
+				Team = match.Team,
+				MatchId = match.Id
+			});
+		}
+		else
+		{
+			existingLink.TeamId = match.TeamId;
+			existingLink.Team = match.Team;
+		}
+
+		await eventService.UpdateAsync(linkedEvent, cancellationToken);
+	}
+
+	private static ClubEvent BuildMatchEvent(Match match, Guid eventId)
+	{
+		return new ClubEvent
+		{
+			Id = eventId,
+			Type = ClubEventType.Match,
+			TeamScope = GetEventTeamScope(match.Team),
+			TeamIds = match.TeamId.HasValue ? [match.TeamId.Value] : [],
+			Title = BuildFixtureTitle(match),
+			Description = match.Competition.Trim(),
+			StartDateTime = match.Date,
+			EndDateTime = match.Date.AddHours(2),
+			Location = match.Location.Trim(),
+			MatchLinks =
+			[
+				new ClubEventMatchLink
+				{
+					TeamId = match.TeamId,
+					Team = match.Team,
+					MatchId = match.Id
+				}
+			]
+		};
+	}
+
+	private static string BuildFixtureTitle(Match match)
+	{
+		var teamName = match.Team == ClubTeam.Second ? "Second Team" : "First Team";
+		return match.Venue == MatchVenue.Home
+			? $"{teamName} vs {match.Opponent.Trim()}"
+			: $"{teamName} at {match.Opponent.Trim()}";
+	}
+
+	private static ClubEventTeamScope GetEventTeamScope(ClubTeam team)
+	{
+		return team == ClubTeam.Second
+			? ClubEventTeamScope.Second
+			: ClubEventTeamScope.First;
 	}
 
 	private async Task<string?> ValidateBulkImportAsync(

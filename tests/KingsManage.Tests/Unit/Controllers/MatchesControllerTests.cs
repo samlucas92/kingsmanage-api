@@ -160,7 +160,8 @@ public class MatchesControllerTests
 	{
 		var matchService = new FakeMatchService();
 		var statsService = new FakeStatsService();
-		var controller = CreateController(matchService, statsService);
+		var eventService = new FakeClubEventService();
+		var controller = CreateController(matchService, statsService, eventService);
 
 		var result = await controller.Create(
 			new Match
@@ -185,7 +186,55 @@ public class MatchesControllerTests
 		Assert.That(match.Opponent, Is.EqualTo("Test Opponent"));
 		Assert.That(match.State, Is.EqualTo(MatchState.Upcoming));
 		Assert.That(matchService.Matches, Has.Count.EqualTo(1));
+		Assert.That(match.ClubEventId, Is.Not.Null);
+		Assert.That(eventService.Events, Has.Count.EqualTo(1));
+		Assert.That(eventService.Events[0].MatchLinks.Single().MatchId, Is.EqualTo(match.Id));
+		Assert.That(eventService.Events[0].StartDateTime, Is.EqualTo(match.Date));
 		Assert.That(statsService.RecalculatedSeasonIds, Is.EqualTo(new[] { SeasonOneId }));
+	}
+
+	[Test]
+	public async Task Update_WhenMatchHasLinkedEvent_ShouldSynchroniseSharedFixtureFields()
+	{
+		var matchService = new FakeMatchService();
+		var eventService = new FakeClubEventService();
+		var controller = CreateController(matchService, eventService: eventService);
+		var eventId = Guid.NewGuid();
+		var match = CreateMatch(MatchOneId, SeasonOneId, "Old Opponent");
+		match.ClubEventId = eventId;
+		matchService.Matches.Add(match);
+		eventService.Events.Add(new ClubEvent
+		{
+			Id = eventId,
+			Type = ClubEventType.Match,
+			TeamScope = ClubEventTeamScope.First,
+			Title = "Old title",
+			StartDateTime = match.Date,
+			EndDateTime = match.Date.AddHours(2),
+			Location = match.Location,
+			MatchLinks = [new ClubEventMatchLink { Team = match.Team, MatchId = match.Id }]
+		});
+
+		var newDate = new DateTime(2026, 9, 1, 19, 30, 0, DateTimeKind.Utc);
+		var result = await controller.Update(
+			match.Id.ToString(),
+			new Match
+			{
+				SeasonId = match.SeasonId,
+				Team = match.Team,
+				Opponent = "New Opponent",
+				Competition = "Cup",
+				Date = newDate,
+				Venue = MatchVenue.Away,
+				Location = "New Ground"
+			},
+			CancellationToken.None
+		);
+
+		Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+		Assert.That(eventService.Events[0].StartDateTime, Is.EqualTo(newDate));
+		Assert.That(eventService.Events[0].Location, Is.EqualTo("New Ground"));
+		Assert.That(eventService.Events[0].Title, Does.Contain("New Opponent"));
 	}
 
 	[Test]

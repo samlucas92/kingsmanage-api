@@ -6,6 +6,7 @@ public class UpdateClubEventModel
 {
 	public ClubEventType Type { get; set; }
 	public ClubEventTeamScope TeamScope { get; set; } = ClubEventTeamScope.Both;
+	public List<Guid> TeamIds { get; set; } = [];
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public DateTime StartDateTime { get; set; }
@@ -21,6 +22,7 @@ public class UpdateClubEventModel
 			Id = existingEvent.Id,
 			Type = Type,
 			TeamScope = TeamScope,
+			TeamIds = TeamIds,
 			Title = Title,
 			Description = Description,
 			StartDateTime = StartDateTime,

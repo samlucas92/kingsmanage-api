@@ -225,6 +225,7 @@ public class EventsController : ControllerBase
 			updatedEvent,
 			cancellationToken
 		);
+		await SynchroniseLinkedMatchDetailsAsync(updatedEvent, cancellationToken);
 
 		var userIdResult = GetCurrentUserId();
 
@@ -288,12 +289,23 @@ public class EventsController : ControllerBase
 
 		foreach (var match in linkedMatches)
 		{
-			await matchService.DeleteAsync(match.Id, cancellationToken);
+			if (ShouldDeleteLinkedMatches())
+			{
+				await matchService.DeleteAsync(match.Id, cancellationToken);
+			}
+			else
+			{
+				match.ClubEventId = null;
+				await matchService.UpdateAsync(match, cancellationToken);
+			}
 		}
 
 		await trainingDevelopmentService.DeleteEventAssessmentsAsync(eventId, cancellationToken);
 
-		await RecalculateDeletedLinkedMatchesAsync(linkedMatches, cancellationToken);
+		if (ShouldDeleteLinkedMatches())
+		{
+			await RecalculateDeletedLinkedMatchesAsync(linkedMatches, cancellationToken);
+		}
 
 		return NoContent();
 	}
@@ -924,6 +936,39 @@ public class EventsController : ControllerBase
 
 			await matchService.UpdateAsync(match, cancellationToken);
 		}
+	}
+
+	private async Task SynchroniseLinkedMatchDetailsAsync(
+		ClubEvent clubEvent,
+		CancellationToken cancellationToken
+	)
+	{
+		foreach (var matchId in GetLinkedMatchIds(clubEvent))
+		{
+			var match = await matchService.GetByIdAsync(matchId, cancellationToken);
+
+			if (match is null)
+			{
+				continue;
+			}
+
+			match.Date = clubEvent.StartDateTime;
+			match.Location = clubEvent.Location.Trim();
+			match.ClubEventId = clubEvent.Id;
+			await matchService.UpdateAsync(match, cancellationToken);
+		}
+	}
+
+	private bool ShouldDeleteLinkedMatches()
+	{
+		var request = ControllerContext.HttpContext?.Request;
+
+		if (request is null || !request.Query.TryGetValue("linkedMatches", out var value))
+		{
+			return true;
+		}
+
+		return !string.Equals(value, "detach", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static IEnumerable<Guid> GetLinkedMatchIds(ClubEvent? clubEvent)
