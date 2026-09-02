@@ -610,6 +610,63 @@ public sealed class EventsIntegrationTests
 	}
 
 	[Test]
+	public async Task CreateMatchEvent_WithThreeTeamIds_CreatesSeparateMatchesWithSharedEvent()
+	{
+		var eventStartDate = DateTime.UtcNow.AddDays(14);
+		var thirdTeamId = Guid.Parse("33333333-3333-3333-3333-333333333303");
+		var teamIds = new[]
+		{
+			DefaultClubTeams.FirstTeamId,
+			DefaultClubTeams.SecondTeamId,
+			thirdTeamId
+		};
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PostAsJsonAsync(
+			"/api/events",
+			new
+			{
+				Type = "Match",
+				TeamScope = "Both",
+				TeamIds = teamIds,
+				Title = "Three-team matchday",
+				Description = "Firsts, seconds and thirds all play.",
+				StartDateTime = eventStartDate,
+				Location = "Club grounds",
+				MatchLinks = Array.Empty<object>(),
+				CreateLinkedMatches = true,
+				CreateMatches = new[]
+				{
+					new { Team = "First", TeamId = DefaultClubTeams.FirstTeamId, Opponent = "Town Firsts", Competition = "Premier", Venue = "Home", SelectedFormation = "FourThreeThree" },
+					new { Team = "Second", TeamId = DefaultClubTeams.SecondTeamId, Opponent = "Town Seconds", Competition = "Division Two", Venue = "Away", SelectedFormation = "FourThreeThree" },
+					new { Team = "First", TeamId = thirdTeamId, Opponent = "Town Thirds", Competition = "Division Three", Venue = "Home", SelectedFormation = "FourThreeThree" }
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+		Assert.That(factory.MatchService.Matches, Has.Count.EqualTo(3));
+		Assert.That(factory.MatchService.Matches.Select(match => match.TeamId), Is.EquivalentTo(teamIds));
+		Assert.That(factory.MatchService.Matches.Select(match => match.Opponent), Is.EquivalentTo(new[] { "Town Firsts", "Town Seconds", "Town Thirds" }));
+
+		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		var eventId = document.RootElement.GetProperty("id").GetGuid();
+		var matchLinks = document.RootElement.GetProperty("matchLinks");
+		var returnedTeamIds = document.RootElement.GetProperty("teamIds")
+			.EnumerateArray()
+			.Select(teamId => teamId.GetGuid())
+			.ToArray();
+
+		Assert.That(matchLinks.GetArrayLength(), Is.EqualTo(3));
+		Assert.That(returnedTeamIds, Is.EquivalentTo(teamIds));
+		Assert.That(matchLinks.EnumerateArray().Select(link => link.GetProperty("teamId").GetGuid()), Is.EquivalentTo(teamIds));
+		Assert.That(factory.MatchService.Matches.All(match => match.ClubEventId == eventId), Is.True);
+	}
+
+	[Test]
 	public async Task CreateMatchEvent_WithBothTeamCreationMissingOneTeam_ReturnsBadRequest()
 	{
 		var client = await factory.CreateAuthenticatedClientAsync(

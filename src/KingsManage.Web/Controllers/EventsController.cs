@@ -137,6 +137,7 @@ public class EventsController : ControllerBase
 				clubEvent.MatchLinks.Add(
 					new ClubEventMatchLink
 					{
+						TeamId = createdMatch.TeamId,
 						Team = createdMatch.Team,
 						MatchId = createdMatch.Id
 					}
@@ -598,6 +599,7 @@ public class EventsController : ControllerBase
 		var sharedValidationError = ValidateSharedEventFields(
 			model.Type,
 			model.TeamScope,
+			model.TeamIds,
 			model.Title,
 			model.StartDateTime,
 			model.EndDateTime,
@@ -647,7 +649,7 @@ public class EventsController : ControllerBase
 			}
 
 			var duplicateCreateTeam = model.CreateMatches
-				.GroupBy(match => match.Team)
+				.GroupBy(GetTeamId)
 				.FirstOrDefault(group => group.Count() > 1);
 
 			if (duplicateCreateTeam is not null)
@@ -656,8 +658,9 @@ public class EventsController : ControllerBase
 			}
 
 			var teamCoverageError = ValidateTeamCoverage(
-				model.CreateMatches.Select(match => match.Team),
+				model.CreateMatches.Select(GetTeamId),
 				model.TeamScope,
+				model.TeamIds,
 				"Created matches"
 			);
 
@@ -673,7 +676,7 @@ public class EventsController : ControllerBase
 					return "Match opponent is required.";
 				}
 
-				if (!IsTeamInScope(createMatchModel.Team, model.TeamScope))
+				if (!IsTeamInScope(GetTeamId(createMatchModel), model.TeamScope, model.TeamIds))
 				{
 					return "Created match team must be inside the event team scope.";
 				}
@@ -685,6 +688,7 @@ public class EventsController : ControllerBase
 		return await ValidateMatchLinksAsync(
 			matchLinks,
 			model.TeamScope,
+			model.TeamIds,
 			null,
 			cancellationToken
 		);
@@ -701,6 +705,7 @@ public class EventsController : ControllerBase
 		var sharedValidationError = ValidateSharedEventFields(
 			model.Type,
 			model.TeamScope,
+			model.TeamIds,
 			model.Title,
 			model.StartDateTime,
 			model.EndDateTime,
@@ -720,6 +725,7 @@ public class EventsController : ControllerBase
 		return await ValidateMatchLinksAsync(
 			matchLinks,
 			model.TeamScope,
+			model.TeamIds,
 			eventId,
 			cancellationToken
 		);
@@ -728,6 +734,7 @@ public class EventsController : ControllerBase
 	private static string? ValidateSharedEventFields(
 		ClubEventType type,
 		ClubEventTeamScope teamScope,
+		IReadOnlyCollection<Guid> teamIds,
 		string title,
 		DateTime startDateTime,
 		DateTime? endDateTime,
@@ -752,7 +759,7 @@ public class EventsController : ControllerBase
 		if (type == ClubEventType.Match)
 		{
 			var duplicateTeam = matchLinks
-				.GroupBy(matchLink => matchLink.Team)
+				.GroupBy(GetTeamId)
 				.FirstOrDefault(group => group.Count() > 1);
 
 			if (duplicateTeam is not null)
@@ -777,6 +784,7 @@ public class EventsController : ControllerBase
 	private async Task<string?> ValidateMatchLinksAsync(
 		List<ClubEventMatchLink> matchLinks,
 		ClubEventTeamScope teamScope,
+		IReadOnlyCollection<Guid> teamIds,
 		Guid? currentEventId,
 		CancellationToken cancellationToken
 	)
@@ -784,8 +792,9 @@ public class EventsController : ControllerBase
 		if (matchLinks.Count > 0)
 		{
 			var teamCoverageError = ValidateTeamCoverage(
-				matchLinks.Select(matchLink => matchLink.Team),
+				matchLinks.Select(GetTeamId),
 				teamScope,
+				teamIds,
 				"Linked matches"
 			);
 
@@ -797,7 +806,7 @@ public class EventsController : ControllerBase
 
 		foreach (var matchLink in matchLinks)
 		{
-			if (!IsTeamInScope(matchLink.Team, teamScope))
+			if (!IsTeamInScope(GetTeamId(matchLink), teamScope, teamIds))
 			{
 				return "Linked match team must be inside the event team scope.";
 			}
@@ -817,7 +826,7 @@ public class EventsController : ControllerBase
 				return "Linked match was not found.";
 			}
 
-			if (linkedMatch.Team != matchLink.Team)
+			if (GetTeamId(linkedMatch) != GetTeamId(matchLink))
 			{
 				return "Linked match team must match the selected event team.";
 			}
@@ -835,13 +844,14 @@ public class EventsController : ControllerBase
 	}
 
 	private static string? ValidateTeamCoverage(
-		IEnumerable<ClubTeam> teams,
+		IEnumerable<Guid> teams,
 		ClubEventTeamScope teamScope,
+		IReadOnlyCollection<Guid> teamIds,
 		string label
 	)
 	{
 		var selectedTeams = teams.Distinct().ToList();
-		var expectedTeams = GetTeamsForScope(teamScope);
+		var expectedTeams = GetTeamIdsForScope(teamScope, teamIds);
 
 		if (selectedTeams.Any(team => !expectedTeams.Contains(team)))
 		{
@@ -865,27 +875,42 @@ public class EventsController : ControllerBase
 		return null;
 	}
 
-	private static List<ClubTeam> GetTeamsForScope(ClubEventTeamScope teamScope)
+	private static List<Guid> GetTeamIdsForScope(
+		ClubEventTeamScope teamScope,
+		IReadOnlyCollection<Guid> teamIds
+	)
 	{
+		if (teamIds.Count > 0)
+		{
+			return teamIds.Where(teamId => teamId != Guid.Empty).Distinct().ToList();
+		}
+
 		return teamScope switch
 		{
-			ClubEventTeamScope.First => [ClubTeam.First],
-			ClubEventTeamScope.Second => [ClubTeam.Second],
-			ClubEventTeamScope.Both => [ClubTeam.First, ClubTeam.Second],
+			ClubEventTeamScope.First => [DefaultClubTeams.FirstTeamId],
+			ClubEventTeamScope.Second => [DefaultClubTeams.SecondTeamId],
+			ClubEventTeamScope.Both => [DefaultClubTeams.FirstTeamId, DefaultClubTeams.SecondTeamId],
 			_ => []
 		};
 	}
 
-	private static bool IsTeamInScope(ClubTeam team, ClubEventTeamScope teamScope)
+	private static bool IsTeamInScope(
+		Guid teamId,
+		ClubEventTeamScope teamScope,
+		IReadOnlyCollection<Guid> teamIds
+	)
 	{
-		return teamScope switch
-		{
-			ClubEventTeamScope.First => team == ClubTeam.First,
-			ClubEventTeamScope.Second => team == ClubTeam.Second,
-			ClubEventTeamScope.Both => true,
-			_ => false
-		};
+		return GetTeamIdsForScope(teamScope, teamIds).Contains(teamId);
 	}
+
+	private static Guid GetTeamId(CreateMatchForEventModel match) =>
+		match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team);
+
+	private static Guid GetTeamId(ClubEventMatchLink matchLink) =>
+		matchLink.TeamId ?? DefaultClubTeams.FromLegacy(matchLink.Team);
+
+	private static Guid GetTeamId(Match match) =>
+		match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team);
 
 	private async Task SynchroniseMatchEventLinksAsync(
 		ClubEvent? previousEvent,

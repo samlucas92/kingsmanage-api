@@ -4,6 +4,7 @@ namespace KingsManage.Web.Models;
 
 public class ClubEventMatchLinkModel
 {
+	public Guid? TeamId { get; set; }
 	public ClubTeam Team { get; set; }
 	public Guid? MatchId { get; set; }
 
@@ -11,6 +12,7 @@ public class ClubEventMatchLinkModel
 	{
 		return new ClubEventMatchLink
 		{
+			TeamId = TeamId,
 			Team = Team,
 			MatchId = MatchId
 		};

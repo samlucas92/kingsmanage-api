@@ -5,6 +5,7 @@ namespace KingsManage.Web.Models;
 public class CreateMatchForEventModel
 {
 	public Guid? SeasonId { get; set; }
+	public Guid? TeamId { get; set; }
 	public ClubTeam Team { get; set; }
 	public string Opponent { get; set; } = string.Empty;
 	public string Competition { get; set; } = string.Empty;
@@ -24,6 +25,7 @@ public class CreateMatchForEventModel
 		{
 			SeasonId = activeSeasonId,
 			ClubEventId = clubEventId,
+			TeamId = TeamId ?? DefaultClubTeams.FromLegacy(Team),
 			Team = Team,
 			Opponent = Opponent,
 			Competition = Competition,

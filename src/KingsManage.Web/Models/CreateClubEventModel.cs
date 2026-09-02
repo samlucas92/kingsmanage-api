@@ -6,6 +6,7 @@ public class CreateClubEventModel
 {
 	public ClubEventType Type { get; set; }
 	public ClubEventTeamScope TeamScope { get; set; } = ClubEventTeamScope.Both;
+	public List<Guid> TeamIds { get; set; } = [];
 	public string Title { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public DateTime StartDateTime { get; set; }
@@ -23,6 +24,7 @@ public class CreateClubEventModel
 		{
 			Type = Type,
 			TeamScope = TeamScope,
+			TeamIds = TeamIds,
 			Title = Title,
 			Description = Description,
 			StartDateTime = StartDateTime,
