@@ -36,6 +36,7 @@ public class MatchViewModel
 
 	public LineupFormation SelectedFormation { get; set; }
 	public string FormationKey { get; set; } = string.Empty;
+	public IReadOnlyList<Guid> SelectedPlayerIds { get; set; } = [];
 
 	public static MatchViewModel FromMatch(Match match)
 	{
@@ -57,7 +58,11 @@ public class MatchViewModel
 			IsCompleted = match.IsCompleted,
 			IsLineupLocked = match.IsLineupLocked,
 			SelectedFormation = match.SelectedFormation,
-			FormationKey = match.FormationKey
+			FormationKey = match.FormationKey,
+			SelectedPlayerIds = match.SelectedPlayers
+				.Select(selectedPlayer => selectedPlayer.PlayerId)
+				.Distinct()
+				.ToList()
 		};
 	}
 }

@@ -53,6 +53,23 @@ public class MatchesControllerTests
 	}
 
 	[Test]
+	public async Task GetAll_ShouldIncludeSelectedPlayerIdsForSameDaySelectionChecks()
+	{
+		var matchService = new FakeMatchService();
+		var controller = CreateController(matchService);
+		var match = CreateMatch(MatchOneId, SeasonOneId, "Team One");
+		match.SelectedPlayers.Add(new SelectedPlayer { PlayerId = PlayerOneId });
+		matchService.Matches.Add(match);
+
+		var result = await controller.GetAll(SeasonOneId.ToString(), CancellationToken.None);
+
+		var okResult = result.Result as OkObjectResult;
+		var matches = okResult?.Value as List<MatchViewModel>;
+		Assert.That(matches, Is.Not.Null);
+		Assert.That(matches![0].SelectedPlayerIds, Is.EqualTo(new[] { PlayerOneId }));
+	}
+
+	[Test]
 	public async Task GetAll_WhenSeasonIdIsNotGuid_ShouldReturnBadRequest()
 	{
 		var controller = CreateController(new FakeMatchService());
