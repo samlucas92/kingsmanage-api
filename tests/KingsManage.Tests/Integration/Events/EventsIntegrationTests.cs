@@ -640,9 +640,9 @@ public sealed class EventsIntegrationTests
 				CreateLinkedMatches = true,
 				CreateMatches = new[]
 				{
-					new { Team = "First", TeamId = DefaultClubTeams.FirstTeamId, Opponent = "Town Firsts", Competition = "Premier", Venue = "Home", SelectedFormation = "FourThreeThree" },
-					new { Team = "Second", TeamId = DefaultClubTeams.SecondTeamId, Opponent = "Town Seconds", Competition = "Division Two", Venue = "Away", SelectedFormation = "FourThreeThree" },
-					new { Team = "First", TeamId = thirdTeamId, Opponent = "Town Thirds", Competition = "Division Three", Venue = "Home", SelectedFormation = "FourThreeThree" }
+					new { Team = "First", TeamId = DefaultClubTeams.FirstTeamId, Opponent = "Town Firsts", Competition = "Premier", Venue = "Home", Location = "Club grounds", SelectedFormation = "FourThreeThree" },
+					new { Team = "Second", TeamId = DefaultClubTeams.SecondTeamId, Opponent = "Town Seconds", Competition = "Division Two", Venue = "Away", Location = "Town ground", SelectedFormation = "FourThreeThree" },
+					new { Team = "First", TeamId = thirdTeamId, Opponent = "Town Thirds", Competition = "Division Three", Venue = "Home", Location = "Third-team pitch", SelectedFormation = "FourThreeThree" }
 				}
 			}
 		);
@@ -651,6 +651,7 @@ public sealed class EventsIntegrationTests
 		Assert.That(factory.MatchService.Matches, Has.Count.EqualTo(3));
 		Assert.That(factory.MatchService.Matches.Select(match => match.TeamId), Is.EquivalentTo(teamIds));
 		Assert.That(factory.MatchService.Matches.Select(match => match.Opponent), Is.EquivalentTo(new[] { "Town Firsts", "Town Seconds", "Town Thirds" }));
+		Assert.That(factory.MatchService.Matches.Select(match => match.Location), Is.EquivalentTo(new[] { "Club grounds", "Town ground", "Third-team pitch" }));
 
 		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 		var eventId = document.RootElement.GetProperty("id").GetGuid();
