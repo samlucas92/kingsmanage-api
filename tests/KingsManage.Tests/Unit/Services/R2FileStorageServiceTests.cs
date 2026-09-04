@@ -101,6 +101,17 @@ public sealed class R2FileStorageServiceTests
 		Assert.That(result, Is.True);
 	}
 
+	[Test]
+	public async Task DownloadAsync_WhenStorageReturnsContent_ReturnsBytes()
+	{
+		var content = "club crest"u8.ToArray();
+		var service = CreateService(content, "image/png");
+
+		var result = await service.DownloadAsync("organization/club-logo.png");
+
+		Assert.That(result, Is.EqualTo(content));
+	}
+
 	private static R2FileStorageService CreateService(
 		byte[] content,
 		string contentType

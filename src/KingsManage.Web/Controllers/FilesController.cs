@@ -584,6 +584,38 @@ public class FilesController : ControllerBase
 		});
 	}
 
+	[HttpGet("{id}/content")]
+	public async Task<IActionResult> DownloadContent(
+		string id,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "File", out var fileId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
+		if (file is null || file.Status != ClubFileStatus.Uploaded)
+		{
+			return NotFound();
+		}
+		if (!await CanCurrentUserAccessFileAsync(file, cancellationToken))
+		{
+			return Forbid();
+		}
+
+		try
+		{
+			var content = await storageService.DownloadAsync(file.StorageKey, cancellationToken);
+			return File(content, file.ContentType);
+		}
+		catch (InvalidOperationException)
+		{
+			return StatusCode(StatusCodes.Status502BadGateway, "The file could not be downloaded from storage.");
+		}
+	}
+
 	[Authorize(Policy = "TeamManagement")]
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(

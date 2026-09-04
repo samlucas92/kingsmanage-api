@@ -14,6 +14,11 @@ public interface IFileStorageService
 		CancellationToken cancellationToken = default
 	);
 
+	Task<byte[]> DownloadAsync(
+		string storageKey,
+		CancellationToken cancellationToken = default
+	);
+
 	Task UploadAsync(
 		string storageKey,
 		Stream content,

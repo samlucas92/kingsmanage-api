@@ -48,6 +48,26 @@ public sealed class R2FileStorageService : IFileStorageService
 		return Task.FromResult(CreateSignedUrl("GET", storageKey, expiresIn));
 	}
 
+	public async Task<byte[]> DownloadAsync(
+		string storageKey,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var signedUrl = CreateSignedUrl("GET", storageKey, ValidationUrlExpiry);
+		using var request = new HttpRequestMessage(HttpMethod.Get, signedUrl.Url);
+		using var response = await httpClientFactory
+			.CreateClient()
+			.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+		if (!response.IsSuccessStatusCode)
+		{
+			throw new InvalidOperationException(
+				$"R2 rejected the download (HTTP {(int)response.StatusCode})."
+			);
+		}
+
+		return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+	}
+
 	public async Task UploadAsync(
 		string storageKey,
 		Stream content,

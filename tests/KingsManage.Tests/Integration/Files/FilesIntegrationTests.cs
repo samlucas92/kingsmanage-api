@@ -505,6 +505,28 @@ public sealed class FilesIntegrationTests
 	}
 
 	[Test]
+	public async Task DownloadContent_ForUploadedFile_ProxiesStoredBytes()
+	{
+		var fileId = SeedUploadedFile();
+		var file = factory.ClubFileService.Files.Single(currentFile => currentFile.Id == fileId);
+		factory.FileStorageService.DownloadContents[file.StorageKey] = [1, 2, 3, 4];
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.GetAsync($"/api/files/{fileId}/content");
+		var content = await response.Content.ReadAsByteArrayAsync();
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+			Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("application/pdf"));
+			Assert.That(content, Is.EqualTo(new byte[] { 1, 2, 3, 4 }));
+		});
+	}
+
+	[Test]
 	public async Task Delete_AsAdmin_SoftDeletesFile()
 	{
 		var fileId = SeedUploadedFile();

@@ -221,6 +221,7 @@ public sealed class TestClubFileService : IClubFileService
 
 public sealed class TestFileStorageService : IFileStorageService
 {
+	public Dictionary<string, byte[]> DownloadContents { get; } = new();
 	public FileStorageValidationResult? ValidationResult { get; set; }
 	public List<string> UploadedStorageKeys { get; } = new();
 	public List<string> ValidatedStorageKeys { get; } = new();
@@ -243,6 +244,16 @@ public sealed class TestFileStorageService : IFileStorageService
 	)
 	{
 		return Task.FromResult(CreateSignedUrl("download", storageKey, expiresIn));
+	}
+
+	public Task<byte[]> DownloadAsync(
+		string storageKey,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return Task.FromResult(
+			DownloadContents.TryGetValue(storageKey, out var content) ? content : []
+		);
 	}
 
 	public async Task UploadAsync(
