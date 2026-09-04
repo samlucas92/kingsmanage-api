@@ -13,6 +13,7 @@ public sealed class ClubAccessControllerTests
 {
 	private static readonly Guid OrganizationId = Guid.NewGuid();
 	private static readonly Guid CurrentClubId = Guid.NewGuid();
+	private static readonly Guid CurrentClubLogoFileId = Guid.NewGuid();
 
 	[Test]
 	public async Task GetAvailableClubs_OrganizationMemberCanSeeEveryActiveClub()
@@ -27,7 +28,7 @@ public sealed class ClubAccessControllerTests
 		{
 			Clubs =
 			[
-				new SportsClub { Id = CurrentClubId, OrganizationId = OrganizationId, Name = "Football", PrimaryColor = "#123456", SecondaryColor = "#fedcba", DefaultFormationKey = "4-5-1", IsActive = true },
+				new SportsClub { Id = CurrentClubId, OrganizationId = OrganizationId, Name = "Football", PrimaryColor = "#123456", SecondaryColor = "#fedcba", LogoFileId = CurrentClubLogoFileId, DefaultFormationKey = "4-5-1", IsActive = true },
 				new SportsClub { Id = Guid.NewGuid(), OrganizationId = OrganizationId, Name = "Rugby", IsActive = true },
 				new SportsClub { Id = Guid.NewGuid(), OrganizationId = OrganizationId, Name = "Archived", IsActive = false }
 			]
@@ -45,6 +46,7 @@ public sealed class ClubAccessControllerTests
 			Assert.That(currentClub.IsCurrent, Is.True);
 			Assert.That(currentClub.PrimaryColor, Is.EqualTo("#123456"));
 			Assert.That(currentClub.SecondaryColor, Is.EqualTo("#fedcba"));
+			Assert.That(currentClub.LogoFileId, Is.EqualTo(CurrentClubLogoFileId));
 			Assert.That(currentClub.DefaultFormationKey, Is.EqualTo("4-5-1"));
 		});
 	}

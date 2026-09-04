@@ -12,6 +12,8 @@ public sealed class ClubAccessViewModel
 
 	public string SecondaryColor { get; set; } = "#d9f99d";
 
+	public Guid? LogoFileId { get; set; }
+
 	public IReadOnlyList<ClubFormation> CustomFormations { get; set; } = [];
 
 	public string DefaultFormationKey { get; set; } = string.Empty;
