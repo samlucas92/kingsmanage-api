@@ -33,6 +33,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await BackfillAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
 		await BackfillAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
+		await ApplyKingsbridgePre202627HistoricalStatsAsync(cancellationToken);
 
 		await BackfillUsersAsync(cancellationToken);
 		await EnsureTenantIndexesAsync(cancellationToken);
@@ -45,6 +46,102 @@ public sealed class TenantDataMigrator
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
 		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+	}
+
+	private async Task ApplyKingsbridgePre202627HistoricalStatsAsync(
+		CancellationToken cancellationToken)
+	{
+		const string migrationId = "2026-09-06-kingsbridge-pre-2026-27-historical-stats-v1";
+		var migrations = database.GetCollection<AppliedDataMigration>("dataMigrations");
+		var appliedMigration = await migrations
+			.Find(migration => migration.Id == migrationId)
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (appliedMigration is not null)
+		{
+			return;
+		}
+
+		var players = await database.GetCollection<Player>("players")
+			.Find(player =>
+				player.OrganizationId == DefaultTenant.OrganizationId &&
+				player.ClubId == DefaultTenant.ClubId)
+			.ToListAsync(cancellationToken);
+
+		if (players.Count == 0)
+		{
+			return;
+		}
+
+		var historicalStats = database.GetCollection<PlayerHistoricalStats>(
+			"playerHistoricalStats");
+		var existingStats = await historicalStats
+			.Find(stats =>
+				stats.OrganizationId == DefaultTenant.OrganizationId &&
+				stats.ClubId == DefaultTenant.ClubId)
+			.ToListAsync(cancellationToken);
+		var existingStatsByPlayerId = existingStats
+			.GroupBy(stats => stats.PlayerId)
+			.ToDictionary(group => group.Key, group => group.First());
+		var now = DateTime.UtcNow;
+		var writes = new List<WriteModel<PlayerHistoricalStats>>();
+
+		foreach (var player in players)
+		{
+			if (!KingsbridgePre202627HistoricalStats.TryGetValue(
+				player.Name,
+				out var baseline))
+			{
+				continue;
+			}
+
+			var hasExistingStats = existingStatsByPlayerId.TryGetValue(
+				player.Id,
+				out var currentStats);
+			var replacement = new PlayerHistoricalStats
+			{
+				Id = hasExistingStats ? currentStats!.Id : Guid.NewGuid(),
+				OrganizationId = DefaultTenant.OrganizationId,
+				ClubId = DefaultTenant.ClubId,
+				PlayerId = player.Id,
+				Appearances = baseline.Appearances,
+				Goals = baseline.Goals,
+				CreatedAt = hasExistingStats ? currentStats!.CreatedAt : now,
+				UpdatedAt = now
+			};
+			var filter = Builders<PlayerHistoricalStats>.Filter.And(
+				Builders<PlayerHistoricalStats>.Filter.Eq(
+					stats => stats.OrganizationId,
+					DefaultTenant.OrganizationId),
+				Builders<PlayerHistoricalStats>.Filter.Eq(
+					stats => stats.ClubId,
+					DefaultTenant.ClubId),
+				Builders<PlayerHistoricalStats>.Filter.Eq(
+					stats => stats.PlayerId,
+					player.Id));
+
+			writes.Add(new ReplaceOneModel<PlayerHistoricalStats>(filter, replacement)
+			{
+				IsUpsert = true
+			});
+		}
+
+		if (writes.Count == 0)
+		{
+			return;
+		}
+
+		await historicalStats.BulkWriteAsync(writes, cancellationToken: cancellationToken);
+		await migrations.UpdateOneAsync(
+			migration => migration.Id == migrationId,
+			Builders<AppliedDataMigration>.Update
+				.SetOnInsert(migration => migration.Id, migrationId)
+				.SetOnInsert(migration => migration.OrganizationId, DefaultTenant.OrganizationId)
+				.SetOnInsert(migration => migration.ClubId, DefaultTenant.ClubId)
+				.SetOnInsert(migration => migration.AppliedAt, now)
+				.SetOnInsert(migration => migration.RecordsUpdated, writes.Count),
+			new UpdateOptions { IsUpsert = true },
+			cancellationToken);
 	}
 
 	private async Task EnsureSocialPublishingIndexesAsync(CancellationToken cancellationToken)
@@ -588,5 +685,18 @@ public sealed class TenantDataMigrator
 		await collection.Indexes.CreateOneAsync(
 			new CreateIndexModel<T>(keys, new CreateIndexOptions { Name = "TenantScope_1" }),
 			cancellationToken: cancellationToken);
+	}
+
+	private sealed class AppliedDataMigration
+	{
+		public string Id { get; set; } = string.Empty;
+
+		public Guid OrganizationId { get; set; }
+
+		public Guid ClubId { get; set; }
+
+		public DateTime AppliedAt { get; set; }
+
+		public int RecordsUpdated { get; set; }
 	}
 }

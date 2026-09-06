@@ -55,14 +55,10 @@ public class PlayerStatsViewModel
 	public static PlayerStatsViewModel FromStats(
 		Player player,
 		IReadOnlyList<PlayerSeasonStats> selectedSeasonStats,
-		IReadOnlyList<PlayerSeasonStats> allSeasonStats,
 		PlayerHistoricalStats? historicalStats
 	)
 	{
 		var playerSelectedSeasonStats = selectedSeasonStats
-			.Where(stats => stats.PlayerId == player.Id)
-			.ToList();
-		var playerAllSeasonStats = allSeasonStats
 			.Where(stats => stats.PlayerId == player.Id)
 			.ToList();
 		var firstTeamStats = playerSelectedSeasonStats
@@ -73,8 +69,8 @@ public class PlayerStatsViewModel
 			.ToList();
 		var preSeasonApps = historicalStats?.Appearances ?? 0;
 		var preSeasonGoals = historicalStats?.Goals ?? 0;
-		var trackedCareerApps = playerAllSeasonStats.Sum(stats => stats.Appearances);
-		var trackedCareerGoals = playerAllSeasonStats.Sum(stats => stats.Goals);
+		var trackedCareerApps = playerSelectedSeasonStats.Sum(stats => stats.Appearances);
+		var trackedCareerGoals = playerSelectedSeasonStats.Sum(stats => stats.Goals);
 
 		return new PlayerStatsViewModel
 		{

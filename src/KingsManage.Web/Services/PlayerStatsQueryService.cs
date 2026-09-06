@@ -24,8 +24,8 @@ public sealed class PlayerStatsQueryService : IPlayerStatsQueryService
 		CancellationToken cancellationToken = default)
 	{
 		var players = await playerService.GetAllAsync(cancellationToken);
-		var (selectedSeasonStats, allSeasonStats) = includeFriendlies
-			? await GetStoredStatsAsync(seasonId, cancellationToken)
+		var selectedSeasonStats = includeFriendlies
+			? await statsService.GetSeasonStatsAsync(seasonId, cancellationToken)
 			: await CalculateCompetitiveStatsAsync(seasonId, cancellationToken);
 		var historicalStats = await statsService.GetHistoricalStatsAsync(cancellationToken);
 		var historicalStatsByPlayerId = historicalStats
@@ -37,24 +37,11 @@ public sealed class PlayerStatsQueryService : IPlayerStatsQueryService
 			.Select(player => PlayerStatsViewModel.FromStats(
 				player,
 				selectedSeasonStats,
-				allSeasonStats,
 				historicalStatsByPlayerId.GetValueOrDefault(player.Id)))
 			.ToList();
 	}
 
-	private async Task<(List<PlayerSeasonStats> SelectedSeasonStats, List<PlayerSeasonStats> AllSeasonStats)> GetStoredStatsAsync(
-		Guid seasonId,
-		CancellationToken cancellationToken)
-	{
-		var selectedSeasonStats = await statsService.GetSeasonStatsAsync(
-			seasonId,
-			cancellationToken);
-		var allSeasonStats = await statsService.GetAllSeasonStatsAsync(cancellationToken);
-
-		return (selectedSeasonStats, allSeasonStats);
-	}
-
-	private async Task<(List<PlayerSeasonStats> SelectedSeasonStats, List<PlayerSeasonStats> AllSeasonStats)> CalculateCompetitiveStatsAsync(
+	private async Task<List<PlayerSeasonStats>> CalculateCompetitiveStatsAsync(
 		Guid seasonId,
 		CancellationToken cancellationToken)
 	{
@@ -62,18 +49,8 @@ public sealed class PlayerStatsQueryService : IPlayerStatsQueryService
 		var competitiveMatches = allMatches
 			.Where(match => !MatchCompetition.IsFriendly(match.Competition))
 			.ToList();
-		var selectedSeasonStats = SeasonStatsCalculator.Calculate(
+		return SeasonStatsCalculator.Calculate(
 			seasonId,
 			competitiveMatches);
-		var allSeasonStats = competitiveMatches
-			.Where(match => match.SeasonId is not null)
-			.Select(match => match.SeasonId!.Value)
-			.Distinct()
-			.SelectMany(matchSeasonId => SeasonStatsCalculator.Calculate(
-				matchSeasonId,
-				competitiveMatches))
-			.ToList();
-
-		return (selectedSeasonStats, allSeasonStats);
 	}
 }

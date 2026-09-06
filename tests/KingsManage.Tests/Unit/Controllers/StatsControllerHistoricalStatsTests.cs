@@ -63,6 +63,73 @@ public class StatsControllerHistoricalStatsTests
 	}
 
 	[Test]
+	public async Task PlayerStatsQueryService_CareerTotals_ShouldAddOnlySelectedSeasonToHistoricalBaseline()
+	{
+		var selectedSeasonId = Guid.NewGuid();
+		var olderSeasonId = Guid.NewGuid();
+		var player = CreatePlayer("Sam Lucas");
+		var selectedSeasonMatches = Enumerable.Range(0, 4)
+			.Select(index => CreateCompletedMatchWithStats(
+				selectedSeasonId,
+				player.Id,
+				index == 0 ? 1 : 0))
+			.ToList();
+		var olderSeasonMatches = Enumerable.Range(0, 26)
+			.Select(index => CreateCompletedMatchWithStats(
+				olderSeasonId,
+				player.Id,
+				index < 2 ? 1 : 0))
+			.ToList();
+		var historicalStats = new PlayerHistoricalStats
+		{
+			PlayerId = player.Id,
+			Appearances = 276,
+			Goals = 55
+		};
+		var service = new PlayerStatsQueryService(
+			new FakeMatchService([.. selectedSeasonMatches, .. olderSeasonMatches]),
+			new FakePlayerService([player]),
+			new FakeStatsService([historicalStats])
+		);
+
+		var stats = await service.BuildRowsAsync(
+			selectedSeasonId,
+			includeFriendlies: false,
+			CancellationToken.None);
+
+		Assert.That(stats, Has.Count.EqualTo(1));
+		Assert.Multiple(() =>
+		{
+			Assert.That(stats[0].PreSeasonApps, Is.EqualTo(276));
+			Assert.That(stats[0].PreSeasonGoals, Is.EqualTo(55));
+			Assert.That(stats[0].SeasonApps, Is.EqualTo(4));
+			Assert.That(stats[0].SeasonGoals, Is.EqualTo(1));
+			Assert.That(stats[0].TrackedCareerApps, Is.EqualTo(4));
+			Assert.That(stats[0].TrackedCareerGoals, Is.EqualTo(1));
+			Assert.That(stats[0].CareerApps, Is.EqualTo(280));
+			Assert.That(stats[0].CareerGoals, Is.EqualTo(56));
+		});
+	}
+
+	private static Match CreateCompletedMatchWithStats(
+		Guid seasonId,
+		Guid playerId,
+		int goals)
+	{
+		var match = CreateCompletedMatch(seasonId, playerId, "League");
+		match.PlayerStats =
+		[
+			new MatchPlayerStats
+			{
+				PlayerId = playerId,
+				AppearanceType = MatchAppearanceType.Started,
+				Goals = goals
+			}
+		];
+		return match;
+	}
+
+	[Test]
 	public async Task UpdateHistoricalStats_WhenPlayerIdIsInvalid_ShouldReturnBadRequest()
 	{
 		var controller = CreateController([], []);
