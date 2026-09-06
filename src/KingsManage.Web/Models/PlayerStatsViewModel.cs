@@ -110,6 +110,52 @@ public class PlayerStatsViewModel
 				.ToList()
 		};
 	}
+
+	public static PlayerStatsViewModel FromRollover(
+		SeasonRolloverPlayerSnapshot snapshot)
+	{
+		var firstTeamStats = snapshot.TeamStats
+			.Where(stats => stats.Team == ClubTeam.First)
+			.ToList();
+		var secondTeamStats = snapshot.TeamStats
+			.Where(stats => stats.Team == ClubTeam.Second)
+			.ToList();
+
+		return new PlayerStatsViewModel
+		{
+			PlayerId = snapshot.PlayerId,
+			PlayerName = snapshot.PlayerName,
+			IsActive = snapshot.IsActive,
+			FirstTeamApps = firstTeamStats.Sum(stats => stats.Appearances),
+			FirstTeamGoals = firstTeamStats.Sum(stats => stats.Goals),
+			SecondTeamApps = secondTeamStats.Sum(stats => stats.Appearances),
+			SecondTeamGoals = secondTeamStats.Sum(stats => stats.Goals),
+			SeasonApps = snapshot.SeasonApps,
+			SeasonGoals = snapshot.SeasonGoals,
+			PreSeasonApps = snapshot.HistoricalAppsBefore,
+			PreSeasonGoals = snapshot.HistoricalGoalsBefore,
+			TrackedCareerApps = snapshot.SeasonApps,
+			TrackedCareerGoals = snapshot.SeasonGoals,
+			CareerApps = snapshot.CareerAppsAfter,
+			CareerGoals = snapshot.CareerGoalsAfter,
+			Assists = snapshot.Assists,
+			Starts = snapshot.Starts,
+			Bench = snapshot.Bench,
+			UnusedSubstitutes = snapshot.UnusedSubstitutes,
+			Motm = snapshot.Motm,
+			Minutes = snapshot.Minutes,
+			YellowCards = snapshot.YellowCards,
+			RedCards = snapshot.RedCards,
+			TeamStats = snapshot.TeamStats.Select(stats => new PlayerTeamStatsViewModel
+			{
+				TeamId = stats.TeamId,
+				Appearances = stats.Appearances,
+				Goals = stats.Goals,
+				Assists = stats.Assists,
+				Minutes = stats.Minutes
+			}).ToList()
+		};
+	}
 }
 
 public class PlayerTeamStatsViewModel

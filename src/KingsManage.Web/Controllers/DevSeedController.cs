@@ -18,6 +18,7 @@ public class DevSeedController : ControllerBase
 	private readonly IMongoCollection<Match> matches;
 	private readonly IMongoCollection<PlayerHistoricalStats> historicalStats;
 	private readonly IMongoCollection<PlayerSeasonStats> seasonStats;
+	private readonly IMongoCollection<SeasonRollover> seasonRollovers;
 	private readonly IMongoCollection<FinanceTransaction> financeTransactions;
 
 	public DevSeedController(
@@ -33,6 +34,7 @@ public class DevSeedController : ControllerBase
 		matches = context.Database.GetCollection<Match>("matches");
 		historicalStats = context.Database.GetCollection<PlayerHistoricalStats>("playerHistoricalStats");
 		seasonStats = context.Database.GetCollection<PlayerSeasonStats>("playerSeasonStats");
+		seasonRollovers = context.Database.GetCollection<SeasonRollover>("seasonRollovers");
 		financeTransactions = context.Database.GetCollection<FinanceTransaction>("financeTransactions");
 	}
 
@@ -89,6 +91,7 @@ public class DevSeedController : ControllerBase
 			await seasons.DeleteManyAsync(_ => true, cancellationToken);
 			await historicalStats.DeleteManyAsync(_ => true, cancellationToken);
 			await seasonStats.DeleteManyAsync(_ => true, cancellationToken);
+			await seasonRollovers.DeleteManyAsync(_ => true, cancellationToken);
 			await financeTransactions.DeleteManyAsync(_ => true, cancellationToken);
 		}
 

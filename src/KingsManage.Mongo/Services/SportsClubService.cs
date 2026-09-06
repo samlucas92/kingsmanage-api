@@ -146,7 +146,8 @@ public sealed class SportsClubService : ISportsClubService
 			await HasClubDataAsync<MessageThread>("messageThreads", clubId, cancellationToken) ||
 			await HasClubDataAsync<Message>("messages", clubId, cancellationToken) ||
 			await HasClubDataAsync<PlayerSeasonStats>("playerSeasonStats", clubId, cancellationToken) ||
-			await HasClubDataAsync<PlayerHistoricalStats>("playerHistoricalStats", clubId, cancellationToken);
+			await HasClubDataAsync<PlayerHistoricalStats>("playerHistoricalStats", clubId, cancellationToken) ||
+			await HasClubDataAsync<SeasonRollover>("seasonRollovers", clubId, cancellationToken);
 	}
 
 	private async Task<bool> HasClubDataAsync<T>(

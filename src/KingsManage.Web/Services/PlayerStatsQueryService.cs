@@ -6,16 +6,19 @@ public sealed class PlayerStatsQueryService : IPlayerStatsQueryService
 {
 	private readonly IMatchService matchService;
 	private readonly IPlayerService playerService;
+	private readonly ISeasonRolloverStore? rolloverStore;
 	private readonly IStatsService statsService;
 
 	public PlayerStatsQueryService(
 		IMatchService matchService,
 		IPlayerService playerService,
-		IStatsService statsService)
+		IStatsService statsService,
+		ISeasonRolloverStore? rolloverStore = null)
 	{
 		this.matchService = matchService;
 		this.playerService = playerService;
 		this.statsService = statsService;
+		this.rolloverStore = rolloverStore;
 	}
 
 	public async Task<List<PlayerStatsViewModel>> BuildRowsAsync(
@@ -23,6 +26,17 @@ public sealed class PlayerStatsQueryService : IPlayerStatsQueryService
 		bool includeFriendlies = true,
 		CancellationToken cancellationToken = default)
 	{
+		var rollover = rolloverStore is null
+			? null
+			: await rolloverStore.GetBySeasonIdAsync(seasonId, cancellationToken);
+		if (rollover is not null)
+		{
+			return rollover.Players
+				.OrderBy(player => player.PlayerName)
+				.Select(PlayerStatsViewModel.FromRollover)
+				.ToList();
+		}
+
 		var players = await playerService.GetAllAsync(cancellationToken);
 		var selectedSeasonStats = includeFriendlies
 			? await statsService.GetSeasonStatsAsync(seasonId, cancellationToken)

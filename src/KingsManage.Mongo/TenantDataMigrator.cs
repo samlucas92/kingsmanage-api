@@ -32,6 +32,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<Message>("messages", cancellationToken);
 		await BackfillAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await BackfillAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
+		await BackfillAsync<SeasonRollover>("seasonRollovers", cancellationToken);
 		await BackfillAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
 		await ApplyKingsbridgePre202627HistoricalStatsAsync(cancellationToken);
 
@@ -658,7 +659,18 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<Message>("messages", cancellationToken);
 		await EnsureTenantIndexAsync<PlayerSeasonStats>("playerSeasonStats", cancellationToken);
 		await EnsureTenantIndexAsync<PlayerHistoricalStats>("playerHistoricalStats", cancellationToken);
+		await EnsureTenantIndexAsync<SeasonRollover>("seasonRollovers", cancellationToken);
 		await EnsureTenantIndexAsync<TrainingAssessment>("trainingAssessments", cancellationToken);
+
+		var seasonRollovers = database.GetCollection<SeasonRollover>("seasonRollovers");
+		await seasonRollovers.Indexes.CreateOneAsync(
+			new CreateIndexModel<SeasonRollover>(
+				Builders<SeasonRollover>.IndexKeys
+					.Ascending(rollover => rollover.OrganizationId)
+					.Ascending(rollover => rollover.ClubId)
+					.Ascending(rollover => rollover.SeasonId),
+				new CreateIndexOptions { Name = "TenantSeason_1", Unique = true }),
+			cancellationToken: cancellationToken);
 
 		var locations = database.GetCollection<OrganizationLocation>("organizationLocations");
 		await locations.Indexes.CreateOneAsync(
