@@ -24,6 +24,8 @@ public class Match : ITenantOwned
 	public List<PostponementAudit> Postponements { get; set; } = [];
 	public List<SelectedPlayer> SelectedPlayers { get; set; } = [];
 	public List<MatchPlayerStats> PlayerStats { get; set; } = [];
+	public int MatchDurationMinutes { get; set; } = 90;
+	public List<MatchTimelineEvent> MatchEvents { get; set; } = [];
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -506,6 +506,72 @@ public class MatchesControllerTests
 	}
 
 	[Test]
+	public async Task UpdateMatchEvents_WhenResultExists_ShouldPersistEventsAndDeriveStats()
+	{
+		var substituteId = Guid.NewGuid();
+		var matchService = new FakeMatchService();
+		var controller = CreateController(matchService);
+		var existingMatch = CreateMatch(MatchOneId, SeasonOneId, "Test Opponent");
+		existingMatch.IsCompleted = true;
+		existingMatch.Result = new MatchResult { HomeGoals = 1, AwayGoals = 0 };
+		existingMatch.SelectedPlayers =
+		[
+			new SelectedPlayer { PlayerId = PlayerOneId, Area = "pitch" },
+			new SelectedPlayer { PlayerId = substituteId, Area = "bench" }
+		];
+		matchService.Matches.Add(existingMatch);
+
+		var result = await controller.UpdateMatchEvents(
+			MatchOneId.ToString(),
+			new UpdateMatchEventsModel
+			{
+				MatchDurationMinutes = 90,
+				MatchEvents =
+				[
+					new MatchTimelineEvent
+					{
+						Type = MatchTimelineEventType.Goal,
+						Minute = 30,
+						PlayerId = PlayerOneId
+					},
+					new MatchTimelineEvent
+					{
+						Type = MatchTimelineEventType.Substitution,
+						Minute = 65,
+						PlayerId = substituteId,
+						SecondaryPlayerId = PlayerOneId
+					}
+				]
+			},
+			CancellationToken.None);
+
+		var okResult = result.Result as OkObjectResult;
+		var match = okResult?.Value as Match;
+		Assert.Multiple(() =>
+		{
+			Assert.That(match?.MatchEvents, Has.Count.EqualTo(2));
+			Assert.That(match?.PlayerStats.Single(stat => stat.PlayerId == PlayerOneId).Goals, Is.EqualTo(1));
+			Assert.That(match?.PlayerStats.Single(stat => stat.PlayerId == PlayerOneId).Minutes, Is.EqualTo(65));
+			Assert.That(match?.PlayerStats.Single(stat => stat.PlayerId == substituteId).Minutes, Is.EqualTo(25));
+		});
+	}
+
+	[Test]
+	public async Task UpdateMatchEvents_BeforeResult_ShouldReturnBadRequest()
+	{
+		var matchService = new FakeMatchService();
+		var controller = CreateController(matchService);
+		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent"));
+
+		var result = await controller.UpdateMatchEvents(
+			MatchOneId.ToString(),
+			new UpdateMatchEventsModel(),
+			CancellationToken.None);
+
+		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+	}
+
+	[Test]
 	public async Task UpdateNotes_WhenMatchExists_ShouldReturnUpdatedNotes()
 	{
 		var matchService = new FakeMatchService();

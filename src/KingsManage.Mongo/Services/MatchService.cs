@@ -74,6 +74,10 @@ public class MatchService : IMatchService
 		match.Postponements ??= [];
 		match.SelectedPlayers ??= [];
 		match.PlayerStats ??= [];
+		match.MatchDurationMinutes = match.MatchDurationMinutes is >= 1 and <= 180
+			? match.MatchDurationMinutes
+			: 90;
+		match.MatchEvents ??= [];
 		match.CreatedAt = DateTime.UtcNow;
 		match.UpdatedAt = DateTime.UtcNow;
 		tenant.Assign(match);

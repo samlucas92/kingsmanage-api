@@ -342,6 +342,61 @@ public class MatchesController : ControllerBase
 		return null;
 	}
 
+	private static string? ValidateMatchEvents(Match match, UpdateMatchEventsModel model)
+	{
+		if (model.MatchDurationMinutes is < 1 or > 180)
+		{
+			return "Match duration must be between 1 and 180 minutes.";
+		}
+
+		if (model.MatchEvents.GroupBy(matchEvent => matchEvent.Id)
+			.Any(group => group.Key != Guid.Empty && group.Count() > 1))
+		{
+			return "Every match event must have a unique id.";
+		}
+
+		var selectedPlayerIds = match.SelectedPlayers
+			.Select(player => player.PlayerId)
+			.ToHashSet();
+
+		foreach (var matchEvent in model.MatchEvents)
+		{
+			if (!Enum.IsDefined(matchEvent.Type))
+			{
+				return "The match event type is invalid.";
+			}
+
+			if (matchEvent.Minute is < 0 || matchEvent.Minute > model.MatchDurationMinutes)
+			{
+				return "Event minutes must fall within the match duration.";
+			}
+
+			if (!selectedPlayerIds.Contains(matchEvent.PlayerId))
+			{
+				return "Match events can only be added to selected players.";
+			}
+
+			if (matchEvent.Type == MatchTimelineEventType.Substitution &&
+				!matchEvent.SecondaryPlayerId.HasValue)
+			{
+				return "A substitution must include the players coming on and going off.";
+			}
+
+			if (matchEvent.SecondaryPlayerId.HasValue &&
+				!selectedPlayerIds.Contains(matchEvent.SecondaryPlayerId.Value))
+			{
+				return "Related match-event players must be in the selected squad.";
+			}
+
+			if (matchEvent.SecondaryPlayerId == matchEvent.PlayerId)
+			{
+				return "A player cannot be selected twice in the same match event.";
+			}
+		}
+
+		return null;
+	}
+
 	[HttpDelete("{id}")]
 	public async Task<IActionResult> Delete(
 		string id,
@@ -606,6 +661,68 @@ public class MatchesController : ControllerBase
 
 		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 
+		return Ok(updatedMatch);
+	}
+
+	[HttpPut("{id}/events")]
+	public async Task<ActionResult<Match>> UpdateMatchEvents(
+		string id,
+		UpdateMatchEventsModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult))
+		{
+			return errorResult!;
+		}
+
+		var existingMatch = await matchService.GetByIdAsync(matchId, cancellationToken);
+		if (existingMatch is null)
+		{
+			return NotFound();
+		}
+
+		if (!existingMatch.IsCompleted)
+		{
+			return BadRequest("Enter the final result before adding match events.");
+		}
+
+		model.MatchEvents ??= [];
+		var validationError = ValidateMatchEvents(existingMatch, model);
+		if (validationError is not null)
+		{
+			return BadRequest(validationError);
+		}
+
+		var normalisedEvents = model.MatchEvents
+			.Select(matchEvent => new MatchTimelineEvent
+			{
+				Id = matchEvent.Id == Guid.Empty ? Guid.NewGuid() : matchEvent.Id,
+				Type = matchEvent.Type,
+				Minute = matchEvent.Minute,
+				PlayerId = matchEvent.PlayerId,
+				SecondaryPlayerId = matchEvent.Type is MatchTimelineEventType.Goal or MatchTimelineEventType.Substitution
+					? matchEvent.SecondaryPlayerId
+					: null
+			})
+			.OrderBy(matchEvent => matchEvent.Minute)
+			.ToList();
+
+		existingMatch.MatchDurationMinutes = model.MatchDurationMinutes;
+		existingMatch.MatchEvents = normalisedEvents;
+		existingMatch.PlayerStats = MatchEventStatsCalculator.Calculate(
+			existingMatch.SelectedPlayers,
+			normalisedEvents,
+			model.MatchDurationMinutes,
+			existingMatch.PlayerStats);
+
+		var updatedMatch = await matchService.UpdateAsync(existingMatch, cancellationToken);
+		if (updatedMatch is null)
+		{
+			return NotFound();
+		}
+
+		await RecalculateAffectedSeasonsAsync(existingMatch, updatedMatch, cancellationToken);
 		return Ok(updatedMatch);
 	}
 
