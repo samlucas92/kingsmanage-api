@@ -71,6 +71,12 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
+	public void FundingController_ShouldBeClubAdminOnly()
+	{
+		AssertControllerHasPolicy(typeof(FundingController), "ClubAdmin");
+	}
+
+	[Test]
 	public void PlayersController_ShouldAllowAuthenticatedReadsAndManagerWrites()
 	{
 		var authorizeAttributes = GetAuthorizeAttributes(typeof(PlayersController));

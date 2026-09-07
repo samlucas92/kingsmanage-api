@@ -26,6 +26,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await BackfillAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
+		await BackfillAsync<FundingOpportunity>("fundingOpportunities", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
 		await BackfillAsync<ClubNotification>("notifications", cancellationToken);
 		await BackfillAsync<MessageThread>("messageThreads", cancellationToken);
@@ -44,9 +45,26 @@ public sealed class TenantDataMigrator
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
+		await EnsureFundingIndexesAsync(cancellationToken);
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
 		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureFundingIndexesAsync(CancellationToken cancellationToken)
+	{
+		var opportunities = database.GetCollection<FundingOpportunity>("fundingOpportunities");
+		await opportunities.Indexes.CreateManyAsync([
+			new CreateIndexModel<FundingOpportunity>(
+				Builders<FundingOpportunity>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Ascending(item => item.Status).Ascending(item => item.EndDate),
+				new CreateIndexOptions { Name = "TenantStatusEndDate_1" }),
+			new CreateIndexModel<FundingOpportunity>(
+				Builders<FundingOpportunity>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Ascending(item => item.ApplicationState).Descending(item => item.UpdatedAt),
+				new CreateIndexOptions { Name = "TenantApplicationStateUpdatedAt_1" }),
+			new CreateIndexModel<FundingOpportunity>(
+				Builders<FundingOpportunity>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Ascending(item => item.DuplicateKey),
+				new CreateIndexOptions { Name = "TenantDuplicateKey_1", Unique = true })
+		], cancellationToken);
 	}
 
 	private async Task ApplyKingsbridgePre202627HistoricalStatsAsync(
