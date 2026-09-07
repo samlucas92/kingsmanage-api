@@ -9,6 +9,7 @@ public class Match : ITenantOwned
 	public Guid? ClubEventId { get; set; }
 	public Guid? TeamId { get; set; }
 	public ClubTeam Team { get; set; }
+	public Guid? OpponentTeamId { get; set; }
 	public string Opponent { get; set; } = string.Empty;
 	public string Competition { get; set; } = string.Empty;
 	public DateTime Date { get; set; }

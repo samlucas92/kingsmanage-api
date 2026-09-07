@@ -7,6 +7,7 @@ public class CreateMatchForEventModel
 	public Guid? SeasonId { get; set; }
 	public Guid? TeamId { get; set; }
 	public ClubTeam Team { get; set; }
+	public Guid? OpponentTeamId { get; set; }
 	public string Opponent { get; set; } = string.Empty;
 	public string Competition { get; set; } = string.Empty;
 	public DateTime? Date { get; set; }
@@ -27,6 +28,7 @@ public class CreateMatchForEventModel
 			ClubEventId = clubEventId,
 			TeamId = TeamId ?? DefaultClubTeams.FromLegacy(Team),
 			Team = Team,
+			OpponentTeamId = OpponentTeamId,
 			Opponent = Opponent,
 			Competition = Competition,
 			Date = Date ?? eventStartDateTime,

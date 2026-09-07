@@ -99,6 +99,7 @@ builder.Services.AddScoped<IStatsService, StatsService>();
 builder.Services.AddScoped<ISeasonRolloverStore, SeasonRolloverStore>();
 builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<IFundingOpportunityService, FundingOpportunityService>();
+builder.Services.AddScoped<IOppositionTeamService, OppositionTeamService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClubEventService, ClubEventService>();
 builder.Services.AddScoped<IClubPostService, ClubPostService>();

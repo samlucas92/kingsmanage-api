@@ -14,6 +14,7 @@ public class BulkMatchImportItemModel
 	public Guid TeamId { get; set; }
 	public ClubTeam Team { get; set; }
 	public string TeamName { get; set; } = string.Empty;
+	public Guid? OpponentTeamId { get; set; }
 	public string Opponent { get; set; } = string.Empty;
 	public string Competition { get; set; } = string.Empty;
 	public DateTime Date { get; set; }
@@ -29,6 +30,7 @@ public class BulkMatchImportItemModel
 			ClubEventId = clubEventId,
 			TeamId = TeamId,
 			Team = Team,
+			OpponentTeamId = OpponentTeamId,
 			Opponent = Opponent,
 			Competition = Competition,
 			Date = Date,

@@ -27,6 +27,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await BackfillAsync<FundingOpportunity>("fundingOpportunities", cancellationToken);
+		await BackfillAsync<OppositionTeam>("oppositionTeams", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
 		await BackfillAsync<ClubNotification>("notifications", cancellationToken);
 		await BackfillAsync<MessageThread>("messageThreads", cancellationToken);
@@ -46,9 +47,23 @@ public sealed class TenantDataMigrator
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
 		await EnsureBillingIndexesAsync(cancellationToken);
 		await EnsureFundingIndexesAsync(cancellationToken);
+		await EnsureOppositionTeamIndexesAsync(cancellationToken);
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
 		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureOppositionTeamIndexesAsync(CancellationToken cancellationToken)
+	{
+		var teams = database.GetCollection<OppositionTeam>("oppositionTeams");
+		await teams.Indexes.CreateManyAsync([
+			new CreateIndexModel<OppositionTeam>(
+				Builders<OppositionTeam>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Ascending(item => item.NormalizedName),
+				new CreateIndexOptions { Name = "TenantNormalizedName_1", Unique = true }),
+			new CreateIndexModel<OppositionTeam>(
+				Builders<OppositionTeam>.IndexKeys.Ascending(item => item.OrganizationId).Ascending(item => item.ClubId).Ascending(item => item.IsActive).Ascending(item => item.Name),
+				new CreateIndexOptions { Name = "TenantActiveName_1" })
+		], cancellationToken);
 	}
 
 	private async Task EnsureFundingIndexesAsync(CancellationToken cancellationToken)

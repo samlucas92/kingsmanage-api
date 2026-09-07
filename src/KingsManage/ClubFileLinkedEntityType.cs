@@ -9,5 +9,6 @@ public enum ClubFileLinkedEntityType
 	ClubLogo,
 	PostTemplate,
 	RichTextDraft,
-	SocialPublication
+	SocialPublication,
+	OppositionTeam
 }

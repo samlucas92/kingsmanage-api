@@ -13,6 +13,7 @@ public class MatchViewModel
 	public Guid TeamId { get; set; }
 
 	public ClubTeam Team { get; set; }
+	public Guid? OpponentTeamId { get; set; }
 
 	public string Opponent { get; set; } = string.Empty;
 
@@ -47,6 +48,7 @@ public class MatchViewModel
 			ClubEventId = match.ClubEventId,
 			TeamId = match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team),
 			Team = match.Team,
+			OpponentTeamId = match.OpponentTeamId,
 			Opponent = match.Opponent,
 			Competition = match.Competition,
 			CompetitionType = MatchCompetition.GetCompetitionType(match.Competition),

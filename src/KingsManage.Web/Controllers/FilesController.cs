@@ -44,6 +44,7 @@ public class FilesController : ControllerBase
 	private readonly IPlayerService playerService;
 	private readonly ISportsClubService clubService;
 	private readonly IClubPostTemplateService templateService;
+	private readonly IOppositionTeamService oppositionTeamService;
 
 	public FilesController(
 		IClubFileService fileService,
@@ -55,7 +56,8 @@ public class FilesController : ControllerBase
 		IClubEventService eventService,
 		IPlayerService playerService,
 		ISportsClubService clubService,
-		IClubPostTemplateService templateService
+		IClubPostTemplateService templateService,
+		IOppositionTeamService oppositionTeamService
 	)
 	{
 		this.fileService = fileService;
@@ -68,6 +70,7 @@ public class FilesController : ControllerBase
 		this.playerService = playerService;
 		this.clubService = clubService;
 		this.templateService = templateService;
+		this.oppositionTeamService = oppositionTeamService;
 	}
 
 	[HttpGet]
@@ -547,6 +550,49 @@ public class FilesController : ControllerBase
 		return Ok(updated);
 	}
 
+	[Authorize(Policy = "ClubAdmin")]
+	[HttpPost("{id}/assign-opposition-team-badge")]
+	public async Task<ActionResult<OppositionTeam>> AssignOppositionTeamBadge(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "File", out var fileId, out var errorResult)) return errorResult!;
+		var file = await fileService.GetByIdAsync(fileId, cancellationToken);
+		if (file is null || file.Status != ClubFileStatus.Uploaded ||
+			file.LinkedEntityType != ClubFileLinkedEntityType.OppositionTeam ||
+			!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+		{
+			return BadRequest("A valid uploaded opposition badge is required.");
+		}
+
+		var team = await oppositionTeamService.GetByIdAsync(file.LinkedEntityId, cancellationToken);
+		if (team is null) return NotFound();
+		var previousFileId = team.BadgeFileId;
+		var updated = await oppositionTeamService.SetBadgeFileAsync(team.Id, file.Id, cancellationToken);
+		if (updated is null) return NotFound();
+		if (previousFileId is Guid previousId && previousId != file.Id)
+		{
+			await DeleteManagedReferenceAsync(previousId, cancellationToken);
+		}
+		return Ok(updated);
+	}
+
+	[Authorize(Policy = "ClubAdmin")]
+	[HttpDelete("opposition-team-badge/{teamId:guid}")]
+	public async Task<ActionResult<OppositionTeam>> RemoveOppositionTeamBadge(
+		Guid teamId,
+		CancellationToken cancellationToken)
+	{
+		var team = await oppositionTeamService.GetByIdAsync(teamId, cancellationToken);
+		if (team is null) return NotFound();
+		var updated = await oppositionTeamService.SetBadgeFileAsync(team.Id, null, cancellationToken);
+		if (team.BadgeFileId is Guid fileId)
+		{
+			await DeleteManagedReferenceAsync(fileId, cancellationToken);
+		}
+		return Ok(updated);
+	}
+
 	[HttpGet("{id}/download-url")]
 	public async Task<ActionResult<FileDownloadUrlResponse>> CreateDownloadUrl(
 		string id,
@@ -742,6 +788,7 @@ public class FilesController : ControllerBase
 
 		if (
 			model.LinkedEntityType is ClubFileLinkedEntityType.ClubLogo
+				or ClubFileLinkedEntityType.OppositionTeam
 				or ClubFileLinkedEntityType.PostTemplate
 				or ClubFileLinkedEntityType.RichTextDraft
 				or ClubFileLinkedEntityType.SocialPublication
@@ -752,13 +799,13 @@ public class FilesController : ControllerBase
 				return "Managed editor and branding assets must be images.";
 			}
 
-			var imageLimit = model.LinkedEntityType == ClubFileLinkedEntityType.ClubLogo
+			var imageLimit = model.LinkedEntityType is ClubFileLinkedEntityType.ClubLogo or ClubFileLinkedEntityType.OppositionTeam
 				? MaxClubLogoSizeBytes
 				: MaxManagedImageSizeBytes;
 			if (model.SizeBytes > imageLimit)
 			{
-				return model.LinkedEntityType == ClubFileLinkedEntityType.ClubLogo
-					? "Club logos must be 2MB or less."
+				return model.LinkedEntityType is ClubFileLinkedEntityType.ClubLogo or ClubFileLinkedEntityType.OppositionTeam
+					? "Club logos and opposition badges must be 2MB or less."
 					: "Embedded images must be 5MB or less.";
 			}
 		}
@@ -811,6 +858,8 @@ public class FilesController : ControllerBase
 				await templateService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			ClubFileLinkedEntityType.RichTextDraft => true,
 			ClubFileLinkedEntityType.SocialPublication => true,
+			ClubFileLinkedEntityType.OppositionTeam =>
+				await oppositionTeamService.GetByIdAsync(linkedEntityId, cancellationToken) is not null,
 			_ => false
 		};
 	}
@@ -836,6 +885,7 @@ public class FilesController : ControllerBase
 			ClubFileLinkedEntityType.PostTemplate => IsAdminOrCoach(),
 			ClubFileLinkedEntityType.RichTextDraft => IsAdminOrCoach(),
 			ClubFileLinkedEntityType.SocialPublication => IsAdminOrCoach(),
+			ClubFileLinkedEntityType.OppositionTeam => IsAdminOrCoach(),
 			_ => false
 		};
 	}
