@@ -28,6 +28,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
 		await BackfillAsync<FundingOpportunity>("fundingOpportunities", cancellationToken);
 		await BackfillAsync<OppositionTeam>("oppositionTeams", cancellationToken);
+		await BackfillAsync<LeagueRule>("leagueRules", cancellationToken);
 		await BackfillAsync<ClubFile>("files", cancellationToken);
 		await BackfillAsync<ClubNotification>("notifications", cancellationToken);
 		await BackfillAsync<MessageThread>("messageThreads", cancellationToken);
@@ -48,9 +49,23 @@ public sealed class TenantDataMigrator
 		await EnsureBillingIndexesAsync(cancellationToken);
 		await EnsureFundingIndexesAsync(cancellationToken);
 		await EnsureOppositionTeamIndexesAsync(cancellationToken);
+		await EnsureLeagueRuleIndexesAsync(cancellationToken);
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
 		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureLeagueRuleIndexesAsync(CancellationToken cancellationToken)
+	{
+		var rules = database.GetCollection<LeagueRule>("leagueRules");
+		await rules.Indexes.CreateOneAsync(new CreateIndexModel<LeagueRule>(
+			Builders<LeagueRule>.IndexKeys
+				.Ascending(item => item.OrganizationId)
+				.Ascending(item => item.ClubId)
+				.Ascending(item => item.RestrictedTeamId)
+				.Ascending(item => item.IsActive),
+			new CreateIndexOptions { Name = "TenantRestrictedTeamActive_1" }),
+			cancellationToken: cancellationToken);
 	}
 
 	private async Task EnsureOppositionTeamIndexesAsync(CancellationToken cancellationToken)

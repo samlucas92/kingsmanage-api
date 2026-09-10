@@ -15,18 +15,32 @@ public class MatchesController : ControllerBase
 	private readonly IMatchService matchService;
 	private readonly IStatsService statsService;
 	private readonly IClubEventService eventService;
+	private readonly ILeagueEligibilityService? leagueEligibilityService;
 
 	public MatchesController(
 		IMatchQueryService matchQueryService,
 		IMatchService matchService,
 		IStatsService statsService,
-		IClubEventService eventService
+		IClubEventService eventService,
+		ILeagueEligibilityService? leagueEligibilityService = null
 	)
 	{
 		this.matchQueryService = matchQueryService;
 		this.matchService = matchService;
 		this.statsService = statsService;
 		this.eventService = eventService;
+		this.leagueEligibilityService = leagueEligibilityService;
+	}
+
+	[HttpGet("{id}/eligibility")]
+	public async Task<ActionResult<MatchEligibilityModel>> GetEligibility(string id, CancellationToken cancellationToken)
+	{
+		if (!TryParseGuid(id, "Match", out var matchId, out var errorResult)) return errorResult!;
+		var match = await matchService.GetByIdAsync(matchId, cancellationToken);
+		if (match is null) return NotFound();
+		if (leagueEligibilityService is null) return Ok(new MatchEligibilityModel());
+		return Ok(await leagueEligibilityService.EvaluateAsync(
+			match, match.SelectedPlayers.Select(player => player.PlayerId).Distinct().ToList(), cancellationToken));
 	}
 
 	[HttpPost("bulk-import")]
@@ -467,6 +481,14 @@ public class MatchesController : ControllerBase
 		if (existingMatch is null)
 		{
 			return NotFound();
+		}
+
+		if (leagueEligibilityService is not null)
+		{
+			var eligibility = await leagueEligibilityService.EvaluateAsync(
+				existingMatch, selectedPlayers.Select(player => player.PlayerId).Distinct().ToList(), cancellationToken);
+			if (!eligibility.IsValid)
+				return Conflict(new { message = eligibility.Violations.First(), eligibility });
 		}
 
 		var updatedMatch = await matchService.SetSelectedPlayersAsync(
