@@ -68,8 +68,9 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 		var isExempt = rule.ExemptWhenHigherTeamPlaysSameDay && higherMatches.Any(item =>
 			item.State != MatchState.Postponed && item.Date.Date == target.Date.Date);
 		var previous = higherMatches
-			.Where(item => item.IsCompleted && item.Date < target.Date)
+			.Where(item => item.State != MatchState.Postponed && item.Date < target.Date)
 			.Where(item => MatchesCompetition(item.Competition, rule.HigherTeamCompetitions))
+			.Where(item => item.IsCompleted || item.IsLineupLocked || item.SelectedPlayers.Count > 0)
 			.OrderByDescending(item => item.Date)
 			.FirstOrDefault();
 		var affected = previous is null ? [] : GetPlayedPlayerIds(previous);
@@ -87,7 +88,9 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 				? $"Exempt because the higher team also plays on {target.Date:dd MMM}."
 				: previous is null
 					? "No previous qualifying higher-team match was found."
-					: $"{selectedCount}/{rule.MaxPlayers ?? 0} players selected from the higher team's {previous.Date:dd MMM} match."
+					: previous.IsCompleted
+						? $"{selectedCount}/{rule.MaxPlayers ?? 0} players selected from the higher team's {previous.Date:dd MMM} match."
+						: $"{selectedCount}/{rule.MaxPlayers ?? 0} players selected from the higher team's saved {previous.Date:dd MMM} lineup."
 		};
 	}
 

@@ -35,6 +35,27 @@ public sealed class LeagueEligibilityServiceTests
 	}
 
 	[Test]
+	public async Task RecentAppearanceRuleUsesSavedEarlierLineupWhenPlanningInAdvance()
+	{
+		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 9, 15), "League", false);
+		var earlierLineup = Match(DefaultClubTeams.FirstTeamId, new DateTime(2026, 9, 12), "League", false);
+		earlierLineup.IsLineupLocked = true;
+		earlierLineup.SelectedPlayers = Players.Take(4).Select((id, index) => new SelectedPlayer
+		{
+			PlayerId = id,
+			Area = "pitch",
+			PositionIndex = index
+		}).ToList();
+		var service = Service([Rule(LeagueRuleType.RecentHigherTeamAppearanceLimit, ["League"], ["League"], 3)], [target, earlierLineup]);
+
+		var result = await service.EvaluateAsync(target, Players.Take(4).ToList());
+
+		Assert.That(result.IsValid, Is.False);
+		Assert.That(result.Rules.Single().AffectedPlayerIds, Is.EquivalentTo(Players.Take(4)));
+		Assert.That(result.Rules.Single().Summary, Does.Contain("saved 12 Sep lineup"));
+	}
+
+	[Test]
 	public async Task CupTieOnlyUsesExplicitlyConfiguredCompetition()
 	{
 		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 10, 1), "League Cup", false);
