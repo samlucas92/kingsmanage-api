@@ -56,6 +56,27 @@ public sealed class LeagueEligibilityServiceTests
 	}
 
 	[Test]
+	public async Task GenericLeagueSelectionMatchesNamedLeagueDivisions()
+	{
+		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 9, 15), "Swansea Senior League Reserve Division 2", false);
+		var earlierLineup = Match(DefaultClubTeams.FirstTeamId, new DateTime(2026, 9, 12), "Swansea Senior League Division 1", false);
+		earlierLineup.IsLineupLocked = true;
+		earlierLineup.SelectedPlayers = Players.Take(4).Select((id, index) => new SelectedPlayer
+		{
+			PlayerId = id,
+			Area = "pitch",
+			PositionIndex = index
+		}).ToList();
+		var service = Service([Rule(LeagueRuleType.RecentHigherTeamAppearanceLimit, ["League"], ["League"], 3)], [target, earlierLineup]);
+
+		var result = await service.EvaluateAsync(target, Players.Take(4).ToList());
+
+		Assert.That(result.Rules, Has.Count.EqualTo(1));
+		Assert.That(result.IsValid, Is.False);
+		Assert.That(result.Rules.Single().SelectedCount, Is.EqualTo(4));
+	}
+
+	[Test]
 	public async Task CupTieOnlyUsesExplicitlyConfiguredCompetition()
 	{
 		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 10, 1), "League Cup", false);

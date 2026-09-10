@@ -131,6 +131,20 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 
 	private static Guid ResolveTeamId(Match match) => match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team);
 
-	private static bool MatchesCompetition(string competition, IReadOnlyCollection<string> configured) =>
-		configured.Count == 0 || configured.Any(value => string.Equals(value, competition, StringComparison.OrdinalIgnoreCase));
+	private static bool MatchesCompetition(string competition, IReadOnlyCollection<string> configured)
+	{
+		if (configured.Count == 0) return true;
+		var competitionType = MatchCompetition.GetCompetitionType(competition);
+		return configured.Any(value =>
+			string.Equals(value, competition, StringComparison.OrdinalIgnoreCase) ||
+			TryGetCompetitionCategory(value, out var category) && category == competitionType);
+	}
+
+	private static bool TryGetCompetitionCategory(string value, out MatchCompetitionType category)
+	{
+		if (Enum.TryParse(value.Trim(), true, out category) && category != MatchCompetitionType.Unknown)
+			return true;
+		category = MatchCompetitionType.Unknown;
+		return false;
+	}
 }
