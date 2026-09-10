@@ -267,7 +267,7 @@ public class SeasonRolloverServiceTests
 		public Task<Match?> ToggleLineupLockedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> UpdateNotesAsync(Guid id, MatchNotes notes, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> UpdatePlayerStatsAsync(Guid id, List<MatchPlayerStats> playerStats, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
-		public Task<Match?> PostponeAsync(Guid id, DateTime newDate, string? reason, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
+		public Task<Match?> PostponeAsync(Guid id, DateTime? newDate, string? reason, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> RestoreAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 	}
 }

@@ -56,6 +56,33 @@ public sealed class LeagueEligibilityServiceTests
 	}
 
 	[Test]
+	public async Task RecentAppearanceRuleCountsTheWholePreviousSquadIncludingBench()
+	{
+		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 9, 10), "League", false);
+		var previous = Match(
+			DefaultClubTeams.FirstTeamId,
+			new DateTime(2026, 9, 3),
+			"League",
+			true,
+			Players.Take(3));
+		previous.SelectedPlayers = Players.Take(4).Select((id, index) => new SelectedPlayer
+		{
+			PlayerId = id,
+			Area = index < 3 ? "pitch" : "bench",
+			PositionIndex = index
+		}).ToList();
+		var service = Service(
+			[Rule(LeagueRuleType.RecentHigherTeamAppearanceLimit, ["League"], ["League"], 3)],
+			[target, previous]);
+
+		var result = await service.EvaluateAsync(target, Players.Take(4).ToList());
+
+		Assert.That(result.IsValid, Is.False);
+		Assert.That(result.Rules.Single().SelectedCount, Is.EqualTo(4));
+		Assert.That(result.Rules.Single().AffectedPlayerIds, Is.EquivalentTo(Players.Take(4)));
+	}
+
+	[Test]
 	public async Task GenericLeagueSelectionMatchesNamedLeagueDivisions()
 	{
 		var target = Match(DefaultClubTeams.SecondTeamId, new DateTime(2026, 9, 15), "Swansea Senior League Reserve Division 2", false);
@@ -135,7 +162,7 @@ public sealed class LeagueEligibilityServiceTests
 		public Task<Match?> ToggleLineupLockedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> UpdateNotesAsync(Guid id, MatchNotes notes, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> UpdatePlayerStatsAsync(Guid id, List<MatchPlayerStats> playerStats, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
-		public Task<Match?> PostponeAsync(Guid id, DateTime newDate, string? reason, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
+		public Task<Match?> PostponeAsync(Guid id, DateTime? newDate, string? reason, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 		public Task<Match?> RestoreAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Match?>(null);
 	}
 }

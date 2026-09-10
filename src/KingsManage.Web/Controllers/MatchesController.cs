@@ -786,12 +786,7 @@ public class MatchesController : ControllerBase
 			return errorResult!;
 		}
 
-		if (model.NewDate == default)
-		{
-			return BadRequest("New date is required.");
-		}
-
-		if (model.NewDate.Kind != DateTimeKind.Utc)
+		if (model.NewDate is { } newDate && newDate.Kind != DateTimeKind.Utc)
 		{
 			return BadRequest("New date must include a UTC timezone.");
 		}

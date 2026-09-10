@@ -43,7 +43,7 @@ public interface IMatchService
 	);
 	Task<Match?> PostponeAsync(
 		Guid id,
-		DateTime newDate,
+		DateTime? newDate,
 		string? reason,
 		CancellationToken cancellationToken = default
 	);

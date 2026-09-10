@@ -392,7 +392,7 @@ public class MatchStatsRecalculationTests
 			return Task.FromResult<Match?>(match);
 		}
 
-		public Task<Match?> PostponeAsync(Guid id, DateTime newDate, string? reason, CancellationToken cancellationToken = default)
+		public Task<Match?> PostponeAsync(Guid id, DateTime? newDate, string? reason, CancellationToken cancellationToken = default)
 		{
 			var match = Matches.FirstOrDefault(currentMatch => currentMatch.Id == id);
 
@@ -409,7 +409,10 @@ public class MatchStatsRecalculationTests
 				Reason = reason,
 				ChangedAt = DateTime.UtcNow
 			});
-			match.Date = newDate;
+			if (newDate.HasValue)
+			{
+				match.Date = newDate.Value;
+			}
 			match.State = MatchState.Postponed;
 			match.IsCompleted = false;
 

@@ -442,7 +442,7 @@ public class StatsControllerHistoricalStatsTests
 
 		public Task<Match?> PostponeAsync(
 			Guid id,
-			DateTime newDate,
+			DateTime? newDate,
 			string? reason,
 			CancellationToken cancellationToken = default) =>
 			Task.FromResult<Match?>(null);

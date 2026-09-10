@@ -248,7 +248,7 @@ public class MatchService : IMatchService
 
 	public async Task<Match?> PostponeAsync(
 		Guid id,
-		DateTime newDate,
+		DateTime? newDate,
 		string? reason,
 		CancellationToken cancellationToken = default
 	)
@@ -269,7 +269,10 @@ public class MatchService : IMatchService
 			ChangedAt = DateTime.UtcNow
 		});
 
-		match.Date = newDate;
+		if (newDate.HasValue)
+		{
+			match.Date = newDate.Value;
+		}
 		match.State = MatchState.Postponed;
 		match.IsCompleted = false;
 		match.UpdatedAt = DateTime.UtcNow;

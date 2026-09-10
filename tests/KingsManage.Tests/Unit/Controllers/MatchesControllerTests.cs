@@ -596,17 +596,27 @@ public class MatchesControllerTests
 	}
 
 	[Test]
-	public async Task Postpone_WhenNewDateIsDefault_ShouldReturnBadRequest()
+	public async Task Postpone_WhenNewDateIsOmitted_ShouldKeepExistingDate()
 	{
-		var controller = CreateController(new FakeMatchService());
+		var matchService = new FakeMatchService();
+		var controller = CreateController(matchService);
+		var existingDate = new DateTime(2026, 8, 1, 14, 0, 0, DateTimeKind.Utc);
+		matchService.Matches.Add(CreateMatch(MatchOneId, SeasonOneId, "Test Opponent", existingDate));
 
 		var result = await controller.Postpone(
 			MatchOneId.ToString(),
-			new PostponeMatchModel { NewDate = default, Reason = "Bad weather" },
+			new PostponeMatchModel { Reason = "Bad weather" },
 			CancellationToken.None
 		);
 
-		Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+		var okResult = result.Result as OkObjectResult;
+		var match = okResult?.Value as Match;
+		Assert.That(okResult, Is.Not.Null);
+		Assert.That(match, Is.Not.Null);
+		Assert.That(match!.Date, Is.EqualTo(existingDate));
+		Assert.That(match.State, Is.EqualTo(MatchState.Postponed));
+		Assert.That(match.Postponements, Has.Count.EqualTo(1));
+		Assert.That(match.Postponements[0].NewDate, Is.Null);
 	}
 
 	[Test]
@@ -974,7 +984,7 @@ public class MatchesControllerTests
 
 		public Task<Match?> PostponeAsync(
 			Guid id,
-			DateTime newDate,
+			DateTime? newDate,
 			string? reason,
 			CancellationToken cancellationToken = default
 		)
@@ -994,7 +1004,10 @@ public class MatchesControllerTests
 				Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
 				ChangedAt = DateTime.UtcNow
 			});
-			match.Date = newDate;
+			if (newDate.HasValue)
+			{
+				match.Date = newDate.Value;
+			}
 			match.State = MatchState.Postponed;
 			match.IsCompleted = false;
 			match.UpdatedAt = DateTime.UtcNow;

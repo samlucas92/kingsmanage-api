@@ -73,7 +73,7 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 			.Where(item => item.IsCompleted || item.IsLineupLocked || item.SelectedPlayers.Count > 0)
 			.OrderByDescending(item => item.Date)
 			.FirstOrDefault();
-		var affected = previous is null ? [] : GetPlayedPlayerIds(previous);
+		var affected = previous is null ? [] : GetSquadPlayerIds(previous);
 		var selectedCount = affected.Count(selected.Contains);
 		return new LeagueRuleEvaluationModel
 		{
@@ -101,7 +101,7 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 			.Where(item => item.Id != target.Id && ResolveTeamId(item) == rule.HigherTeamId)
 			.Where(item => item.IsCompleted && item.Date < target.Date)
 			.Where(item => MatchesCompetition(item.Competition, rule.HigherTeamCompetitions))
-			.SelectMany(GetPlayedPlayerIds)
+			.SelectMany(GetSquadPlayerIds)
 			.Distinct()
 			.ToList();
 		var selectedCount = affected.Count(selected.Contains);
@@ -118,15 +118,19 @@ public sealed class LeagueEligibilityService : ILeagueEligibilityService
 		};
 	}
 
-	private static List<Guid> GetPlayedPlayerIds(Match match)
+	private static List<Guid> GetSquadPlayerIds(Match match)
 	{
 		var recorded = match.PlayerStats
-			.Where(stats => stats.AppearanceType is MatchAppearanceType.Started or MatchAppearanceType.SubstituteUsed)
-			.Select(stats => stats.PlayerId).Distinct().ToList();
-		return recorded.Count > 0
-			? recorded
-			: match.SelectedPlayers.Where(player => string.Equals(player.Area, "pitch", StringComparison.OrdinalIgnoreCase))
-				.Select(player => player.PlayerId).Distinct().ToList();
+			.Where(stats => stats.AppearanceType is
+				MatchAppearanceType.Started or
+				MatchAppearanceType.SubstituteUsed or
+				MatchAppearanceType.UnusedSubstitute)
+			.Select(stats => stats.PlayerId);
+
+		return recorded
+			.Concat(match.SelectedPlayers.Select(player => player.PlayerId))
+			.Distinct()
+			.ToList();
 	}
 
 	private static Guid ResolveTeamId(Match match) => match.TeamId ?? DefaultClubTeams.FromLegacy(match.Team);

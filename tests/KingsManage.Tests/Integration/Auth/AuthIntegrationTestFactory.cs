@@ -1027,7 +1027,7 @@ public sealed class TestMatchService : IMatchService
 
 	public Task<Match?> PostponeAsync(
 		Guid id,
-		DateTime newDate,
+		DateTime? newDate,
 		string? reason,
 		CancellationToken cancellationToken = default
 	)
@@ -1039,7 +1039,10 @@ public sealed class TestMatchService : IMatchService
 			return Task.FromResult<Match?>(null);
 		}
 
-		match.Date = newDate;
+		if (newDate.HasValue)
+		{
+			match.Date = newDate.Value;
+		}
 		match.State = MatchState.Postponed;
 
 		return Task.FromResult<Match?>(match);
