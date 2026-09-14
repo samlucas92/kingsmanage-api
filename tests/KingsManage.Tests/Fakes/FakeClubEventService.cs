@@ -73,4 +73,13 @@ public sealed class FakeClubEventService : IClubEventService
 	{
 		return GetByIdAsync(eventId, cancellationToken);
 	}
+
+	public Task<ClubEvent?> SetAvailabilitiesAsync(
+		Guid eventId,
+		IReadOnlyCollection<ClubEventAvailabilityResponse> responses,
+		CancellationToken cancellationToken = default
+	)
+	{
+		return GetByIdAsync(eventId, cancellationToken);
+	}
 }

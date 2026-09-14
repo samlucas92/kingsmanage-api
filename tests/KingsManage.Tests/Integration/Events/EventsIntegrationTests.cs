@@ -1015,4 +1015,57 @@ public sealed class EventsIntegrationTests
 
 		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
 	}
+
+	[Test]
+	public async Task ImportAvailability_AsAdmin_UpdatesAllMatchedPlayersWithoutMarkingThemSeen()
+	{
+		var eventId = Guid.Parse("60000000-0000-0000-0000-000000000004");
+		var availablePlayerId = Guid.Parse("61000000-0000-0000-0000-000000000001");
+		var declinedPlayerId = Guid.Parse("61000000-0000-0000-0000-000000000002");
+		factory.ClubEventService.Events.Add(new ClubEvent
+		{
+			Id = eventId,
+			Type = ClubEventType.Match,
+			TeamScope = ClubEventTeamScope.Second,
+			Title = "Second team match",
+			StartDateTime = DateTime.UtcNow.AddDays(2),
+			Location = "Home pitch",
+			AvailabilityResponses =
+			[
+				new ClubEventAvailabilityResponse
+				{
+					PlayerId = declinedPlayerId,
+					Status = ClubEventAvailabilityStatus.Available
+				}
+			]
+		});
+		var client = await factory.CreateAuthenticatedClientAsync(
+			TestUsers.AdminEmail,
+			TestUsers.AdminPassword
+		);
+
+		var response = await client.PutAsJsonAsync(
+			$"/api/events/{eventId}/availability/import",
+			new
+			{
+				Responses = new[]
+				{
+					new { PlayerId = availablePlayerId, Status = "Available" },
+					new { PlayerId = declinedPlayerId, Status = "Declined" }
+				}
+			}
+		);
+
+		Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+		using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		var responses = document.RootElement.GetProperty("availabilityResponses");
+		Assert.That(responses.GetArrayLength(), Is.EqualTo(2));
+		Assert.That(
+			responses.EnumerateArray().Single(item =>
+				item.GetProperty("playerId").GetGuid() == declinedPlayerId)
+				.GetProperty("status").GetString(),
+			Is.EqualTo("Declined")
+		);
+		Assert.That(document.RootElement.GetProperty("seenBy").GetArrayLength(), Is.EqualTo(0));
+	}
 }

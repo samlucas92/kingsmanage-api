@@ -1239,6 +1239,45 @@ public sealed class TestClubEventService : IClubEventService
 
 		return Task.FromResult<ClubEvent?>(clubEvent);
 	}
+
+	public Task<ClubEvent?> SetAvailabilitiesAsync(
+		Guid eventId,
+		IReadOnlyCollection<ClubEventAvailabilityResponse> responses,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = Events.FirstOrDefault(currentEvent => currentEvent.Id == eventId);
+
+		if (clubEvent is null)
+		{
+			return Task.FromResult<ClubEvent?>(null);
+		}
+
+		clubEvent.AvailabilityResponses ??= [];
+		foreach (var response in responses)
+		{
+			var existing = clubEvent.AvailabilityResponses.FirstOrDefault(
+				item => item.PlayerId == response.PlayerId
+			);
+			if (existing is null)
+			{
+				clubEvent.AvailabilityResponses.Add(new ClubEventAvailabilityResponse
+				{
+					PlayerId = response.PlayerId,
+					Status = response.Status,
+					UpdatedAt = DateTime.UtcNow
+				});
+			}
+			else
+			{
+				existing.Status = response.Status;
+				existing.UpdatedAt = DateTime.UtcNow;
+			}
+		}
+
+		clubEvent.UpdatedAt = DateTime.UtcNow;
+		return Task.FromResult<ClubEvent?>(clubEvent);
+	}
 }
 
 

@@ -36,4 +36,10 @@ public interface IClubEventService
 		ClubEventAvailabilityStatus status,
 		CancellationToken cancellationToken = default
 	);
+
+	Task<ClubEvent?> SetAvailabilitiesAsync(
+		Guid eventId,
+		IReadOnlyCollection<ClubEventAvailabilityResponse> responses,
+		CancellationToken cancellationToken = default
+	);
 }

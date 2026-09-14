@@ -432,6 +432,57 @@ public class EventsController : ControllerBase
 		return Ok(updatedEvent);
 	}
 
+	[Authorize(Policy = "TeamManagement")]
+	[HttpPut("{id}/availability/import")]
+	public async Task<ActionResult<ClubEvent>> ImportPlayerAvailability(
+		string id,
+		BulkUpdateClubEventAvailabilityModel model,
+		CancellationToken cancellationToken
+	)
+	{
+		if (!TryParseGuid(id, "Event", out var eventId, out var eventErrorResult))
+		{
+			return eventErrorResult!;
+		}
+
+		if (model.Responses is null || model.Responses.Count is < 1 or > 250)
+		{
+			return BadRequest("Include between 1 and 250 attendance responses.");
+		}
+
+		if (model.Responses.Any(response => response.PlayerId == Guid.Empty))
+		{
+			return BadRequest("Every attendance response must include a player.");
+		}
+
+		if (model.Responses.Any(response => !Enum.IsDefined(response.Status)))
+		{
+			return BadRequest("Every attendance response must include a valid status.");
+		}
+
+		if (model.Responses.Select(response => response.PlayerId).Distinct().Count() != model.Responses.Count)
+		{
+			return BadRequest("Each player can only appear once in an attendance import.");
+		}
+
+		var updatedEvent = await eventService.SetAvailabilitiesAsync(
+			eventId,
+			model.Responses.Select(response => new ClubEventAvailabilityResponse
+			{
+				PlayerId = response.PlayerId,
+				Status = response.Status
+			}).ToList(),
+			cancellationToken
+		);
+
+		if (updatedEvent is null)
+		{
+			return NotFound();
+		}
+
+		return Ok(updatedEvent);
+	}
+
 	private async Task CreateEventNotificationAsync(
 		ClubEvent clubEvent,
 		Guid createdByUserId,

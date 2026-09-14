@@ -213,6 +213,48 @@ public class ClubEventService : IClubEventService
 		return await UpdateAsync(clubEvent, cancellationToken);
 	}
 
+	public async Task<ClubEvent?> SetAvailabilitiesAsync(
+		Guid eventId,
+		IReadOnlyCollection<ClubEventAvailabilityResponse> responses,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var clubEvent = await GetByIdAsync(eventId, cancellationToken);
+
+		if (clubEvent is null)
+		{
+			return null;
+		}
+
+		var updatedAt = DateTime.UtcNow;
+		foreach (var response in responses)
+		{
+			var existingAvailability = clubEvent.AvailabilityResponses.FirstOrDefault(
+				existing => existing.PlayerId == response.PlayerId
+			);
+
+			if (existingAvailability is null)
+			{
+				clubEvent.AvailabilityResponses.Add(
+					new ClubEventAvailabilityResponse
+					{
+						PlayerId = response.PlayerId,
+						Status = response.Status,
+						UpdatedAt = updatedAt
+					}
+				);
+			}
+			else
+			{
+				existingAvailability.Status = response.Status;
+				existingAvailability.UpdatedAt = updatedAt;
+			}
+		}
+
+		clubEvent.UpdatedAt = updatedAt;
+		return await UpdateAsync(clubEvent, cancellationToken);
+	}
+
 	private static ClubEvent NormaliseFromStorage(ClubEvent clubEvent)
 	{
 		clubEvent.Title ??= string.Empty;
