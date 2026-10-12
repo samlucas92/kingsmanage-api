@@ -23,6 +23,7 @@ public sealed class TenantDataMigrator
 		await BackfillAsync<ClubPost>("posts", cancellationToken);
 		await BackfillAsync<ClubForm>("forms", cancellationToken);
 		await BackfillAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
+		await BackfillAsync<PlayerSponsorship>("playerSponsorships", cancellationToken);
 		await BackfillAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await BackfillAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await BackfillAsync<FinanceTransaction>("financeTransactions", cancellationToken);
@@ -43,6 +44,7 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexesAsync(cancellationToken);
 		await EnsureReadModelIndexesAsync(cancellationToken);
 		await EnsureFormIndexesAsync(cancellationToken);
+		await EnsurePlayerSponsorshipIndexesAsync(cancellationToken);
 		await EnsureFormAnalyticsIndexesAsync(cancellationToken);
 		await EnsureStoredFileObjectIndexesAsync(cancellationToken);
 		await EnsureFileLifecycleIndexesAsync(cancellationToken);
@@ -420,6 +422,23 @@ public sealed class TenantDataMigrator
 			cancellationToken);
 	}
 
+	private async Task EnsurePlayerSponsorshipIndexesAsync(CancellationToken cancellationToken)
+	{
+		var sponsorships = database.GetCollection<PlayerSponsorship>("playerSponsorships");
+		await sponsorships.Indexes.CreateManyAsync([
+			new CreateIndexModel<PlayerSponsorship>(
+				Builders<PlayerSponsorship>.IndexKeys.Ascending(item => item.GoCode),
+				new CreateIndexOptions { Name = "GoCode_1", Unique = true }),
+			new CreateIndexModel<PlayerSponsorship>(
+				Builders<PlayerSponsorship>.IndexKeys
+					.Ascending(item => item.OrganizationId)
+					.Ascending(item => item.ClubId)
+					.Ascending(item => item.Status)
+					.Descending(item => item.UpdatedAt),
+				new CreateIndexOptions { Name = "TenantStatusUpdatedAt_1" })
+		], cancellationToken);
+	}
+
 	private static CreateIndexModel<FormAnalyticsEvent> CreateUniqueAnalyticsEventIndex(
 		string name,
 		FormAnalyticsEventType eventType,
@@ -698,6 +717,7 @@ public sealed class TenantDataMigrator
 		await EnsureTenantIndexAsync<ClubPost>("posts", cancellationToken);
 		await EnsureTenantIndexAsync<ClubForm>("forms", cancellationToken);
 		await EnsureTenantIndexAsync<ClubFormSubmission>("formSubmissions", cancellationToken);
+		await EnsureTenantIndexAsync<PlayerSponsorship>("playerSponsorships", cancellationToken);
 		await EnsureTenantIndexAsync<ClubTeamProfile>("clubTeamProfiles", cancellationToken);
 		await EnsureTenantIndexAsync<OrganizationLocation>("organizationLocations", cancellationToken);
 		await EnsureTenantIndexAsync<FinanceTransaction>("financeTransactions", cancellationToken);
