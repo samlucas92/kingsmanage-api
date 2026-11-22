@@ -30,22 +30,23 @@ public sealed class GoogleSheetsFinanceMapperTests
 	}
 
 	[Test]
-	public void Import_AddsOnlyTheAmountMissingFromExistingPlayerPayments()
+	public void ImportPreview_RecognisesSignOnFeesAndCalculatesOnlyMissingAmounts()
 	{
 		var layout = Layout();
 		var existing = new List<FinanceTransaction>
 		{
-			Payment(20, new DateTime(2026, 8, 1), "Registration fee"),
+			Payment(30, new DateTime(2026, 8, 1), "Sign on fee"),
 			Payment(50, new DateTime(2026, 9, 10), "Bank transfer")
 		};
 
-		var additions = GoogleSheetsFinanceMapper.BuildMissingPayments(layout, existing, "26/27 Monthly Subs");
+		var candidates = GoogleSheetsFinanceMapper.BuildImportCandidates(layout, existing);
 
 		Assert.Multiple(() =>
 		{
-			Assert.That(additions.Select(item => item.Amount), Is.EqualTo(new[] { 10m, 60m, 20m }));
-			Assert.That(additions[0].Note, Does.Contain("Registration Fee"));
-			Assert.That(additions[1].TransactionDate, Is.EqualTo(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc)));
+			Assert.That(candidates.Select(item => item.AmountToAdd), Is.EqualTo(new[] { 0m, 60m, 20m }));
+			Assert.That(candidates[0].RecordedAmount, Is.EqualTo(30m));
+			Assert.That(candidates[0].Label, Is.EqualTo("Registration Fee"));
+			Assert.That(candidates[1].TransactionDate, Is.EqualTo(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc)));
 		});
 	}
 
@@ -55,7 +56,7 @@ public sealed class GoogleSheetsFinanceMapperTests
 		var layout = Layout();
 		var transactions = new List<FinanceTransaction>
 		{
-			Payment(30, new DateTime(2026, 8, 1), "Registration fee"),
+			Payment(30, new DateTime(2026, 8, 1), "Sign-on fee"),
 			Payment(40, new DateTime(2026, 9, 10), "First instalment"),
 			Payment(70, new DateTime(2026, 9, 20), "Second instalment")
 		};

@@ -8,7 +8,10 @@ namespace KingsManage.Web.Services;
 
 public interface IGoogleSheetsFinanceSyncService
 {
-	Task<GoogleSheetsFinanceSyncViewModel> ImportPlayerAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken = default);
+	Task<GoogleSheetsFinanceImportPreviewViewModel> PreviewPlayerImportAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken = default);
+	Task<GoogleSheetsFinanceImportPreviewViewModel> PreviewSeasonImportAsync(Guid seasonId, CancellationToken cancellationToken = default);
+	Task<GoogleSheetsFinanceImportResultViewModel> ImportSelectedAsync(Guid seasonId, IReadOnlyList<string> transactionIds, CancellationToken cancellationToken = default);
+	Task<GoogleSheetsFinanceResetViewModel> ResetSeasonPaymentsAsync(Guid seasonId, CancellationToken cancellationToken = default);
 	Task<GoogleSheetsFinanceSyncViewModel> ExportPlayerAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken = default);
 }
 
@@ -37,54 +40,116 @@ public sealed class GoogleSheetsFinanceSyncService : IGoogleSheetsFinanceSyncSer
 		this.finance = finance;
 	}
 
-	public async Task<GoogleSheetsFinanceSyncViewModel> ImportPlayerAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken = default)
+	public async Task<GoogleSheetsFinanceImportPreviewViewModel> PreviewPlayerImportAsync(
+		Guid playerId,
+		Guid seasonId,
+		CancellationToken cancellationToken = default)
 	{
-		var context = await LoadContextAsync(playerId, seasonId, cancellationToken);
+		var workbook = await LoadWorkbookAsync(seasonId, cancellationToken);
+		var player = await players.GetByIdAsync(playerId, cancellationToken)
+			?? throw new InvalidOperationException("Player was not found.");
 		var transactions = await finance.GetPlayerTransactionsAsync(playerId, seasonId, cancellationToken);
-		var additions = GoogleSheetsFinanceMapper.BuildMissingPayments(context.Layout, transactions, context.SheetName);
+		return BuildImportPlan(workbook, [player], transactions, true).Preview;
+	}
 
-		foreach (var addition in additions)
+	public async Task<GoogleSheetsFinanceImportPreviewViewModel> PreviewSeasonImportAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default)
+	{
+		var workbook = await LoadWorkbookAsync(seasonId, cancellationToken);
+		var playerList = await players.GetAllAsync(cancellationToken);
+		var transactions = await finance.GetSeasonTransactionsAsync(seasonId, cancellationToken);
+		return BuildImportPlan(workbook, playerList, transactions, false).Preview;
+	}
+
+	public async Task<GoogleSheetsFinanceImportResultViewModel> ImportSelectedAsync(
+		Guid seasonId,
+		IReadOnlyList<string> transactionIds,
+		CancellationToken cancellationToken = default)
+	{
+		if (transactionIds.Count == 0) throw new InvalidOperationException("Select at least one transaction to import.");
+		var workbook = await LoadWorkbookAsync(seasonId, cancellationToken);
+		var playerList = await players.GetAllAsync(cancellationToken);
+		var transactions = await finance.GetSeasonTransactionsAsync(seasonId, cancellationToken);
+		var plan = BuildImportPlan(workbook, playerList, transactions, false);
+		var selectedIds = transactionIds.ToHashSet(StringComparer.Ordinal);
+		var selected = plan.Entries.Where(entry => selectedIds.Contains(entry.ViewModel.Id) && entry.ViewModel.AmountToAdd > 0).ToList();
+		if (selected.Count == 0) throw new InvalidOperationException("The selected payments are already recorded or are no longer available to import.");
+
+		foreach (var entry in selected)
 		{
 			await finance.AddTransactionAsync(new FinanceTransaction
 			{
-				PlayerId = playerId,
+				PlayerId = entry.ViewModel.PlayerId,
 				SeasonId = seasonId,
 				Type = FinanceTransactionType.Payment,
-				Amount = addition.Amount,
-				Note = addition.Note,
-				TransactionDate = addition.TransactionDate
+				Amount = entry.ViewModel.AmountToAdd,
+				Note = $"Imported from Google Sheets · {workbook.SheetName} · {entry.ViewModel.Label}",
+				TransactionDate = entry.TransactionDate
 			}, cancellationToken);
 		}
 
-		var amount = additions.Sum(item => item.Amount);
-		return Result("import", context, additions.Count, amount,
-			additions.Count == 0
-				? $"{context.Player.Name} already has all payments recorded from {context.SheetName}."
-				: $"Added {additions.Count} missing payment{(additions.Count == 1 ? string.Empty : "s")} totalling £{amount:0.00} for {context.Player.Name}.");
+		var playerCount = selected.Select(entry => entry.ViewModel.PlayerId).Distinct().Count();
+		var total = selected.Sum(entry => entry.ViewModel.AmountToAdd);
+		return new GoogleSheetsFinanceImportResultViewModel
+		{
+			SheetName = workbook.SheetName,
+			TransactionsCreated = selected.Count,
+			PlayersUpdated = playerCount,
+			AmountCreated = total,
+			Message = $"Imported {selected.Count} payment{(selected.Count == 1 ? string.Empty : "s")} totalling £{total:0.00} for {playerCount} player{(playerCount == 1 ? string.Empty : "s")}."
+		};
 	}
 
-	public async Task<GoogleSheetsFinanceSyncViewModel> ExportPlayerAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken = default)
+	public async Task<GoogleSheetsFinanceResetViewModel> ResetSeasonPaymentsAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default)
 	{
-		var context = await LoadContextAsync(playerId, seasonId, cancellationToken);
+		_ = await seasons.GetByIdAsync(seasonId, cancellationToken)
+			?? throw new InvalidOperationException("Season was not found.");
+		var deleted = await finance.DeleteSeasonPaymentsAsync(seasonId, cancellationToken);
+		return new GoogleSheetsFinanceResetViewModel
+		{
+			DeletedPayments = deleted,
+			Message = $"Removed {deleted} payment{(deleted == 1 ? string.Empty : "s")} from the selected season. Amounts owed and adjustments were preserved."
+		};
+	}
+
+	public async Task<GoogleSheetsFinanceSyncViewModel> ExportPlayerAsync(
+		Guid playerId,
+		Guid seasonId,
+		CancellationToken cancellationToken = default)
+	{
+		var workbook = await LoadWorkbookAsync(seasonId, cancellationToken);
+		var player = await players.GetByIdAsync(playerId, cancellationToken)
+			?? throw new InvalidOperationException("Player was not found.");
+		var layout = GoogleSheetsFinanceMapper.FindPlayer(workbook.Values, player, workbook.Season);
 		var transactions = await finance.GetPlayerTransactionsAsync(playerId, seasonId, cancellationToken);
-		var export = GoogleSheetsFinanceMapper.BuildExport(context.Layout, transactions);
+		var export = GoogleSheetsFinanceMapper.BuildExport(layout, transactions);
 		await google.UpdateValuesAsync(
-			context.AccessToken,
-			context.Integration.SpreadsheetId!,
-			context.SheetName,
-			context.Layout.RowNumber,
+			workbook.AccessToken,
+			workbook.Integration.SpreadsheetId!,
+			workbook.SheetName,
+			layout.RowNumber,
 			export.StartColumn,
 			export.Values,
 			cancellationToken);
 
-		return Result("export", context, export.ChangedCells, export.Total,
-			$"Updated {context.Player.Name}'s finance row in {context.SheetName}. No other player rows were changed.");
+		return new GoogleSheetsFinanceSyncViewModel
+		{
+			Direction = "export",
+			PlayerId = player.Id,
+			PlayerName = player.Name,
+			SheetName = workbook.SheetName,
+			RowNumber = layout.RowNumber,
+			CellsChanged = export.ChangedCells,
+			AmountChanged = export.Total,
+			Message = $"Updated {player.Name}'s finance row in {workbook.SheetName}. No other player rows were changed."
+		};
 	}
 
-	private async Task<SyncContext> LoadContextAsync(Guid playerId, Guid seasonId, CancellationToken cancellationToken)
+	private async Task<WorkbookContext> LoadWorkbookAsync(Guid seasonId, CancellationToken cancellationToken)
 	{
-		var player = await players.GetByIdAsync(playerId, cancellationToken)
-			?? throw new InvalidOperationException("Player was not found.");
 		var season = await seasons.GetByIdAsync(seasonId, cancellationToken)
 			?? throw new InvalidOperationException("Season was not found.");
 		var integration = await integrations.GetCurrentAsync(cancellationToken);
@@ -94,39 +159,75 @@ public sealed class GoogleSheetsFinanceSyncService : IGoogleSheetsFinanceSyncSer
 		var sheetName = GoogleSheetsFinanceMapper.ResolveMonthlySubsSheet(integration.Sheets, season);
 		var token = await google.RefreshAccessTokenAsync(protector.Unprotect(integration.EncryptedRefreshToken), cancellationToken);
 		var values = await google.GetValuesAsync(token.Value, integration.SpreadsheetId, sheetName, cancellationToken);
-		var layout = GoogleSheetsFinanceMapper.FindPlayer(values, player, season);
-		return new SyncContext(player, season, integration, sheetName, token.Value, layout);
+		return new WorkbookContext(season, integration, sheetName, token.Value, values);
 	}
 
-	private static GoogleSheetsFinanceSyncViewModel Result(
-		string direction,
-		SyncContext context,
-		int cellsChanged,
-		decimal amountChanged,
-		string message) => new()
+	private static ImportPlan BuildImportPlan(
+		WorkbookContext workbook,
+		IReadOnlyList<Player> playerList,
+		IReadOnlyList<FinanceTransaction> transactions,
+		bool failOnUnmatched)
 	{
-		Direction = direction,
-		PlayerId = context.Player.Id,
-		PlayerName = context.Player.Name,
-		SheetName = context.SheetName,
-		RowNumber = context.Layout.RowNumber,
-		CellsChanged = cellsChanged,
-		AmountChanged = amountChanged,
-		Message = message
-	};
+		var entries = new List<ImportPlanEntry>();
+		var unmatched = new List<string>();
+		foreach (var player in playerList.OrderBy(item => item.Name))
+		{
+			GoogleSheetsPlayerFinanceLayout layout;
+			try
+			{
+				layout = GoogleSheetsFinanceMapper.FindPlayer(workbook.Values, player, workbook.Season);
+			}
+			catch (InvalidOperationException error) when (
+				error.Message.Contains("was not found in the Monthly Subs player rows", StringComparison.Ordinal) ||
+				error.Message.Contains("More than one row matched", StringComparison.Ordinal))
+			{
+				if (failOnUnmatched) throw;
+				unmatched.Add(player.Name);
+				continue;
+			}
 
-	private sealed record SyncContext(
-		Player Player,
+			var playerTransactions = transactions.Where(item => item.PlayerId == player.Id).ToList();
+			foreach (var candidate in GoogleSheetsFinanceMapper.BuildImportCandidates(layout, playerTransactions))
+			{
+				var item = new GoogleSheetsFinanceImportItemViewModel
+				{
+					Id = $"{player.Id:N}:{candidate.Column}",
+					PlayerId = player.Id,
+					PlayerName = player.Name,
+					PlayerNumber = player.Number,
+					Label = candidate.Label,
+					SheetAmount = candidate.SheetAmount,
+					RecordedAmount = candidate.RecordedAmount,
+					AmountToAdd = candidate.AmountToAdd
+				};
+				entries.Add(new ImportPlanEntry(item, candidate.TransactionDate));
+			}
+		}
+
+		return new ImportPlan(
+			new GoogleSheetsFinanceImportPreviewViewModel
+			{
+				SheetName = workbook.SheetName,
+				Items = entries.Select(entry => entry.ViewModel).ToList(),
+				UnmatchedPlayers = unmatched
+			},
+			entries);
+	}
+
+	private sealed record WorkbookContext(
 		Season Season,
 		OrganizationGoogleSheetsIntegration Integration,
 		string SheetName,
 		string AccessToken,
-		GoogleSheetsPlayerFinanceLayout Layout);
+		IReadOnlyList<IReadOnlyList<string>> Values);
+
+	private sealed record ImportPlan(GoogleSheetsFinanceImportPreviewViewModel Preview, IReadOnlyList<ImportPlanEntry> Entries);
+	private sealed record ImportPlanEntry(GoogleSheetsFinanceImportItemViewModel ViewModel, DateTime TransactionDate);
 }
 
 public sealed record GoogleSheetsFinanceCell(int Column, string Label, DateTime TransactionDate, bool IsRegistration, decimal Amount);
 public sealed record GoogleSheetsPlayerFinanceLayout(int RowNumber, int StartColumn, IReadOnlyList<string> RowValues, IReadOnlyList<GoogleSheetsFinanceCell> Cells);
-public sealed record GoogleSheetsPaymentAddition(decimal Amount, string Note, DateTime TransactionDate);
+public sealed record GoogleSheetsFinanceImportCandidate(int Column, string Label, DateTime TransactionDate, decimal SheetAmount, decimal RecordedAmount, decimal AmountToAdd);
 public sealed record GoogleSheetsFinanceExport(int StartColumn, IReadOnlyList<object?> Values, int ChangedCells, decimal Total);
 
 public static partial class GoogleSheetsFinanceMapper
@@ -218,27 +319,28 @@ public static partial class GoogleSheetsFinanceMapper
 		return new GoogleSheetsPlayerFinanceLayout(matchingRows[0] + 1, registrationColumn + 1, playerRow, cells);
 	}
 
-	public static IReadOnlyList<GoogleSheetsPaymentAddition> BuildMissingPayments(
+	public static IReadOnlyList<GoogleSheetsFinanceImportCandidate> BuildImportCandidates(
 		GoogleSheetsPlayerFinanceLayout layout,
-		IReadOnlyList<FinanceTransaction> transactions,
-		string sheetName)
+		IReadOnlyList<FinanceTransaction> transactions)
 	{
 		var payments = transactions.Where(item => item.Type == FinanceTransactionType.Payment).ToList();
-		var additions = new List<GoogleSheetsPaymentAddition>();
-		foreach (var cell in layout.Cells.Where(item => item.Amount > 0))
-		{
-			var recorded = payments.Where(payment => cell.IsRegistration
-				? IsRegistration(payment)
-				: !IsRegistration(payment) && payment.TransactionDate.Year == cell.TransactionDate.Year && payment.TransactionDate.Month == cell.TransactionDate.Month)
-				.Sum(payment => payment.Amount);
-			var missing = decimal.Round(cell.Amount - recorded, 2);
-			if (missing <= 0) continue;
-			additions.Add(new GoogleSheetsPaymentAddition(
-				missing,
-				$"Imported from Google Sheets · {sheetName} · {cell.Label}",
-				cell.TransactionDate));
-		}
-		return additions;
+		return layout.Cells
+			.Where(cell => cell.Amount > 0)
+			.Select(cell =>
+			{
+				var recorded = payments.Where(payment => cell.IsRegistration
+					? IsRegistration(payment)
+					: !IsRegistration(payment) && payment.TransactionDate.Year == cell.TransactionDate.Year && payment.TransactionDate.Month == cell.TransactionDate.Month)
+					.Sum(payment => payment.Amount);
+				return new GoogleSheetsFinanceImportCandidate(
+					cell.Column,
+					cell.Label,
+					cell.TransactionDate,
+					cell.Amount,
+					recorded,
+					Math.Max(0, decimal.Round(cell.Amount - recorded, 2)));
+			})
+			.ToList();
 	}
 
 	public static GoogleSheetsFinanceExport BuildExport(GoogleSheetsPlayerFinanceLayout layout, IReadOnlyList<FinanceTransaction> transactions)
@@ -267,8 +369,13 @@ public static partial class GoogleSheetsFinanceMapper
 		return new GoogleSheetsFinanceExport(startColumn, output, changed, total);
 	}
 
-	private static bool IsRegistration(FinanceTransaction transaction) =>
-		transaction.Note.Contains("registration", StringComparison.OrdinalIgnoreCase);
+	private static bool IsRegistration(FinanceTransaction transaction)
+	{
+		var note = Normalize(transaction.Note);
+		return note.Contains("registration", StringComparison.Ordinal) ||
+			note.Contains("sign on", StringComparison.Ordinal) ||
+			note.Contains("signing", StringComparison.Ordinal);
+	}
 
 	private static bool TryParseMonth(string value, out DateTime month) =>
 		DateTime.TryParseExact(value.Trim(), ["MMM yyyy", "MMMM yyyy"], BritishCulture, DateTimeStyles.AllowWhiteSpaces, out month);

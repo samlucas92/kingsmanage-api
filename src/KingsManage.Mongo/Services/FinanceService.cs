@@ -87,6 +87,18 @@ public class FinanceService : IFinanceService
 		return result.DeletedCount > 0;
 	}
 
+	public async Task<long> DeleteSeasonPaymentsAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default)
+	{
+		var result = await transactions.DeleteManyAsync(
+			tenant.Filter<FinanceTransaction>(transaction =>
+				transaction.SeasonId == seasonId &&
+				transaction.Type == FinanceTransactionType.Payment),
+			cancellationToken);
+		return result.DeletedCount;
+	}
+
 	public async Task<FinanceTransaction> SetPlayerAmountOwedAsync(
 		Guid playerId,
 		Guid? seasonId,

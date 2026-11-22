@@ -364,6 +364,15 @@ public class FinanceControllerTests
 			return Task.FromResult(true);
 		}
 
+		public Task<long> DeleteSeasonPaymentsAsync(
+			Guid seasonId,
+			CancellationToken cancellationToken = default)
+		{
+			var removed = Transactions.RemoveAll(transaction =>
+				transaction.SeasonId == seasonId && transaction.Type == FinanceTransactionType.Payment);
+			return Task.FromResult((long)removed);
+		}
+
 		public async Task<FinanceTransaction> SetPlayerAmountOwedAsync(
 			Guid playerId,
 			Guid? seasonId,

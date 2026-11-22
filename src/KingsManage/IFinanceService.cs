@@ -23,6 +23,11 @@ public interface IFinanceService
 		CancellationToken cancellationToken = default
 	);
 
+	Task<long> DeleteSeasonPaymentsAsync(
+		Guid seasonId,
+		CancellationToken cancellationToken = default
+	);
+
 	Task<FinanceTransaction> SetPlayerAmountOwedAsync(
 		Guid playerId,
 		Guid? seasonId,

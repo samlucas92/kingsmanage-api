@@ -66,6 +66,7 @@ public class FinanceReportQueryServiceTests
 		public Task<IReadOnlyList<FinanceTransaction>> GetPlayerTransactionsAsync(Guid playerId, Guid? seasonId = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 		public Task<FinanceTransaction> AddTransactionAsync(FinanceTransaction transaction, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 		public Task<bool> DeleteTransactionAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+		public Task<long> DeleteSeasonPaymentsAsync(Guid seasonId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 		public Task<FinanceTransaction> SetPlayerAmountOwedAsync(Guid playerId, Guid? seasonId, decimal amount, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 		public Task<FinanceTransaction> AddPaymentAsync(Guid playerId, Guid? seasonId, decimal amount, string? note, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 		public Task<FinanceTransaction> AddAdjustmentAsync(Guid playerId, Guid? seasonId, decimal amount, string? note, CancellationToken cancellationToken = default) => throw new NotSupportedException();
