@@ -16,6 +16,7 @@ public interface IGoogleSheetsIntegrationClient
 	Task<GoogleAccessToken> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
 	Task<GoogleSpreadsheetMetadata> GetSpreadsheetAsync(string accessToken, string spreadsheetId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<IReadOnlyList<string>>> GetValuesAsync(string accessToken, string spreadsheetId, string sheetName, CancellationToken cancellationToken = default);
+	Task UpdateValuesAsync(string accessToken, string spreadsheetId, string sheetName, int rowNumber, int startColumn, IReadOnlyList<object?> values, CancellationToken cancellationToken = default);
 }
 
 public sealed class GoogleSheetsIntegrationClient : IGoogleSheetsIntegrationClient
@@ -116,6 +117,31 @@ public sealed class GoogleSheetsIntegrationClient : IGoogleSheetsIntegrationClie
 			.ToList();
 	}
 
+	public async Task UpdateValuesAsync(
+		string accessToken,
+		string spreadsheetId,
+		string sheetName,
+		int rowNumber,
+		int startColumn,
+		IReadOnlyList<object?> values,
+		CancellationToken cancellationToken = default)
+	{
+		if (values.Count == 0) return;
+		var escapedSheet = sheetName.Replace("'", "''", StringComparison.Ordinal);
+		var endColumn = startColumn + values.Count - 1;
+		var rangeName = $"'{escapedSheet}'!{ToColumnName(startColumn)}{rowNumber}:{ToColumnName(endColumn)}{rowNumber}";
+		var url = $"https://sheets.googleapis.com/v4/spreadsheets/{Escape(spreadsheetId)}/values/{Escape(rangeName)}?valueInputOption=USER_ENTERED";
+		using var request = AuthorizedRequest(HttpMethod.Put, url, accessToken);
+		request.Content = JsonContent.Create(new
+		{
+			range = rangeName,
+			majorDimension = "ROWS",
+			values = new[] { values }
+		});
+		using var response = await http.SendAsync(request, cancellationToken);
+		using var _ = await ReadJsonAsync(response, "The player finance row could not be updated in Google Sheets.", cancellationToken);
+	}
+
 	private static HttpRequestMessage AuthorizedRequest(HttpMethod method, string url, string accessToken)
 	{
 		var request = new HttpRequestMessage(method, url);
@@ -153,4 +179,17 @@ public sealed class GoogleSheetsIntegrationClient : IGoogleSheetsIntegrationClie
 	private static string? OptionalString(JsonElement value, string name) =>
 		value.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String ? property.GetString() : null;
 	private static string Escape(string value) => Uri.EscapeDataString(value);
+
+	private static string ToColumnName(int column)
+	{
+		if (column < 1) throw new ArgumentOutOfRangeException(nameof(column));
+		var result = string.Empty;
+		while (column > 0)
+		{
+			column--;
+			result = (char)('A' + column % 26) + result;
+			column /= 26;
+		}
+		return result;
+	}
 }

@@ -160,6 +160,7 @@ builder.Services.AddScoped<IUserMembershipService, UserMembershipService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<IIntegrationSecretProtector, AesGcmIntegrationSecretProtector>();
+builder.Services.AddScoped<IGoogleSheetsFinanceSyncService, GoogleSheetsFinanceSyncService>();
 builder.Services.AddHttpClient<IMetaGraphClient, MetaGraphClient>();
 builder.Services.AddHttpClient<IGoogleSheetsIntegrationClient, GoogleSheetsIntegrationClient>(client =>
 {
