@@ -55,6 +55,21 @@ public sealed class TenantDataMigrator
 		await EnsureSocialGraphicTemplateIndexesAsync(cancellationToken);
 		await EnsureHandoverVaultIndexesAsync(cancellationToken);
 		await EnsureSocialPublishingIndexesAsync(cancellationToken);
+		await EnsureGoogleSheetsIntegrationIndexesAsync(cancellationToken);
+	}
+
+	private async Task EnsureGoogleSheetsIntegrationIndexesAsync(CancellationToken cancellationToken)
+	{
+		var integrations = database.GetCollection<OrganizationGoogleSheetsIntegration>("organizationGoogleSheetsIntegrations");
+		await integrations.Indexes.CreateOneAsync(new CreateIndexModel<OrganizationGoogleSheetsIntegration>(
+			Builders<OrganizationGoogleSheetsIntegration>.IndexKeys.Ascending(item => item.OrganizationId),
+			new CreateIndexOptions { Name = "Organization_1", Unique = true }), cancellationToken: cancellationToken);
+
+		var oauthStates = database.GetCollection<GoogleSheetsOAuthState>("googleSheetsOAuthStates");
+		await oauthStates.Indexes.CreateManyAsync([
+			new CreateIndexModel<GoogleSheetsOAuthState>(Builders<GoogleSheetsOAuthState>.IndexKeys.Ascending(item => item.StateHash), new CreateIndexOptions { Name = "StateHash_1", Unique = true }),
+			new CreateIndexModel<GoogleSheetsOAuthState>(Builders<GoogleSheetsOAuthState>.IndexKeys.Ascending(item => item.ExpiresAt), new CreateIndexOptions { Name = "ExpiresAtTtl_1", ExpireAfter = TimeSpan.Zero })
+		], cancellationToken);
 	}
 
 	private async Task EnsureLeagueRuleIndexesAsync(CancellationToken cancellationToken)

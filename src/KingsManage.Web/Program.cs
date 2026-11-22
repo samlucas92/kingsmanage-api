@@ -53,6 +53,9 @@ var metaIntegrationSettings = builder.Configuration
 var googleSheetsExportSettings = builder.Configuration
 	.GetSection("GoogleSheetsExport")
 	.Get<GoogleSheetsExportSettings>() ?? new GoogleSheetsExportSettings();
+var googleSheetsIntegrationSettings = builder.Configuration
+	.GetSection("GoogleSheetsIntegration")
+	.Get<GoogleSheetsIntegrationSettings>() ?? new GoogleSheetsIntegrationSettings();
 
 r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
 r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
@@ -65,9 +68,16 @@ metaIntegrationSettings.AppId = Environment.GetEnvironmentVariable("META_APP_ID"
 metaIntegrationSettings.AppSecret = Environment.GetEnvironmentVariable("META_APP_SECRET") ?? metaIntegrationSettings.AppSecret;
 metaIntegrationSettings.RedirectUri = Environment.GetEnvironmentVariable("META_REDIRECT_URI") ?? metaIntegrationSettings.RedirectUri;
 metaIntegrationSettings.GraphApiVersion = Environment.GetEnvironmentVariable("META_GRAPH_API_VERSION") ?? metaIntegrationSettings.GraphApiVersion;
-metaIntegrationSettings.TokenEncryptionKey = Environment.GetEnvironmentVariable("META_TOKEN_ENCRYPTION_KEY") ?? metaIntegrationSettings.TokenEncryptionKey;
+metaIntegrationSettings.TokenEncryptionKey = Environment.GetEnvironmentVariable("INTEGRATION_TOKEN_ENCRYPTION_KEY")
+	?? Environment.GetEnvironmentVariable("META_TOKEN_ENCRYPTION_KEY")
+	?? metaIntegrationSettings.TokenEncryptionKey;
 googleSheetsExportSettings.WebhookUrl = Environment.GetEnvironmentVariable("GOOGLE_SHEETS_EXPORT_WEBHOOK_URL") ?? googleSheetsExportSettings.WebhookUrl;
 googleSheetsExportSettings.SharedSecret = Environment.GetEnvironmentVariable("GOOGLE_SHEETS_EXPORT_SECRET") ?? googleSheetsExportSettings.SharedSecret;
+googleSheetsIntegrationSettings.ClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? googleSheetsIntegrationSettings.ClientId;
+googleSheetsIntegrationSettings.ClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? googleSheetsIntegrationSettings.ClientSecret;
+googleSheetsIntegrationSettings.RedirectUri = Environment.GetEnvironmentVariable("GOOGLE_SHEETS_REDIRECT_URI") ?? googleSheetsIntegrationSettings.RedirectUri;
+googleSheetsIntegrationSettings.PickerApiKey = Environment.GetEnvironmentVariable("GOOGLE_PICKER_API_KEY") ?? googleSheetsIntegrationSettings.PickerApiKey;
+googleSheetsIntegrationSettings.PickerAppId = Environment.GetEnvironmentVariable("GOOGLE_PICKER_APP_ID") ?? googleSheetsIntegrationSettings.PickerAppId;
 
 if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 {
@@ -80,6 +90,7 @@ builder.Services.AddSingleton(fileLifecycleSettings);
 builder.Services.AddSingleton(billingSettings);
 builder.Services.AddSingleton(metaIntegrationSettings);
 builder.Services.AddSingleton(googleSheetsExportSettings);
+builder.Services.AddSingleton(googleSheetsIntegrationSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -118,6 +129,7 @@ builder.Services.AddScoped<IFormAnalyticsService, FormAnalyticsService>();
 builder.Services.AddScoped<IClubPostTemplateService, ClubPostTemplateService>();
 builder.Services.AddScoped<ISocialGraphicTemplateService, SocialGraphicTemplateService>();
 builder.Services.AddScoped<IOrganizationMetaIntegrationService, OrganizationMetaIntegrationService>();
+builder.Services.AddScoped<IOrganizationGoogleSheetsIntegrationService, OrganizationGoogleSheetsIntegrationService>();
 builder.Services.AddScoped<ISocialPublicationService, SocialPublicationService>();
 builder.Services.AddScoped<IClubTeamService, ClubTeamService>();
 builder.Services.AddScoped<IOrganizationLocationService, OrganizationLocationService>();
@@ -149,6 +161,10 @@ builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<IIntegrationSecretProtector, AesGcmIntegrationSecretProtector>();
 builder.Services.AddHttpClient<IMetaGraphClient, MetaGraphClient>();
+builder.Services.AddHttpClient<IGoogleSheetsIntegrationClient, GoogleSheetsIntegrationClient>(client =>
+{
+	client.Timeout = TimeSpan.FromSeconds(20);
+});
 builder.Services.AddHttpClient<IGoogleSheetsMatchExporter, GoogleSheetsMatchExporter>(client =>
 {
 	client.Timeout = TimeSpan.FromSeconds(20);

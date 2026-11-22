@@ -11,6 +11,14 @@ public sealed class SocialPublishingAuthorizationTests
 		AssertPolicy(typeof(OrganizationIntegrationsController), "OrganizationAdmin");
 
 	[Test]
+	public void GoogleSheetsConfiguration_IsOrganizationAdminOnly() =>
+		AssertPolicy(typeof(OrganizationGoogleSheetsIntegrationsController), "OrganizationAdmin");
+
+	[Test]
+	public void GoogleSheetsViewer_IsLimitedToTeamManagement() =>
+		AssertPolicy(typeof(GoogleSheetsWorkbookController), "TeamManagement");
+
+	[Test]
 	public void SocialPublishing_IsClubAdminOnly() =>
 		AssertPolicy(typeof(SocialPublicationsController), "ClubAdmin");
 

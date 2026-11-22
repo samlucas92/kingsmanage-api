@@ -58,7 +58,7 @@ public sealed class AesGcmIntegrationSecretProtector : IIntegrationSecretProtect
 
 	private void EnsureConfigured()
 	{
-		if (key.Length != 32) throw new InvalidOperationException("META_TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key.");
+		if (key.Length != 32) throw new InvalidOperationException("INTEGRATION_TOKEN_ENCRYPTION_KEY (or the legacy META_TOKEN_ENCRYPTION_KEY) must be a base64-encoded 32-byte key.");
 	}
 }
 
