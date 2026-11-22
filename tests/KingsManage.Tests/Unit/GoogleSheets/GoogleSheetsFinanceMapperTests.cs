@@ -80,7 +80,7 @@ public sealed class GoogleSheetsFinanceMapperTests
 			new[] { "26/27 Season" },
 			Array.Empty<string>(),
 			Array.Empty<string>(),
-			new[] { "No.", "Player", "Registration Fee", "Aug 2026", "Sep 2026", "Oct 2026" },
+			new[] { "No.", "Player", "Registration Fee", "Aug 2026", "\u200eSep\u00a02026", "Oct 2026" },
 			new[] { "12", "Alex Wilson", "£20.00", "", "£110.00", "" }
 		};
 		var player = new Player { Id = Guid.NewGuid(), Name = "Alex Wilson", Number = 12 };

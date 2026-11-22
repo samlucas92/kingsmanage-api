@@ -111,7 +111,7 @@ public sealed class GoogleSheetsFinanceSyncService : IGoogleSheetsFinanceSyncSer
 		return new GoogleSheetsFinanceResetViewModel
 		{
 			DeletedPayments = deleted,
-			Message = $"Removed {deleted} payment{(deleted == 1 ? string.Empty : "s")} from the selected season. Amounts owed and adjustments were preserved."
+			Message = $"Removed {deleted} Yepset payment{(deleted == 1 ? string.Empty : "s")} from the selected season. The Google Sheet was not changed; amounts owed and adjustments were preserved."
 		};
 	}
 
@@ -377,8 +377,51 @@ public static partial class GoogleSheetsFinanceMapper
 			note.Contains("signing", StringComparison.Ordinal);
 	}
 
-	private static bool TryParseMonth(string value, out DateTime month) =>
-		DateTime.TryParseExact(value.Trim(), ["MMM yyyy", "MMMM yyyy"], BritishCulture, DateTimeStyles.AllowWhiteSpaces, out month);
+	private static bool TryParseMonth(string value, out DateTime month)
+	{
+		var tokens = Normalize(value).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+		for (var index = 0; index < tokens.Length - 1; index++)
+		{
+			if (!TryParseMonthName(tokens[index], out var monthNumber) ||
+				!int.TryParse(tokens[index + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var year) ||
+				year is < 2000 or > 2100)
+			{
+				continue;
+			}
+
+			month = new DateTime(year, monthNumber, 1);
+			return true;
+		}
+
+		return DateTime.TryParse(
+			value.Trim(),
+			BritishCulture,
+			DateTimeStyles.AllowWhiteSpaces,
+			out month);
+	}
+
+	private static bool TryParseMonthName(string value, out int month)
+	{
+		month = value.Length >= 3
+			? value[..3] switch
+			{
+				"jan" => 1,
+				"feb" => 2,
+				"mar" => 3,
+				"apr" => 4,
+				"may" => 5,
+				"jun" => 6,
+				"jul" => 7,
+				"aug" => 8,
+				"sep" => 9,
+				"oct" => 10,
+				"nov" => 11,
+				"dec" => 12,
+				_ => 0
+			}
+			: 0;
+		return month > 0;
+	}
 
 	private static decimal ParseCurrency(string value)
 	{
