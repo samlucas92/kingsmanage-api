@@ -94,6 +94,12 @@ public class ControllerAuthorizationTests
 	}
 
 	[Test]
+	public void MatchExportsController_ShouldRequireTeamManagement()
+	{
+		AssertControllerHasPolicy(typeof(MatchExportsController), "TeamManagement");
+	}
+
+	[Test]
 	public void StatsController_ShouldRequireTeamManagement()
 	{
 		AssertControllerHasPolicy(typeof(StatsController), "TeamManagement");

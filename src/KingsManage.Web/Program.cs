@@ -50,6 +50,9 @@ var billingSettings = builder.Configuration
 var metaIntegrationSettings = builder.Configuration
 	.GetSection("MetaIntegration")
 	.Get<MetaIntegrationSettings>() ?? new MetaIntegrationSettings();
+var googleSheetsExportSettings = builder.Configuration
+	.GetSection("GoogleSheetsExport")
+	.Get<GoogleSheetsExportSettings>() ?? new GoogleSheetsExportSettings();
 
 r2StorageSettings.AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? r2StorageSettings.AccountId;
 r2StorageSettings.AccessKeyId = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? r2StorageSettings.AccessKeyId;
@@ -63,6 +66,8 @@ metaIntegrationSettings.AppSecret = Environment.GetEnvironmentVariable("META_APP
 metaIntegrationSettings.RedirectUri = Environment.GetEnvironmentVariable("META_REDIRECT_URI") ?? metaIntegrationSettings.RedirectUri;
 metaIntegrationSettings.GraphApiVersion = Environment.GetEnvironmentVariable("META_GRAPH_API_VERSION") ?? metaIntegrationSettings.GraphApiVersion;
 metaIntegrationSettings.TokenEncryptionKey = Environment.GetEnvironmentVariable("META_TOKEN_ENCRYPTION_KEY") ?? metaIntegrationSettings.TokenEncryptionKey;
+googleSheetsExportSettings.WebhookUrl = Environment.GetEnvironmentVariable("GOOGLE_SHEETS_EXPORT_WEBHOOK_URL") ?? googleSheetsExportSettings.WebhookUrl;
+googleSheetsExportSettings.SharedSecret = Environment.GetEnvironmentVariable("GOOGLE_SHEETS_EXPORT_SECRET") ?? googleSheetsExportSettings.SharedSecret;
 
 if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
 {
@@ -74,6 +79,7 @@ builder.Services.AddSingleton(r2StorageSettings);
 builder.Services.AddSingleton(fileLifecycleSettings);
 builder.Services.AddSingleton(billingSettings);
 builder.Services.AddSingleton(metaIntegrationSettings);
+builder.Services.AddSingleton(googleSheetsExportSettings);
 
 builder.Services.Configure<JwtSettings>(options =>
 {
@@ -143,6 +149,10 @@ builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<IIntegrationSecretProtector, AesGcmIntegrationSecretProtector>();
 builder.Services.AddHttpClient<IMetaGraphClient, MetaGraphClient>();
+builder.Services.AddHttpClient<IGoogleSheetsMatchExporter, GoogleSheetsMatchExporter>(client =>
+{
+	client.Timeout = TimeSpan.FromSeconds(20);
+});
 
 if (fileLifecycleSettings.Enabled)
 {
